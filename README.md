@@ -1,0 +1,2 @@
+# SlaytheSpirebasedonQQ
+当你想在qq群里打牌而你有一个程序鸢朋友的时候：
