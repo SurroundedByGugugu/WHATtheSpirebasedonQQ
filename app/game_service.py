@@ -22,10 +22,12 @@ from game.run_engine import (
     finish_current_battle_if_needed,
     get_reward_view,
     take_reward,
+    take_rewards,
     choose_reward_card,
     skip_reward,
     replace_reward_potion,
     handle_shop_buy,
+    handle_shop_buy_batch,
     handle_remove_card_view_or_choose,
     handle_random_remove_card,
     leave_shop,
@@ -198,12 +200,14 @@ class GameService(object):
         
         if command in ("take", "claim", "领取", "拿取"):
             if len(parts) < 3:
-                return "用法：/card take 奖励编号，例如 /card take 0"
-            try:
-                option_index = int(parts[2])
-            except ValueError:
-                return "奖励编号必须是数字。"
-            reply = take_reward(run_state, option_index)
+                return "用法：/card take 奖励编号，例如 /card take 0 或 /card take 0,1,2"
+            option_indices = self.parse_index_list(parts[2])
+            if option_indices is None:
+                return "奖励编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card take 0,1,2。"
+            if len(option_indices) == 1:
+                reply = take_reward(run_state, option_indices[0])
+            else:
+                reply = take_rewards(run_state, option_indices)
             if run_state.run_over:
                 self.clear_run(session_id)
             return reply
@@ -238,12 +242,13 @@ class GameService(object):
 
         if command in ("buy", "购买"):
             if len(parts) < 3:
-                return "用法：/card buy 商品编号，例如 /card buy 0"
-            try:
-                item_index = int(parts[2])
-            except ValueError:
-                return "商品编号必须是数字。"
-            return handle_shop_buy(run_state, item_index)
+                return "用法：/card buy 商品编号，例如 /card buy 0 或 /card buy 0,1,2"
+            item_indices = self.parse_index_list(parts[2])
+            if item_indices is None:
+                return "商品编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card buy 0,1,2。"
+            if len(item_indices) == 1:
+                return handle_shop_buy(run_state, item_indices[0])
+            return handle_shop_buy_batch(run_state, item_indices)
 
 
         if command in ("remove", "remove_card", "删牌", "删除牌"):
@@ -557,9 +562,10 @@ class GameService(object):
             get_combat_view(game_state)
         ])
     
-    def parse_hand_index_list(self, raw_value):
+    def parse_index_list(self, raw_value):
         """
-        解析：
+        解析编号列表。
+        支持：
         0
         0,1,2
         0，1，2
@@ -570,28 +576,26 @@ class GameService(object):
         text = raw_value.strip()
         text = text.replace("，", ",")
         text = text.replace("、", ",")
-
         if not text:
             return None
-
         parts = text.split(",")
         result = []
-
         for item in parts:
             item = item.strip()
-
             if not item:
                 continue
-
             try:
                 result.append(int(item))
             except ValueError:
                 return None
-
         if not result:
             return None
-
         return result
+    def parse_hand_index_list(self, raw_value):
+        """
+        兼容旧的手牌批量出牌解析。
+        """
+        return self.parse_index_list(raw_value)
 
     def handle_use_potion(self, game_state, parts):
         """

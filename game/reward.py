@@ -146,6 +146,7 @@ class RewardState:
 
         lines.append("")
         lines.append("使用 /card take 0 领取奖励。")
+        lines.append("使用 /card take 0,1,2 批量领取奖励。")
         lines.append("卡牌奖励需要先 /card take 对应编号，再 /card pick 0 选择卡牌。")
         lines.append("使用 /card skip 放弃剩余奖励。")
 

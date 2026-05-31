@@ -143,6 +143,7 @@ def format_shop(run_state):
 
     lines.append("")
     lines.append("使用 /card buy 0 购买商品。")
+    lines.append("使用 /card buy 0,1,2 批量购买商品。")
     lines.append("使用 /card leave 离开商店。")
 
     return "\n".join(lines)
@@ -216,6 +217,67 @@ def buy_shop_item(run_state, item_index):
 
     return "未知商品类型：{}。".format(item.item_type)
 
+
+def buy_shop_items(run_state, item_indices):
+    """
+    批量购买商店商品。
+
+    规则：
+    1. 按输入顺序依次购买。
+    2. 每次购买都按当前金币、当前商品状态重新判断。
+    3. 某一项购买失败时中止，后续商品不再计算。
+    4. 已经成功购买的商品不会回滚。
+    """
+    shop_state = run_state.pending_shop
+
+    if shop_state is None:
+        return "当前不在商店。"
+
+    if not item_indices:
+        return "没有指定要购买的商品编号。"
+
+    logs = []
+    seen_step = 0
+
+    for item_index in item_indices:
+        seen_step += 1
+
+        if item_index < 0 or item_index >= len(shop_state.items):
+            logs.append("批量购买第 {} 项中止：商品编号无效：{}。".format(
+                seen_step,
+                item_index
+            ))
+            break
+
+        item = shop_state.items[item_index]
+
+        if item.sold:
+            logs.append("批量购买第 {} 项中止：[{}] 已售罄。".format(
+                seen_step,
+                item_index
+            ))
+            break
+
+        if run_state.gold < item.price:
+            logs.append("批量购买第 {} 项中止：金币不足。当前金币：{}，需要：{}。".format(
+                seen_step,
+                run_state.gold,
+                item.price
+            ))
+            break
+
+        before_sold = item.sold
+        reply = buy_shop_item(run_state, item_index)
+        logs.append("批量购买第 {} 项：[{}]".format(seen_step, item_index))
+        logs.append(reply)
+
+        # 药水栏满等情况会返回提示，但不会把 item.sold 改成 True。
+        # 这种视为购买失败，中止后续购买。
+        if not before_sold and not item.sold:
+            logs.append("该商品未成功购买，批量购买中止。")
+            break
+
+    return "\n".join(logs)
 
 def format_remove_card_choices(run_state):
     shop_state = run_state.pending_shop

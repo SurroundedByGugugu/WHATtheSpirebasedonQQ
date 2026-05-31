@@ -30,6 +30,7 @@ from game.node_shop import (
     create_shop_state,
     format_shop,
     buy_shop_item,
+    buy_shop_items,
     format_remove_card_choices,
     remove_card_by_index,
     random_remove_card,
@@ -114,6 +115,99 @@ def take_reward(run_state, option_index):
         "",
         run_state.pending_reward.reward_text()
     ])
+
+def take_rewards(run_state, option_indices):
+    """
+    批量领取战斗奖励。
+
+    规则：
+    1. 按输入顺序依次领取。
+    2. 已成功领取的奖励不回滚。
+    3. 遇到卡牌奖励时会打开选牌界面并中止，等待 /card pick。
+    4. 遇到药水栏满、无效编号、已领取等无法继续的情况时中止。
+    """
+    if run_state.pending_reward is None:
+        return "当前没有待领取奖励。"
+
+    if not option_indices:
+        return "没有指定要领取的奖励编号。"
+
+    reward_state = run_state.pending_reward
+    logs = []
+
+    for step_index, option_index in enumerate(option_indices):
+        if run_state.pending_reward is None:
+            logs.append("奖励已经全部处理完毕，批量领取结束。")
+            break
+
+        reward_state = run_state.pending_reward
+
+        if option_index < 0 or option_index >= len(reward_state.options):
+            logs.append("批量领取第 {} 项中止：奖励编号无效：{}。".format(
+                step_index + 1,
+                option_index
+            ))
+            break
+
+        option = reward_state.options[option_index]
+
+        if option.claimed:
+            logs.append("批量领取第 {} 项中止：[{}] 已领取。".format(
+                step_index + 1,
+                option_index
+            ))
+            break
+
+        if option.skipped:
+            logs.append("批量领取第 {} 项中止：[{}] 已放弃。".format(
+                step_index + 1,
+                option_index
+            ))
+            break
+
+        logs.append("批量领取第 {} 项：[{}] {}".format(
+            step_index + 1,
+            option_index,
+            option.title
+        ))
+
+        before_claimed = option.claimed
+        before_active_card_index = reward_state.active_card_option_index
+
+        reply = take_reward_option(
+            run_state=run_state,
+            reward_state=reward_state,
+            option_index=option_index
+        )
+
+        logs.append(reply)
+
+        # 卡牌奖励不会直接 claimed，而是打开三选一。
+        # 打开后必须让玩家 /card pick，不能继续批量领取后续奖励。
+        if reward_state.active_card_option_index >= 0:
+            logs.append("已打开卡牌奖励，批量领取中止。请使用 /card pick 0 选择卡牌。")
+            break
+
+        # 药水栏满等情况：没有 claimed，也没有打开卡牌选择。
+        # 这种说明没有成功领取，停止批处理。
+        if not before_claimed and not option.claimed:
+            if before_active_card_index == reward_state.active_card_option_index:
+                logs.append("该奖励未成功领取，批量领取中止。")
+                break
+
+        if reward_state.all_done():
+            run_state.pending_reward = None
+            logs.append("")
+            logs.append(get_after_reward_text(run_state))
+            return "\n".join(logs)
+
+    if run_state.pending_reward is None:
+        return "\n".join(logs)
+
+    logs.append("")
+    logs.append(run_state.pending_reward.reward_text())
+
+    return "\n".join(logs)
 
 def enter_current_node(run_state, seed=DEBUG_SEED):
     """
@@ -756,6 +850,12 @@ def handle_shop_buy(run_state, item_index):
         format_shop(run_state)
     ])
 
+def handle_shop_buy_batch(run_state, item_indices):
+    return "\n".join([
+        buy_shop_items(run_state, item_indices),
+        "",
+        format_shop(run_state)
+    ])
 
 def handle_remove_card_view_or_choose(run_state, card_index=None):
     if card_index is None:
