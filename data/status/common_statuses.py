@@ -1,0 +1,81 @@
+# data/status/common_statuses.py
+# -*- coding: utf-8 -*-
+
+from data.status.base_status import StatusDef
+from data.status.AAAregistry import register_status_def
+
+
+register_status_def(StatusDef(
+    key="strength",
+    name="力量",
+    description="攻击伤害增加。",
+    category="buff",
+    display_mode="value",
+    order=10,
+    can_be_negative=True,
+))
+
+register_status_def(StatusDef(
+    key="dexterity",
+    name="敏捷",
+    description="获得格挡时数值增加。",
+    category="buff",
+    display_mode="value",
+    order=20,
+    can_be_negative=True,
+))
+
+register_status_def(StatusDef(
+    key="vulnerable",
+    name="易伤",
+    description="受到攻击伤害增加。",
+    category="debuff",
+    display_mode="turns",
+    order=30,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
+
+register_status_def(StatusDef(
+    key="weak",
+    name="虚弱",
+    description="造成攻击伤害降低。",
+    category="debuff",
+    display_mode="turns",
+    order=40,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
+
+register_status_def(StatusDef(
+    key="poison",
+    name="中毒",
+    description="回合开始或结束时受到伤害。",
+    category="debuff",
+    display_mode="stack",
+    order=50,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
+
+register_status_def(StatusDef(
+    key="thorns",
+    name="荆棘",
+    description="受到攻击后，对攻击来源造成等同于荆棘层数的反伤。荆棘不随回合衰减。",
+    category="buff",
+    display_mode="stack",
+    order=60,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="frail",
+    name="脆弱",
+    description="获得格挡降低。",
+    category="debuff",
+    display_mode="turns",
+    order=45,
+    decay_timing="turn_end",
+    decay_amount=1,
+))

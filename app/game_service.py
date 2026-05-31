@@ -3,6 +3,7 @@
 from game.constants import DEBUG_SEED
 from game.engine import (
     play_card,
+    play_cards_by_original_indices,
     end_turn,
     get_relics,
     use_potion,
@@ -10,6 +11,7 @@ from game.engine import (
     get_draw_pile,
     get_discard_pile,
     get_exhaust_pile,
+    get_combat_view,
     discard_selected_hand_cards
 )
 
@@ -22,7 +24,15 @@ from game.run_engine import (
     take_reward,
     choose_reward_card,
     skip_reward,
-    replace_reward_potion
+    replace_reward_potion,
+    handle_shop_buy,
+    handle_remove_card_view_or_choose,
+    handle_random_remove_card,
+    leave_shop,
+    handle_rest_option,
+    handle_smith_card,
+    handle_event_option,
+    handle_ancient_option,
 )
 from game.route import format_route_text
 
@@ -170,7 +180,10 @@ class GameService(object):
 
         if command in ("potions", "potion_list", "药水", "查看药水", "道具", "查看道具"):
             return self.get_run_potions(run_state)
-
+        
+        if command in ("deck", "master_deck", "牌库", "查看牌库", "卡组", "查看卡组"):
+            return self.get_run_deck(run_state)
+        
         if command in ("pick", "choose", "选择奖励", "选牌"):
             if len(parts) < 3:
                 return "用法：/card pick 卡牌编号，例如 /card pick 0"
@@ -213,6 +226,93 @@ class GameService(object):
                 
         if command in ("skip", "skip_reward", "跳过", "跳过奖励"):
             reply = skip_reward(run_state)
+            if run_state.run_over:
+                self.clear_run(session_id)
+            return reply
+        
+        # 商店命令
+        if command in ("shop", "商店"):
+            if run_state.pending_shop is None:
+                return "当前不在商店。"
+            return get_run_view(run_state)
+
+        if command in ("buy", "购买"):
+            if len(parts) < 3:
+                return "用法：/card buy 商品编号，例如 /card buy 0"
+            try:
+                item_index = int(parts[2])
+            except ValueError:
+                return "商品编号必须是数字。"
+            return handle_shop_buy(run_state, item_index)
+
+
+        if command in ("remove", "remove_card", "删牌", "删除牌"):
+            if len(parts) < 3:
+                return handle_remove_card_view_or_choose(run_state)
+            try:
+                card_index = int(parts[2])
+            except ValueError:
+                return "卡牌编号必须是数字。"
+            return handle_remove_card_view_or_choose(run_state, card_index)
+
+
+        if command in ("random_remove", "randomremove", "随机删牌"):
+            return handle_random_remove_card(run_state, seed=DEBUG_SEED)
+
+        if command in ("leave", "离开"):
+            reply = leave_shop(run_state)
+            if run_state.run_over:
+                self.clear_run(session_id)
+            return reply
+
+        # 火堆命令
+        if command in ("rest", "火堆", "休息"):
+            if len(parts) < 3:
+                return get_run_view(run_state)
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "火堆选项编号必须是数字。"
+            reply = handle_rest_option(run_state, choice_index)
+            if run_state.run_over:
+                self.clear_run(session_id)
+            return reply
+
+
+        if command in ("smith", "upgrade", "锻造", "升级"):
+            if len(parts) < 3:
+                return "用法：/card smith 0"
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "锻造编号必须是数字。"
+            reply = handle_smith_card(run_state, choice_index)
+            if run_state.run_over:
+                self.clear_run(session_id)
+            return reply
+
+        # 事件命令
+        if command in ("event", "事件"):
+            if len(parts) < 3:
+                return get_run_view(run_state)
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "事件选项编号必须是数字。"
+            reply = handle_event_option(run_state, choice_index, seed=DEBUG_SEED)
+            if run_state.run_over:
+                self.clear_run(session_id)
+            return reply
+
+        # 先古之民命令
+        if command in ("ancient", "先古", "先古之民"):
+            if len(parts) < 3:
+                return get_run_view(run_state)
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "先古之民选项编号必须是数字。"
+            reply = handle_ancient_option(run_state, choice_index, seed=DEBUG_SEED)
             if run_state.run_over:
                 self.clear_run(session_id)
             return reply
@@ -336,7 +436,7 @@ class GameService(object):
         return "\n".join([
             "=== 遗物故事 ===",
             "[{}] 【{}】".format(relic_index, relic.name),
-            "",
+            # "",
             story
         ])
 
@@ -359,6 +459,25 @@ class GameService(object):
         max_slots = getattr(run_state, "max_potion_slots", 3)
         lines.append("")
         lines.append("药水栏：{}/{}".format(len(potions), max_slots))
+
+        return "\n".join(lines)
+
+    def get_run_deck(self, run_state):
+        deck = getattr(run_state, "master_deck", [])
+
+        lines = []
+        lines.append("=== 当前牌库 ===")
+        lines.append("数量：{}".format(len(deck)))
+
+        if not deck:
+            lines.append("当前牌库为空。")
+            return "\n".join(lines)
+
+        for index, card in enumerate(deck):
+            lines.append("[{}] {}".format(
+                index,
+                card.summary_text()
+            ))
 
         return "\n".join(lines)
 
@@ -409,14 +528,16 @@ class GameService(object):
     def handle_play(self, game_state, parts):
         """
         /card play 手牌编号 [敌人编号]
+        /card play 0,1,2,3 [敌人编号]
+        /card play 0，1，2，3 [敌人编号]
         """
         if len(parts) < 3:
-            return "用法：/card play 手牌编号 [敌人编号]"
+            return "用法：/card play 手牌编号 [敌人编号]，例如 /card play 0 或 /card play 0,1,2"
 
-        try:
-            hand_index = int(parts[2])
-        except ValueError:
-            return "手牌编号必须是数字。"
+        hand_indices = self.parse_hand_index_list(parts[2])
+
+        if hand_indices is None:
+            return "手牌编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card play 0,1,2。"
 
         target_index = 0
 
@@ -426,8 +547,52 @@ class GameService(object):
             except ValueError:
                 return "敌人编号必须是数字。"
 
-        return play_card(game_state, hand_index, target_index)
+        if len(hand_indices) == 1:
+            reply = play_card(game_state, hand_indices[0], target_index)
+        else:
+            reply = play_cards_by_original_indices(game_state, hand_indices, target_index)
+
+        return "\n\n".join([
+            reply,
+            get_combat_view(game_state)
+        ])
     
+    def parse_hand_index_list(self, raw_value):
+        """
+        解析：
+        0
+        0,1,2
+        0，1，2
+        0、1、2
+        返回 list[int]。
+        解析失败返回 None。
+        """
+        text = raw_value.strip()
+        text = text.replace("，", ",")
+        text = text.replace("、", ",")
+
+        if not text:
+            return None
+
+        parts = text.split(",")
+        result = []
+
+        for item in parts:
+            item = item.strip()
+
+            if not item:
+                continue
+
+            try:
+                result.append(int(item))
+            except ValueError:
+                return None
+
+        if not result:
+            return None
+
+        return result
+
     def handle_use_potion(self, game_state, parts):
         """
         /card potion 药水编号 [敌人编号]
@@ -488,19 +653,37 @@ class GameService(object):
             "/card characters 查看可选角色",
             "/card new 0      选择 0 号测试角色并开始测试战斗",
             "/card view       查看战斗状态和手牌",
-            "/card relics     查看已有遗物",
-            "/card relic_story 0    查看遗物的小故事（*可能有严重的私货夹带",
-            "/card potions    查看药水",
-            "/card potion 0   使用第 0 个药水",
-            "/card potion 0 1 使用第 0 个药水，目标为第 1 个敌人",
-            "/card draw       查看抽牌堆",
-            "/card discard    查看弃牌堆",
-            "/card exhaust    查看消耗牌堆",
-            "/card play 0     打出第 0 张手牌，默认攻击第 0 个敌人",
-            "/card play 0 1   打出第 0 张手牌，攻击第 1 个敌人",
-            "/card replace_potion 2 0 药水栏满时，用奖励 2 替换已有药水 0",
-            "/card end        结束当前回合",
             "/card help       查看帮助",
+            "*目前全部指令过多，请使用.help我超，塔 查看相关内容。"
         ])
             # "",
             # "兼容旧命令：/card status 和 /card hand 现在都会显示战斗状态 + 手牌。"
+            # "/card relics     查看已有遗物",
+            # "/card relic_story 0    查看遗物的小故事（*可能有严重的私货夹带",
+            # "/card potions    查看药水",
+            # "/card potion 0   使用第 0 个药水",
+            # "/card potion 0 1 使用第 0 个药水，目标为第 1 个敌人",
+            # "/card draw       查看抽牌堆",
+            # "/card discard    查看弃牌堆",
+            # "/card exhaust    查看消耗牌堆",
+            # "/card deck       查看当前永久牌库",
+            # "/card play 0     打出第 0 张手牌，默认攻击第 0 个敌人",
+            # "/card play 0 1   打出第 0 张手牌，攻击第 1 个敌人",
+            # "/card play 0,1,2 依次打出第 0、1、2 张原始手牌，默认攻击第 0 个敌人",
+            # "/card play 0,1,2 1 依次打出第 0、1、2 张原始手牌，攻击第 1 个敌人",
+            # "/card replace_potion 2 0 药水栏满时，用奖励 2 替换已有药水 0",
+            # "/card end        结束当前回合",
+            # "/card help       查看帮助",
+            # "/card route     查看当前路线",        
+            # "/card next 0    选择下一个节点",
+            # "/card ancient 0 选择先古之民选项",
+            # "/card event 0   选择事件选项",
+            # "/card shop      查看商店",
+            # "/card buy 0     购买商店商品",
+            # "/card remove    查看可删除牌",
+            # "/card remove 0  定向删除第 0 张牌",
+            # "/card random_remove 随机删除一张牌",
+            # "/card leave     离开商店",
+            # "/card rest 0    火堆休息",
+            # "/card rest 1    查看可锻造牌",
+            # "/card smith 0   锻造升级一张牌",
