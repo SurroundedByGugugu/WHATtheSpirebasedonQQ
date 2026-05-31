@@ -683,6 +683,27 @@ def process_enemy_action(game_state, enemy):
 
     return logs
 
+def format_enemy_current_status(enemies):
+    """
+    进入新回合时显示敌人当前状态。
+    主要用于查看敌人 HP、格挡、状态、下一步意图。
+    """
+    lines = []
+    alive_enemies = [
+        enemy for enemy in enemies
+        if enemy.is_alive()
+    ]
+    if not alive_enemies:
+        return "敌人状态：无存活敌人"
+    lines.append("敌人状态：")
+    for index, enemy in enumerate(enemies):
+        if not enemy.is_alive():
+            continue
+        lines.append("[{}] {}".format(
+            index,
+            enemy.status_text()
+        ))
+    return "\n".join(lines)
 
 def end_turn(game_state):
     """
@@ -728,6 +749,7 @@ def end_turn(game_state):
     )
     logs.extend(dispatch_event(game_state, EVENT_TURN_START, context))
     logs.append(player.status_text())
+    logs.append(format_enemy_current_status(game_state.enemies))
     logs.extend(player.draw_cards(5))
     return "\n".join(logs)
 
