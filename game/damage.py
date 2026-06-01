@@ -12,12 +12,13 @@ def deal_damage(
     amount,
     damage_kind="attack",
     card=None,
-    is_reaction_damage=False
+    is_reaction_damage=False,
+    ignore_block=False
 ):
     """
     统一伤害入口。
 
-    source: 伤害来源，例如玩家、敌人
+    source: 伤害来源，例如玩家、敌人、状态拥有者
     target: 受伤目标
     amount: 结算前伤害
     damage_kind:
@@ -27,6 +28,8 @@ def deal_damage(
         effect   其他效果伤害
     is_reaction_damage:
         用于避免荆棘反伤继续触发荆棘。
+    ignore_block:
+        是否无视格挡。中毒建议使用 True。
     """
     logs = []
 
@@ -42,7 +45,26 @@ def deal_damage(
     old_block = target.block
     was_alive = target.is_alive()
 
-    logs.append(target.take_damage(amount))
+    if ignore_block:
+        if amount <= 0:
+            logs.append("{} 没有受到伤害。".format(target.name))
+        else:
+            target.hp -= amount
+
+            if target.hp < 0:
+                target.hp = 0
+
+            real_damage = old_hp - target.hp
+
+            logs.append("{} 失去 {} 点生命，剩余 HP：{}/{}，格挡：{}。".format(
+                target.name,
+                real_damage,
+                target.hp,
+                target.max_hp,
+                target.block
+            ))
+    else:
+        logs.append(target.take_damage(amount))
 
     real_damage = old_hp - target.hp
     blocked = old_block - target.block
@@ -65,6 +87,7 @@ def deal_damage(
             "blocked": blocked,
             "damage_kind": damage_kind,
             "is_reaction_damage": is_reaction_damage,
+            "ignore_block": ignore_block,
         }
     )
 

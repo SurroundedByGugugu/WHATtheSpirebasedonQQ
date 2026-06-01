@@ -25,6 +25,8 @@ class EnemyIntent:
                 "thorns": "荆棘",
                 "strength": "力量",
                 "dexterity": "敏捷",
+                "poison": "中毒",
+                "poison_thorns": "毒荆棘",
             }
             status_name = status_name_map.get(self.status, self.status)
             if self.target == "self":

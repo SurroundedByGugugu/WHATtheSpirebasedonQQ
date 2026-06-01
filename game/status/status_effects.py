@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from game.constants import EVENT_DAMAGE_AFTER
+from game.constants import EVENT_DAMAGE_AFTER, EVENT_TURN_END
 from game.modifiers import get_status_value
 
 
 STATUS_EVENT_PRIORITY = {
     "thorns": 50,
+    "poison_thorns": 49,
+    "poison": 20,
 }
 
 
@@ -132,7 +134,100 @@ def handle_thorns(event_name, context, owner, value):
 
     return logs
 
+def handle_poison_thorns(event_name, context, owner, value):
+    """
+    毒荆棘：
+    owner 被攻击后，使攻击来源获得中毒。
+
+    当前规则与荆棘保持一致：
+    1. 只响应 attack 类型伤害
+    2. 反应伤害不会继续触发毒荆棘
+    3. 只要攻击伤害结算值 amount > 0，就触发毒荆棘
+    """
+    logs = []
+
+    if event_name != EVENT_DAMAGE_AFTER:
+        return logs
+
+    if context.target is not owner:
+        return logs
+
+    if context.extra.get("damage_kind") != "attack":
+        return logs
+
+    if context.extra.get("is_reaction_damage"):
+        return logs
+
+    amount = int(context.extra.get("amount", 0))
+    if amount <= 0:
+        return logs
+
+    source = context.source
+
+    if source is None:
+        return logs
+
+    if source is owner:
+        return logs
+
+    if not source.is_alive():
+        return logs
+
+    poison = int(value)
+
+    if poison <= 0:
+        return logs
+
+    current = source.gain_status("poison", poison)
+
+    logs.append("{} 的毒荆棘使 {} 获得 {} 层中毒。当前中毒：{}。".format(
+        owner.name,
+        source.name,
+        poison,
+        current
+    ))
+
+    return logs
+
+def handle_poison(event_name, context, owner, value):
+    """
+    中毒：
+    回合结束时，拥有者失去等同于中毒层数的生命。
+
+    当前规则：
+    1. 在 EVENT_TURN_END 触发。
+    2. 无视格挡。
+    3. 先造成伤害，再由 engine.py 统一处理 turn_end 状态衰减。
+    """
+    logs = []
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None:
+        return logs
+    if not owner.is_alive():
+        return logs
+    poison = int(value)
+    if poison <= 0:
+        return logs
+    logs.append("{} 受到 {} 层中毒影响。".format(
+        owner.name,
+        poison
+    ))
+    from game.damage import deal_damage
+    logs.extend(deal_damage(
+        game_state=context.game_state,
+        source=owner,
+        target=owner,
+        amount=poison,
+        damage_kind="poison",
+        card=None,
+        is_reaction_damage=False,
+        ignore_block=True
+    ))
+    return logs
 
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
+    "poison_thorns": handle_poison_thorns,
+    "poison": handle_poison,
 }

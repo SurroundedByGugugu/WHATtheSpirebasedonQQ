@@ -50,7 +50,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="poison",
     name="中毒",
-    description="回合开始或结束时受到伤害。",
+    description="回合结束时失去等同于层数的生命，然后层数减少 1。",
     category="debuff",
     display_mode="stack",
     order=50,
@@ -78,4 +78,15 @@ register_status_def(StatusDef(
     order=45,
     decay_timing="turn_end",
     decay_amount=1,
+))
+
+register_status_def(StatusDef(
+    key="poison_thorns",
+    name="毒荆棘",
+    description="受到攻击后，使攻击来源获得等同于层数的中毒。毒荆棘不随回合衰减。",
+    category="buff",
+    display_mode="stack",
+    order=65,
+    decay_timing="none",
+    decay_amount=0,
 ))

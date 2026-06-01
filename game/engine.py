@@ -597,48 +597,103 @@ def decay_statuses_by_timing(game_state, timing):
             logs.append("{} 的 {}".format(entity.name, log))
     return logs
 
-def process_enemy_action(game_state, enemy):
+def find_first_alive_enemy_by_id(game_state, enemy_id, exclude_enemy=None):
+    for target in game_state.enemies:
+        if target is exclude_enemy:
+            continue
+        if not target.is_alive():
+            continue
+        if target.enemy_id == enemy_id:
+            return target
+    return None
+
+
+def get_enemy_action_target(game_state, enemy, target_key):
     """
-    处理单个敌人的行动。
-    enemy.act() 只返回动作，不直接处理玩家扣血。
+    解析敌人行动目标。
+
+    当前支持：
+    - player：玩家
+    - self：行动敌人自身
+    - corsoal_or_player：优先选择存活珊瑚，没有珊瑚时选择玩家
+    - enemy_id:<id>：选择第一个指定 id 的存活敌人
     """
-    logs = []
+    if not target_key:
+        target_key = "player"
 
-    old_block = enemy.clear_block()
-    if old_block > 0:
-        logs.append("{} 的 {} 点格挡消失。".format(enemy.name, old_block))
-        
-    result = enemy.act()
+    if target_key == "player":
+        return game_state.player
 
-    for log in result.logs:
-        logs.append(log)
+    if target_key == "self":
+        return enemy
 
-    action = result.action
+    if target_key == "corsoal_or_player":
+        corsoal = find_first_alive_enemy_by_id(
+            game_state,
+            "enemy.corsoal",
+            exclude_enemy=enemy
+        )
+        if corsoal is not None:
+            return corsoal
+        return game_state.player
+
+    if target_key.startswith("enemy_id:"):
+        enemy_id = target_key.split(":", 1)[1]
+        return find_first_alive_enemy_by_id(
+            game_state,
+            enemy_id,
+            exclude_enemy=enemy
+        )
+
+    return game_state.player
+
+
+def process_enemy_action_payload(game_state, enemy, action, logs):
     op = action.get("op")
 
-    if op == "enemy_attack":
-        damage = int(action.get("damage", 0))
+    if op == "enemy_multi_action":
+        child_actions = action.get("actions", [])
+        if not child_actions:
+            logs.append("敌人复合行动缺少 actions。")
+            return
 
+        for child_action in child_actions:
+            process_enemy_action_payload(game_state, enemy, child_action, logs)
+            result = check_battle_result(game_state)
+            if result:
+                logs.append(result)
+                break
+        return
+
+    if op == "enemy_attack":
+        target_key = action.get("target", "player")
+        target = get_enemy_action_target(game_state, enemy, target_key)
+        if target is None:
+            logs.append("敌人攻击目标无效。")
+            return
+        if not target.is_alive():
+            logs.append("{} 的攻击目标已经死亡。".format(enemy.name))
+            return
+        damage = int(action.get("damage", 0))
         damage = apply_modifier_profile(
             value=damage,
             modifier_profile="attack_damage",
             game_state=game_state,
             source=enemy,
-            target=game_state.player,
+            target=target,
             card=None,
             damage_source=DAMAGE_SOURCE_ENEMY_ACTION
         )
-
         logs.extend(deal_damage(
             game_state=game_state,
             source=enemy,
-            target=game_state.player,
+            target=target,
             amount=damage,
             damage_kind="attack",
             card=None
         ))
-
-    elif op == "enemy_gain_block":
+        return
+    if op == "enemy_gain_block":
         block = int(action.get("block", 0))
         block = apply_modifier_profile(
             value=block,
@@ -656,18 +711,21 @@ def process_enemy_action(game_state, enemy):
             enemy.name,
             block
         ))
-
-    elif op == "enemy_gain_status":
+        return
+    if op == "enemy_gain_status":
         target_key = action.get("target", "player")
         status_key = action.get("status", "")
         amount = int(action.get("amount", 0))
         if not status_key:
             logs.append("敌人状态行动缺少 status。")
-            return logs
-        if target_key == "self":
-            target = enemy
-        else:
-            target = game_state.player
+            return
+        target = get_enemy_action_target(game_state, enemy, target_key)
+        if target is None:
+            logs.append("敌人状态行动目标无效。")
+            return
+        if not target.is_alive():
+            logs.append("{} 的状态行动目标已经死亡。".format(enemy.name))
+            return
         current = target.gain_status(status_key, amount)
         status_name = get_status_name(status_key)
         logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
@@ -677,10 +735,28 @@ def process_enemy_action(game_state, enemy):
             status_name,
             current
         ))
+        return
+    logs.append("敌人行动未处理：{}".format(op))
 
-    else:
-        logs.append("敌人行动未处理：{}".format(op))
 
+def process_enemy_action(game_state, enemy):
+    """
+    处理单个敌人的行动。
+    enemy.act() 只返回动作，不直接处理玩家扣血。
+    """
+    logs = []
+    old_block = enemy.clear_block()
+    if old_block > 0:
+        logs.append("{} 的 {} 点格挡消失。".format(enemy.name, old_block))
+    result = enemy.act()
+    for log in result.logs:
+        logs.append(log)
+    process_enemy_action_payload(
+        game_state=game_state,
+        enemy=enemy,
+        action=result.action,
+        logs=logs
+    )
     return logs
 
 def format_enemy_current_status(enemies):
@@ -732,6 +808,27 @@ def end_turn(game_state):
         if result:
             logs.append(result)
             return "\n".join(logs)
+
+    turn_end_context = BattleContext(
+        game_state=game_state,
+        player=player,
+        source=player,
+        extra={
+            "timing": EVENT_TURN_END
+        }
+    )
+
+    turn_end_logs = dispatch_event(game_state, EVENT_TURN_END, turn_end_context)
+    if turn_end_logs:
+        logs.append("")
+        logs.append("回合结束状态结算：")
+        logs.extend(turn_end_logs)
+
+    result = check_battle_result(game_state)
+    if result:
+        logs.append(result)
+        return "\n".join(logs)
+
     status_decay_logs = decay_statuses_by_timing(game_state, EVENT_TURN_END)
     if status_decay_logs:
         logs.append("")
