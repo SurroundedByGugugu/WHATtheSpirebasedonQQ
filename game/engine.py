@@ -363,12 +363,9 @@ def play_card(game_state, hand_index, target_index=0):
                 card.cost
             )
 
-    if card.target == "enemy":
-        if target_index < 0 or target_index >= len(game_state.enemies):
-            return "目标敌人编号无效。"
-
-        if not game_state.enemies[target_index].is_alive():
-            return "目标敌人已经死亡。"
+    target_error = validate_card_target(game_state, card, target_index)
+    if target_error:
+        return target_error
 
     if is_x_cost:
         spent_cost = player.cost
@@ -441,67 +438,76 @@ def play_cards_by_original_indices(game_state, hand_indices, target_index=0):
 
     if game_state.battle_over:
         return "战斗已经结束。"
-
     player = game_state.player
-
     if not hand_indices:
         return "没有指定要打出的手牌。"
-
     seen = set()
     selected_cards = []
 
     for original_index in hand_indices:
         if original_index in seen:
             return "手牌编号重复：{}。".format(original_index)
-
         seen.add(original_index)
-
         if original_index < 0 or original_index >= len(player.hand):
             return "手牌编号无效：{}。".format(original_index)
-
         selected_cards.append((original_index, player.hand[original_index]))
-
     is_multi_play = len(selected_cards) > 1
-
     for step_index, item in enumerate(selected_cards):
         original_index, card = item
-
         if game_state.battle_over:
             logs.append("战斗已经结束，后续牌不再计算。")
             break
-
         current_index = -1
-
         for index, hand_card in enumerate(player.hand):
             if hand_card is card:
                 current_index = index
                 break
-
         if current_index < 0:
             logs.append("原手牌编号 [{}] 的【{}】已不在手牌中，批量出牌中止。".format(
                 original_index,
                 card.name
             ))
             break
-
-        if card.cost > player.cost:
-            logs.append("原手牌编号 [{}] 的【{}】费用不足，批量出牌中止。当前费用：{}，卡牌费用：{}。".format(
-                original_index,
-                card.name,
-                player.cost,
-                card.cost
-            ))
-            break
-
-        if card.target == "enemy":
+        is_x_cost = is_x_cost_card(card)
+        if not is_x_cost:
+            try:
+                fixed_cost = int(card.cost)
+            except (TypeError, ValueError):
+                logs.append("原手牌编号 [{}] 的【{}】费用类型无效，批量出牌中止：{}。".format(
+                    original_index,
+                    card.name,
+                    card.cost
+                ))
+                break
+            if fixed_cost > player.cost:
+                logs.append("原手牌编号 [{}] 的【{}】费用不足，批量出牌中止。当前费用：{}，卡牌费用：{}。".format(
+                    original_index,
+                    card.name,
+                    player.cost,
+                    fixed_cost
+                ))
+                break
+        card_target = getattr(card, "target", None)
+        if card_target == "enemy":
             if target_index < 0 or target_index >= len(game_state.enemies):
                 logs.append("目标敌人编号无效，批量出牌中止：{}。".format(target_index))
                 break
-
             if not game_state.enemies[target_index].is_alive():
                 logs.append("目标敌人已经死亡，批量出牌中止。")
                 break
-
+        elif card_target in ("all_enemies", "random_enemy"):
+            if game_state.is_all_enemies_dead():
+                logs.append("没有可攻击的敌人，批量出牌中止。")
+                break
+        elif card_target in ("self", "none", None):
+            pass
+        else:
+            logs.append("原手牌编号 [{}] 的【{}】目标类型未知，批量出牌中止：{}。".format(
+                original_index,
+                card.name,
+                card_target
+            ))
+            break
         if is_multi_play:
             logs.append("批量出牌 {}/{}：原手牌编号 [{}]【{}】。".format(
                 step_index + 1,
@@ -509,9 +515,7 @@ def play_cards_by_original_indices(game_state, hand_indices, target_index=0):
                 original_index,
                 card.name
             ))
-
         logs.append(play_card(game_state, current_index, target_index))
-
     return "\n".join(logs)
 
 def use_potion(game_state, potion_index, target_index=0):
@@ -849,6 +853,28 @@ def end_turn(game_state):
     logs.append(format_enemy_current_status(game_state.enemies))
     logs.extend(player.draw_cards(5))
     return "\n".join(logs)
+
+
+def validate_card_target(game_state, card, target_index):
+    """
+    校验卡牌目标。
+    enemy：需要玩家选择一个存活敌人。
+    all_enemies / random_enemy：不需要玩家选择具体敌人，但场上必须有存活敌人。
+    self / none：不需要敌方目标。
+    """
+    if card.target == "enemy":
+        if target_index < 0 or target_index >= len(game_state.enemies):
+            return "目标敌人编号无效。"
+        if not game_state.enemies[target_index].is_alive():
+            return "目标敌人已经死亡。"
+        return ""
+    if card.target in ("all_enemies", "random_enemy"):
+        if game_state.is_all_enemies_dead():
+            return "没有可攻击的敌人。"
+        return ""
+    if card.target in ("self", "none"):
+        return ""
+    return "未知的卡牌目标类型：{}。".format(card.target)
 
 
 def get_status(game_state):

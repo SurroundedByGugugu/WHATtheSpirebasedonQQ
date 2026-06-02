@@ -176,10 +176,10 @@ ACT2_TEST_ROUTE=[
         "node_id": "act1.rest.before_boss",
         "node_type": "rest",
         "name": "Boss 前火堆",
-        "next_node_ids": ["act1.boss"]
+        "next_node_ids": ["act1.elite"]
     },
     {
-        "node_id": "act1.boss",
+        "node_id": "act1.elite",
         "node_type": "elite",
         "name": "伪装成boss的精英",
         "encounter_id": "encounter.elite_dummy",

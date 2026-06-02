@@ -49,6 +49,11 @@ CHARACTER_CHOICES = [
         "index": 1,
         "character_id": "character.armored_warrior",
         "name": "铁甲战士"
+    },
+    {
+        "index": 2,
+        "character_id": "character.armored_warrior_test",
+        "name": "铁甲战士（拿到了不得了的东西版）"
     }
 ]
 

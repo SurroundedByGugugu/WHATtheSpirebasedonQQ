@@ -3,7 +3,7 @@
 from game.modifiers import apply_modifier_profile, get_status_value
 from game.status.status_defs import get_status_name
 from game.damage import deal_damage
-
+import random
 
 def resolve_amount(
     game_state,
@@ -114,17 +114,19 @@ def resolve_amount(
 
 def get_target_enemy(game_state, target_index):
     enemies = game_state.enemies
-
     if target_index < 0 or target_index >= len(enemies):
         return None
-
     enemy = enemies[target_index]
-
     if not enemy.is_alive():
         return None
-
     return enemy
 
+def get_alive_enemies(game_state):
+    alive_enemies = []
+    for enemy in game_state.enemies:
+        if enemy.is_alive():
+            alive_enemies.append(enemy)
+    return alive_enemies
 
 def get_effect_target_entity(game_state, target_key, target_index):
     if target_key in (None, "self"):
@@ -154,11 +156,9 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target_key=target_key,
             target_index=target_index
         )
-
         if target_entity is None:
             logs.append("目标敌人无效。")
             return logs
-
         damage = resolve_amount(
             game_state=game_state,
             card=card,
@@ -168,9 +168,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             damage_source="played_card",
             effect_context=effect_context
         )
-
         logs.append("【{}】造成 {} 点攻击伤害。".format(card.name, damage))
-
         logs.extend(deal_damage(
             game_state=game_state,
             source=game_state.player,
@@ -179,7 +177,73 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             damage_kind="attack",
             card=card
         ))
-
+        return logs
+    
+    if op == "deal_damage_random_enemies":
+        times_spec = effect.get("times", None)
+        if times_spec is None:
+            times_spec = effect.get("count", 1)
+        times = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=times_spec,
+            source=game_state.player,
+            target=game_state.player,
+            effect_context=effect_context
+        )
+        times = int(times)
+        if times <= 0:
+            logs.append("随机伤害次数为 0，【{}】没有造成伤害。".format(card.name))
+            return logs
+        unique_targets = bool(effect.get("unique_targets", False))
+        if unique_targets:
+            candidate_pool = get_alive_enemies(game_state)
+        else:
+            candidate_pool = None
+        for hit_index in range(times):
+            if game_state.battle_over:
+                logs.append("战斗已经结束，后续随机伤害不再结算。")
+                break
+            if game_state.is_all_enemies_dead():
+                logs.append("所有敌人已被击败，后续随机伤害不再结算。")
+                break
+            if unique_targets:
+                candidate_pool = [enemy for enemy in candidate_pool if enemy.is_alive()]
+                if not candidate_pool:
+                    logs.append("没有更多可随机命中的敌人。")
+                    break
+                target_entity = random.choice(candidate_pool)
+                candidate_pool.remove(target_entity)
+            else:
+                alive_enemies = get_alive_enemies(game_state)
+                if not alive_enemies:
+                    logs.append("没有可攻击的敌人。")
+                    break
+                target_entity = random.choice(alive_enemies)
+            damage = resolve_amount(
+                game_state=game_state,
+                card=card,
+                amount_spec=effect.get("amount"),
+                source=game_state.player,
+                target=target_entity,
+                damage_source="played_card",
+                effect_context=effect_context
+            )
+            logs.append("【{}】随机命中 {}，造成 {} 点攻击伤害。第 {}/{} 次。".format(
+                card.name,
+                target_entity.name,
+                damage,
+                hit_index + 1,
+                times
+            ))
+            logs.extend(deal_damage(
+                game_state=game_state,
+                source=game_state.player,
+                target=target_entity,
+                amount=damage,
+                damage_kind="attack",
+                card=card
+            ))
         return logs
 
     if op == "deal_damage_all_enemies":

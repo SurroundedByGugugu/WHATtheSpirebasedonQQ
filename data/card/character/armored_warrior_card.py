@@ -58,7 +58,7 @@ def create_whirlwind():
         name="旋风斩",
         card_type="attack",
         cost="X",
-        target="enemy",
+        target="all_enemies",
         description="消耗所有费用。对所有敌人造成 5 点伤害 X 次。",
         quantity="common",
         owner_character_id="character.armored_warrior",
