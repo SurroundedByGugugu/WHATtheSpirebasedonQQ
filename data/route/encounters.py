@@ -39,7 +39,6 @@ NORMAL_ENCOUNTER_POOL = [
 
 ELITE_ENCOUNTER_POOL = [
     "encounter.elite.chaos_fragment",
-    "encounter.corsoal_mareanie_pack"
 ]
 
 

@@ -182,6 +182,46 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         return logs
 
+    if op == "deal_damage_all_enemies":
+        alive_enemies = []
+        for enemy in game_state.enemies:
+            if enemy.is_alive():
+                alive_enemies.append(enemy)
+        if not alive_enemies:
+            logs.append("没有可攻击的敌人。")
+            return logs
+        for target_entity in alive_enemies:
+            if game_state.battle_over:
+                logs.append("战斗已经结束，后续全体伤害不再结算。")
+                break
+            if not target_entity.is_alive():
+                continue
+            damage = resolve_amount(
+                game_state=game_state,
+                card=card,
+                amount_spec=effect.get("amount"),
+                source=game_state.player,
+                target=target_entity,
+                damage_source="played_card",
+                effect_context=effect_context
+            )
+            logs.append("【{}】对 {} 造成 {} 点攻击伤害。".format(
+                card.name,
+                target_entity.name,
+                damage
+            ))
+            logs.extend(deal_damage(
+                game_state=game_state,
+                source=game_state.player,
+                target=target_entity,
+                amount=damage,
+                damage_kind="attack",
+                card=card
+            ))
+            if game_state.battle_over:
+                break
+        return logs
+
     if op == "gain_block":
         target_key = effect.get("target", "self")
         target_entity = get_effect_target_entity(

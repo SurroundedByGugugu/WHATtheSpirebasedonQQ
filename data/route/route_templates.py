@@ -183,9 +183,22 @@ ACT2_TEST_ROUTE=[
         "node_type": "elite",
         "name": "伪装成boss的精英",
         "encounter_id": "encounter.elite_dummy",
-        "next_node_ids": ["act1.node.10a", "act1.node.10b"]
+        "next_node_ids": ["act1.boss"]
+    },
+    {
+        "node_id": "act1.boss",
+        "node_type": "boss",
+        "name": "珊瑚集群和正在进食的棘冠海星",
+        "next_node_ids": []
     },
 ]
-
+TEST_TEST_ROUTE=[
+    {
+        "node_id": "act1.boss",
+        "node_type": "boss",
+        "name": "珊瑚",
+        "next_node_ids": []
+    },
+]
 
 TEST_ROUTE = ACT2_TEST_ROUTE

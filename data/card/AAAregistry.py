@@ -19,6 +19,7 @@ from data.card.character.test_character_cards import (
 
 from data.card.character.armored_warrior_card import(
     create_hard_blow,
+    create_whirlwind
 )
 
 CARD_REGISTRY = {
@@ -34,6 +35,7 @@ CARD_REGISTRY = {
     "card.test_heavy_strike": create_test_heavy_strike,
     "card.hard_blow": create_hard_blow,
     "card.test_x_drill": create_test_x_drill,
+    "card.whirlwind": create_whirlwind,
 }
 
 # CARD_REGISTRY = {

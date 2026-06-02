@@ -18,6 +18,7 @@ def create_hard_blow():
         target="enemy",
         description="造成 8 点伤害。赋予 2t 易伤",
         quantity="common",
+        owner_character_id="character.armored_warrior",
         card_vars={
             "damage": 8,
             "vulnerable": 2
@@ -51,45 +52,46 @@ def create_hard_blow():
         }
     )
 
-def create_():
+def create_whirlwind():
     return CardTemplate(
-        card_id="card.",
-        name="",
+        card_id="card.whirlwind",
+        name="旋风斩",
         card_type="attack",
-        cost=1,
+        cost="X",
         target="enemy",
-        description="造成 8 点伤害。赋予 2t 易伤",
+        description="消耗所有费用。对所有敌人造成 5 点伤害 X 次。",
         quantity="common",
         owner_character_id="character.armored_warrior",
         card_vars={
-            "damage": 8,
-            "vulnerable": 2
+            "damage": 5,
         },
+        x_rules=[],
         effects=[
             {
-                "op":"deal_damage",
-                "target":"selected_enemy",
-                "amount":{
-                    "base_var":"damage",
-                    "modifier_profile":"attack_damage"
-                }
-            },
-            {
-                "op":"gain_status",
-                "target":"selected_enemy",
-                "status":"vulnerable",
-                "amount":{
-                    "var":"vulnerable"
-                }
+                "op": "repeat_x",
+                "effects": [
+                    {
+                        "op": "deal_damage_all_enemies",
+                        "amount": {
+                            "base_var": "damage",
+                            "modifier_profile": "attack_damage"
+                        }
+                    }
+                ]
             }
         ],
         upgraded=False,
         upgrade_patch={
-            "name":"痛击+",
-            "description":"造成 10 点伤害。赋予 3t 易伤",
-            "card_vars":{
-                "damage": 10,
-                "vulnerable": 3
+            "name": "旋风斩+",
+            "description": "消耗所有费用。对所有敌人造成 8 点伤害 X+1 次。",
+            "card_vars": {
+                "damage": 8,
             },
+            "x_rules": [
+                {
+                    "op": "add",
+                    "amount": 1
+                }
+            ],
         }
     )
