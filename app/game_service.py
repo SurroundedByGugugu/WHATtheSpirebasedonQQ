@@ -12,7 +12,9 @@ from game.engine import (
     get_discard_pile,
     get_exhaust_pile,
     get_combat_view,
-    discard_selected_hand_cards
+    discard_selected_hand_cards,
+    get_status_detail,
+    get_zone_field_view,
 )
 
 from game.run_engine import (
@@ -35,6 +37,7 @@ from game.run_engine import (
     handle_smith_card,
     handle_event_option,
     handle_ancient_option,
+    handle_shop_item_detail,
 )
 from game.route import format_route_text
 
@@ -52,8 +55,8 @@ CHARACTER_CHOICES = [
     },
     {
         "index": 2,
-        "character_id": "character.armored_warrior_test",
-        "name": "铁甲战士（拿到了不得了的东西版）"
+        "character_id": "character.yoirine",
+        "name": "Yoirine"
     }
 ]
 
@@ -164,8 +167,18 @@ class GameService(object):
             return self.SAME_GROUP_SINGLE_GAME_MESSAGE
 
         # 这些命令是 Run 层命令，允许当前没有战斗
-        if command in ("status", "hand", "view", "state", "查看", "状态", "手牌", "查看战斗状态", "查看手牌"):
+        if command in ("hand", "view", "查看", "手牌", "查看战斗状态", "查看手牌"):
             return get_run_view(run_state)
+
+        if command in ("status", "状态", "查看状态", "查看buff", "buff", "debuff"):
+            if run_state.current_battle is None:
+                return "当前不在战斗中，没有可查看的全场状态。"
+            return get_status_detail(run_state.current_battle)
+
+        if command in ("state", "zone", "field", "场地", "查看场地", "查看zone", "查看field"):
+            if run_state.current_battle is None:
+                return "当前不在战斗中，没有可查看的 Zone / Field。"
+            return get_zone_field_view(run_state.current_battle)
 
         if command in ("route", "map", "路线", "地图"):
             return format_route_text(run_state)
@@ -244,6 +257,15 @@ class GameService(object):
             if run_state.pending_shop is None:
                 return "当前不在商店。"
             return get_run_view(run_state)
+        
+        if command in ("item", "goods", "商品", "查看商品", "shop_item", "detail", "详情"):
+            if len(parts) < 3:
+                return "用法：/card item 商品编号，例如 /card item 0"
+            try:
+                item_index = int(parts[2])
+            except ValueError:
+                return "商品编号必须是数字。"
+            return handle_shop_item_detail(run_state, item_index)
 
         if command in ("buy", "购买"):
             if len(parts) < 3:

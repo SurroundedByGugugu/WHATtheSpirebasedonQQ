@@ -60,7 +60,9 @@ class PatternEnemy(Enemy):
                 "op": "enemy_attack",
                 "source_enemy_id": self.enemy_id,
                 "source_enemy_name": self.name,
-                "damage": intent.value
+                "damage": intent.value,
+                "attack_type": intent.attack_type,
+                "attack_element": intent.attack_element
             }
             logs.append("{} 准备造成 {} 点伤害。".format(self.name, intent.value))
 

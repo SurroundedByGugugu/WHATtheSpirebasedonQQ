@@ -19,7 +19,14 @@ from data.card.character.test_character_cards import (
 
 from data.card.character.armored_warrior_card import(
     create_hard_blow,
-    create_whirlwind
+    create_whirlwind,
+    create_armored_placeholder_skill,
+    create_demon_form
+)
+
+from data.card.character.yoirine_card import (
+    create_crystal_piercing,
+    create_crystal_zone
 )
 
 CARD_REGISTRY = {
@@ -36,6 +43,10 @@ CARD_REGISTRY = {
     "card.hard_blow": create_hard_blow,
     "card.test_x_drill": create_test_x_drill,
     "card.whirlwind": create_whirlwind,
+    "card.crystal_piercing": create_crystal_piercing,
+    "card.crystal_zone":create_crystal_zone,
+    "card.demon_form":create_demon_form,
+    "card.armored_placeholder_skill": create_armored_placeholder_skill,
 }
 
 # CARD_REGISTRY = {

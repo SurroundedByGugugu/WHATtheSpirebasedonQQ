@@ -90,3 +90,14 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="demon_form",
+    name="恶魔形态",
+    description="每个玩家回合开始时，获得等同于层数的力量。",
+    category="buff",
+    display_mode="stack",
+    order=70,
+    decay_timing="none",
+    decay_amount=0,
+))

@@ -42,6 +42,23 @@ def dispatch_event(game_state, event_name, context=None):
     from game.status.status_effects import dispatch_status_event
     logs.extend(dispatch_status_event(game_state, event_name, context))
 
+    active_zone = getattr(game_state, "active_zone", None)
+    
+    if active_zone is not None:
+        on_event = getattr(active_zone, "on_event", None)
+        if on_event is not None:
+            result = on_event(event_name, context)
+            if result:
+                logs.extend(result)
+
+    for active_field in getattr(game_state, "active_fields", []):
+        on_event = getattr(active_field, "on_event", None)
+        if on_event is None:
+            continue
+        result = on_event(event_name, context)
+        if result:
+            logs.extend(result)
+
     if context.logs:
         logs.extend(context.logs)
 

@@ -13,7 +13,9 @@ def deal_damage(
     damage_kind="attack",
     card=None,
     is_reaction_damage=False,
-    ignore_block=False
+    ignore_block=False,
+    attack_type="",
+    attack_element=""
 ):
     """
     统一伤害入口。
@@ -88,6 +90,8 @@ def deal_damage(
             "damage_kind": damage_kind,
             "is_reaction_damage": is_reaction_damage,
             "ignore_block": ignore_block,
+            "attack_type": attack_type,
+            "attack_element": attack_element,
         }
     )
 

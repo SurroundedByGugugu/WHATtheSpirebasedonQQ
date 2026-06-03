@@ -4,7 +4,16 @@ from dataclasses import dataclass
 from typing import List, Dict, Any
 from game.status.status_container import StatusContainer
 from game.status.status_display import get_status_display_text
+from data.zones.element_zones import get_element_display_name
+ATTACK_TYPE_NAME_MAP = {
+        "slash": "斩击",
+        "piercing": "突刺",
+        "blunt": "打击",
+        "magic": "魔法",
+    }
 
+def get_attack_type_display_name(attack_type):
+    return ATTACK_TYPE_NAME_MAP.get(attack_type, attack_type)
 
 @dataclass
 class EnemyIntent:
@@ -12,8 +21,17 @@ class EnemyIntent:
     value: int = 0
     status: str = ""
     target: str = "player"
+    attack_type: str = ""
+    attack_element: str = ""
     def to_text(self):
         if self.kind == "attack":
+            tag_parts = []
+            if self.attack_element:
+                tag_parts.append(get_element_display_name(self.attack_element))
+            if self.attack_type:
+                tag_parts.append(get_attack_type_display_name(self.attack_type))
+            if tag_parts:
+                return "{} 攻击 {}".format("/".join(tag_parts), self.value)
             return "攻击 {}".format(self.value)
         if self.kind == "block":
             return "获得 {} 点格挡".format(self.value)
@@ -33,8 +51,7 @@ class EnemyIntent:
                 return "自身获得 {} 点{}".format(self.value, status_name)
             return "给予玩家 {} 点{}".format(self.value, status_name)
         return "未知意图"
-
-
+    
 @dataclass
 class EnemyActionResult:
     action: Dict[str, Any]
@@ -112,3 +129,4 @@ class Enemy(object):
 
     def gain_status(self, key, amount):
         return self.statuses.add(key, amount)
+    

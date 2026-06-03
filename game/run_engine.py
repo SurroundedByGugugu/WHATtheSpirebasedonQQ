@@ -29,6 +29,7 @@ from game.reward import (
 from game.node_shop import (
     create_shop_state,
     format_shop,
+    format_shop_item_detail,
     buy_shop_item,
     buy_shop_items,
     format_remove_card_choices,
@@ -855,6 +856,13 @@ def handle_shop_buy_batch(run_state, item_indices):
         buy_shop_items(run_state, item_indices),
         "",
         format_shop(run_state)
+    ])
+
+def handle_shop_item_detail(run_state, item_index):
+    return "\n".join([
+        format_shop_item_detail(run_state, item_index),
+        "",
+        "使用 /card buy {} 购买该商品。".format(item_index)
     ])
 
 def handle_remove_card_view_or_choose(run_state, card_index=None):

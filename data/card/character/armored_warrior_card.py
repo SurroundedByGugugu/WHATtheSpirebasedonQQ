@@ -18,6 +18,7 @@ def create_hard_blow():
         target="enemy",
         description="造成 8 点伤害。赋予 2t 易伤",
         quantity="common",
+        attack_type="blunt",
         owner_character_id="character.armored_warrior",
         card_vars={
             "damage": 8,
@@ -61,6 +62,7 @@ def create_whirlwind():
         target="all_enemies",
         description="消耗所有费用。对所有敌人造成 5 点伤害 X 次。",
         quantity="common",
+        attack_type="slash",
         owner_character_id="character.armored_warrior",
         card_vars={
             "damage": 5,
@@ -94,4 +96,62 @@ def create_whirlwind():
                 }
             ],
         }
+    )
+
+def create_demon_form():
+    return CardTemplate(
+        card_id="card.demon_form",
+        name="恶魔形态",
+        card_type="power",
+        cost=3,
+        target="self",
+        description="每回合开始时获得 2 点力量。",
+        quantity="rare",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "strength_per_turn": 2
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "demon_form",
+                "amount": {
+                    "var": "strength_per_turn"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "恶魔形态+",
+            "description": "每回合开始时获得 3 点力量。",
+            "card_vars": {
+                "strength_per_turn": 3
+            },
+        }
+    )
+
+def create_armored_placeholder_skill():
+    return CardTemplate(
+        card_id="card.armored_placeholder_skill",
+        name="占位技能牌",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="抽 1 张牌。",
+        quantity="common",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "draw": 1
+        },
+        effects=[
+            {
+                "op": "draw_cards",
+                "amount": {
+                    "var": "draw"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={}
     )

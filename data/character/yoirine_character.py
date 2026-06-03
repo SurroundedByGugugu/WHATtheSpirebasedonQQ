@@ -3,32 +3,41 @@
 from data.character.base_character import CharacterTemplate
 
 
-class ArmoredWarriorTestCharacter(CharacterTemplate):
+class YoirineCharacter(CharacterTemplate):
+    """
+    yoi酱（喂
+
+    初始 HP：70
+    初始遗物：饱和裂隙（展开zone效果时自动重复展开极zone
+    初始牌组：4打4防 1x，1晶zone，1晶茧
+
+    """
 
     def __init__(self):
         CharacterTemplate.__init__(
             self,
-            character_id="character.armored_warrior_test",
-            name="铁甲战士（拿到了不得了的东西版）",
-            max_hp=80,
+            character_id="character.yoirine",
+            name="Yoirine",
+            max_hp=70,
             max_cost=3,
             starting_relic_ids=[
-                "relic.burning_blood",
-                "relic.x_potion"
+                "relic.saturated_fissure"
             ],
             max_potion_slots = 3,
             starting_gold = 99,
-
             starting_deck_ids=[
                 "card.strike",
                 "card.strike",
                 "card.strike",
                 "card.strike",
-                "card.whirlwind",
                 "card.defend",
                 "card.defend",
                 "card.defend",
                 "card.defend",
-                "card.hard_blow", 
+                "card.crystal_piercing",
+                "card.crystal_zone",
             ]
         )
+
+        # "card.shade_zone",
+        # "card.crystal_cocoon"

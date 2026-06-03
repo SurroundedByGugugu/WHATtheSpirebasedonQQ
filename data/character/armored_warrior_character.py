@@ -37,6 +37,6 @@ class ArmoredWarriorCharacter(CharacterTemplate):
                 "card.defend",
                 "card.defend",
                 "card.defend",
-                "card.hard_blow", 
+                "card.hard_blow",
             ]
         )

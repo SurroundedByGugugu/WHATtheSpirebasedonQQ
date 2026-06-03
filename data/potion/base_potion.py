@@ -21,7 +21,8 @@ class PotionTemplate:
     name: str
     description: str
     target: str = "self"
-
+    # 药水稀有度。当前用于商店价格。
+    quantity: str = "common"
     effect_vars: Dict[str, Any] = field(default_factory=dict)
     effects: List[Dict[str, Any]] = field(default_factory=list)
 

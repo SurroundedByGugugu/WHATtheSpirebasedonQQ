@@ -3,12 +3,14 @@
 from data.potion.test_potions import (
     create_test_strength_potion,
     create_test_fire_potion,
+    create_test_dexterity_potion,
 )
 
 
 POTION_REGISTRY = {
     "potion.test_strength": create_test_strength_potion,
     "potion.test_fire": create_test_fire_potion,
+    "potion.test_dexterity": create_test_dexterity_potion,
 }
 
 

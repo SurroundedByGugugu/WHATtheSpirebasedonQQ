@@ -29,6 +29,12 @@ from data.card.keyword_rules import (
     should_play_when_discarded,
     should_start_in_hand,
 )
+from game.zone_utils import (
+    tick_zone_turn_end, 
+    tick_fields_turn_end, 
+    format_zone_field_detail
+)
+
 
 def move_innate_cards_to_opening_hand(player):
     """
@@ -191,14 +197,15 @@ def get_default_target_index(game_state):
 
 def move_played_card_to_destination(player, card):
     logs = []
-
+    if getattr(card, "card_type", "") == "power":
+        logs.append("【{}】作为能力牌生效，本场战斗中消失。".format(card.name))
+        return logs
     if should_exhaust_after_play(card):
         player.exhaust_pile.append(card)
         logs.append("【{}】因消耗进入消耗堆。".format(card.name))
     else:
         player.discard_pile.append(card)
         logs.append("【{}】进入弃牌堆。".format(card.name))
-
     return logs
 
 def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=False):
@@ -654,7 +661,8 @@ def get_enemy_action_target(game_state, enemy, target_key):
 
 def process_enemy_action_payload(game_state, enemy, action, logs):
     op = action.get("op")
-
+    attack_type = action.get("attack_type", "")
+    attack_element = action.get("attack_element", "")
     if op == "enemy_multi_action":
         child_actions = action.get("actions", [])
         if not child_actions:
@@ -679,6 +687,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             logs.append("{} 的攻击目标已经死亡。".format(enemy.name))
             return
         damage = int(action.get("damage", 0))
+        attack_type = action.get("attack_type", "")
+        attack_element = action.get("attack_element", "")
         damage = apply_modifier_profile(
             value=damage,
             modifier_profile="attack_damage",
@@ -686,7 +696,9 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             source=enemy,
             target=target,
             card=None,
-            damage_source=DAMAGE_SOURCE_ENEMY_ACTION
+            damage_source=DAMAGE_SOURCE_ENEMY_ACTION,
+            attack_type=attack_type,
+            attack_element=attack_element
         )
         logs.extend(deal_damage(
             game_state=game_state,
@@ -694,7 +706,9 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             target=target,
             amount=damage,
             damage_kind="attack",
-            card=None
+            card=None,
+            attack_type=attack_type,
+            attack_element=attack_element
         ))
         return
     if op == "enemy_gain_block":
@@ -828,6 +842,14 @@ def end_turn(game_state):
         logs.append("回合结束状态结算：")
         logs.extend(turn_end_logs)
 
+    zone_tick_logs = tick_zone_turn_end(game_state)
+    field_tick_logs = tick_fields_turn_end(game_state)
+    if zone_tick_logs or field_tick_logs:
+        logs.append("")
+        logs.append("场地结算：")
+        logs.extend(zone_tick_logs)
+        logs.extend(field_tick_logs)
+
     result = check_battle_result(game_state)
     if result:
         logs.append(result)
@@ -880,6 +902,75 @@ def validate_card_target(game_state, card, target_index):
 def get_status(game_state):
     return game_state.status_text()
 
+def format_entity_status_detail(entity):
+    from game.status.status_defs import get_status_def, iter_status_defs
+    from game.status.status_display import format_status
+    statuses = getattr(entity, "statuses", None)
+    if statuses is None:
+        return ["无状态。"]
+    active = statuses.all_active()
+    if not active:
+        return ["无状态。"]
+    lines = []
+    handled = set()
+    for status_def in iter_status_defs():
+        key = status_def.key
+        if key not in active:
+            continue
+        value = active.get(key, 0)
+        category = getattr(status_def, "category", "neutral")
+        description = getattr(status_def, "description", "") or "暂无说明。"
+        lines.append("- {} [{}]：{}".format(
+            format_status(key, value),
+            category,
+            description
+        ))
+        handled.add(key)
+    for key, value in active.items():
+        if key in handled:
+            continue
+        status_def = get_status_def(key)
+        if status_def is None:
+            lines.append("- {}：未注册状态，暂无说明。".format(format_status(key, value)))
+        else:
+            category = getattr(status_def, "category", "neutral")
+            description = getattr(status_def, "description", "") or "暂无说明。"
+            lines.append("- {} [{}]：{}".format(
+                format_status(key, value),
+                category,
+                description
+            ))
+    return lines
+
+
+def get_status_detail(game_state):
+    lines = []
+    lines.append("=== 全场状态说明 ===")
+    lines.append("玩家：{} HP：{}/{}，格挡：{}".format(
+        game_state.player.name,
+        game_state.player.hp,
+        game_state.player.max_hp,
+        game_state.player.block
+    ))
+    lines.extend(format_entity_status_detail(game_state.player))
+    lines.append("")
+    lines.append("敌人：")
+    for index, enemy in enumerate(game_state.enemies):
+        alive_text = "存活" if enemy.is_alive() else "已死亡"
+        lines.append("[{}] {} HP：{}/{}，格挡：{}，{}".format(
+            index,
+            enemy.name,
+            enemy.hp,
+            enemy.max_hp,
+            enemy.block,
+            alive_text
+        ))
+        lines.extend(format_entity_status_detail(enemy))
+    return "\n".join(lines)
+
+
+def get_zone_field_view(game_state):
+    return format_zone_field_detail(game_state)
 
 def get_hand(game_state):
     return game_state.player.hand_text()

@@ -13,7 +13,9 @@ def resolve_amount(
     source=None,
     damage_source=None,
     block_source=None,
-    effect_context=None
+    effect_context=None,
+    attack_type="",
+    attack_element=""
 ):
     """
     解析卡牌效果中的数值。
@@ -106,9 +108,10 @@ def resolve_amount(
         target=target,
         card=card,
         damage_source=damage_source,
-        block_source=block_source
+        block_source=block_source,
+        attack_type=attack_type,
+        attack_element=attack_element
     )
-
     return int(value)
 
 
@@ -131,12 +134,14 @@ def get_alive_enemies(game_state):
 def get_effect_target_entity(game_state, target_key, target_index):
     if target_key in (None, "self"):
         return game_state.player
-
     if target_key in ("selected_enemy", "enemy"):
         return get_target_enemy(game_state, target_index)
-
     return None
 
+def get_effect_attack_tags(card, effect):
+    attack_type = effect.get("attack_type", getattr(card, "attack_type", ""))
+    attack_element = effect.get("attack_element", getattr(card, "attack_element", ""))
+    return attack_type, attack_element
 
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):
     """
@@ -150,6 +155,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
     op = effect.get("op")
 
     if op == "deal_damage":
+        attack_type, attack_element = get_effect_attack_tags(card, effect)
         target_key = effect.get("target", "selected_enemy")
         target_entity = get_effect_target_entity(
             game_state=game_state,
@@ -166,7 +172,9 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             source=game_state.player,
             target=target_entity,
             damage_source="played_card",
-            effect_context=effect_context
+            effect_context=effect_context,
+            attack_type=attack_type,
+            attack_element=attack_element
         )
         logs.append("【{}】造成 {} 点攻击伤害。".format(card.name, damage))
         logs.extend(deal_damage(
@@ -175,11 +183,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target=target_entity,
             amount=damage,
             damage_kind="attack",
-            card=card
+            card=card,
+            attack_type=attack_type,
+            attack_element=attack_element
         ))
         return logs
     
     if op == "deal_damage_random_enemies":
+        attack_type, attack_element = get_effect_attack_tags(card, effect)
         times_spec = effect.get("times", None)
         if times_spec is None:
             times_spec = effect.get("count", 1)
@@ -227,7 +238,9 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 source=game_state.player,
                 target=target_entity,
                 damage_source="played_card",
-                effect_context=effect_context
+                effect_context=effect_context,
+                attack_type=attack_type,
+                attack_element=attack_element
             )
             logs.append("【{}】随机命中 {}，造成 {} 点攻击伤害。第 {}/{} 次。".format(
                 card.name,
@@ -242,11 +255,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 target=target_entity,
                 amount=damage,
                 damage_kind="attack",
-                card=card
+                card=card,
+                attack_type=attack_type,
+                attack_element=attack_element
             ))
         return logs
 
     if op == "deal_damage_all_enemies":
+        attack_type, attack_element = get_effect_attack_tags(card, effect)
         alive_enemies = []
         for enemy in game_state.enemies:
             if enemy.is_alive():
@@ -267,7 +283,9 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 source=game_state.player,
                 target=target_entity,
                 damage_source="played_card",
-                effect_context=effect_context
+                effect_context=effect_context,
+                attack_type=attack_type,
+                attack_element=attack_element
             )
             logs.append("【{}】对 {} 造成 {} 点攻击伤害。".format(
                 card.name,
@@ -280,7 +298,9 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 target=target_entity,
                 amount=damage,
                 damage_kind="attack",
-                card=card
+                card=card,
+                attack_type=attack_type,
+                attack_element=attack_element
             ))
             if game_state.battle_over:
                 break
@@ -417,6 +437,19 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         return logs
 
+    if op in ("set_zone", "deploy_zone"):
+        from game.zone_utils import deploy_element_zone
+        element = effect.get("element", getattr(card, "attack_element", ""))
+        force_extreme = bool(effect.get("force_extreme", False))
+        logs.extend(deploy_element_zone(
+            game_state=game_state,
+            element=element,
+            source=game_state.player,
+            card=card,
+            force_extreme=force_extreme
+        ))
+        return logs
+
     if op == "gain_energy":
         amount = resolve_amount(
             game_state=game_state,
@@ -424,7 +457,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             amount_spec=effect.get("amount"),
             source=game_state.player,
             target=game_state.player,
-            effect_context=effect_context
+            effect_context=effect_context,
         )
 
         game_state.player.cost += amount

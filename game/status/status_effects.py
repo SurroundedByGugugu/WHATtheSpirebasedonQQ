@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from game.constants import EVENT_DAMAGE_AFTER, EVENT_TURN_END
+from game.constants import EVENT_DAMAGE_AFTER, EVENT_TURN_END, EVENT_TURN_START
 from game.modifiers import get_status_value
 
 
 STATUS_EVENT_PRIORITY = {
     "thorns": 50,
     "poison_thorns": 49,
+    "demon_form": 30,
     "poison": 20,
 }
 
@@ -226,8 +227,33 @@ def handle_poison(event_name, context, owner, value):
     ))
     return logs
 
+def handle_demon_form(event_name, context, owner, value):
+    """
+    恶魔形态：
+    每个玩家回合开始时，拥有者获得等同于层数的力量。
+    """
+    logs = []
+    if event_name != EVENT_TURN_START:
+        return logs
+    if owner is None:
+        return logs
+    if not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    current = owner.gain_status("strength", amount)
+    logs.append("{} 的恶魔形态触发，获得 {} 点力量。当前力量：{}。".format(
+        owner.name,
+        amount,
+        current
+    ))
+
+    return logs
+
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "poison_thorns": handle_poison_thorns,
     "poison": handle_poison,
+    "demon_form": handle_demon_form,
 }

@@ -24,7 +24,6 @@ def create_test_strength_potion():
         ]
     )
 
-
 def create_test_fire_potion():
     return PotionTemplate(
         potion_id="potion.test_fire",
@@ -41,6 +40,28 @@ def create_test_fire_potion():
                 "amount": {
                     "var": "damage",
                     "modifier_profile": None
+                }
+            }
+        ]
+    )
+
+def create_test_dexterity_potion():
+    return PotionTemplate(
+        potion_id="potion.test_dexterity",
+        name="测试敏捷药水",
+        description="获得 2 点敏捷。",
+        target="self",
+        quantity="common",
+        effect_vars={
+            "dexterity": 2
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "dexterity",
+                "amount": {
+                    "var": "dexterity"
                 }
             }
         ]

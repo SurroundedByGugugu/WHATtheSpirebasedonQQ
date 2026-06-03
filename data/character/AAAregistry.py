@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from data.character.armored_warrior_character_test import ArmoredWarriorTestCharacter
+from data.character.yoirine_character import YoirineCharacter
 from data.character.armored_warrior_character import ArmoredWarriorCharacter
 from data.character.test_character import TestCharacter
 
@@ -8,7 +8,7 @@ from data.character.test_character import TestCharacter
 CHARACTER_REGISTRY = {
     "character.test": TestCharacter,
     "character.armored_warrior" : ArmoredWarriorCharacter,
-    "character.armored_warrior_test" : ArmoredWarriorTestCharacter,
+    "character.yoirine":YoirineCharacter,
 }
 
 
