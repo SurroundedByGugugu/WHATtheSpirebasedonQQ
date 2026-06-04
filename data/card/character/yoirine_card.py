@@ -49,7 +49,7 @@ def create_crystal_zone():
         card_type="skill",
         cost=2,
         target="none",
-        description="场地效果变为辉晶。已有辉晶效果时，改为场地效果变为觉醒·辉晶，持续3t。",
+        description="场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。",
         quantity="rare",
         attack_element = "crystal",
         owner_character_id= "character.yoirine",
@@ -61,7 +61,7 @@ def create_crystal_zone():
         upgraded = False,#升级降1费
         upgrade_patch={
             "name":"辉晶领域+",
-            "description":"费用减少1。场地效果变为辉晶。已有辉晶效果时，改为场地效果变为觉醒·辉晶，持续3t。",
+            "description":"费用减少1。场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。",
             "cost":1
         }
     )

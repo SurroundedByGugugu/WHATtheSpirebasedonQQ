@@ -101,3 +101,36 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="mirage_shadows",
+    name="蜃楼复影",
+    description="每个玩家回合开始时，获得由蜃楼复影记录的格挡。该格挡来自状态结算，不受敏捷影响。",
+    category="buff",
+    display_mode="stack",
+    order=75,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="temporary_dexterity_loss",
+    name="临时敏捷降低",
+    description="回合结束时恢复等同于层数的敏捷。",
+    category="debuff",
+    display_mode="stack",
+    order=76,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="god_in_hand",
+    name="手中上帝",
+    description="回合开始时结算生命与能量损失；持续结束后结算最终生命损失。",
+    category="buff",
+    display_mode="stack",
+    order=77,
+    decay_timing="none",
+    decay_amount=0,
+))

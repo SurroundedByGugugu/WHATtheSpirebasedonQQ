@@ -424,6 +424,14 @@ def play_card(game_state, hand_index, target_index=0):
 
     logs.extend(move_played_card_to_destination(player, card))
 
+    if getattr(game_state, "force_end_turn_after_card", False):
+        game_state.force_end_turn_after_card = False
+        if not game_state.battle_over:
+            logs.append("")
+            logs.append("【{}】结束了你的回合。".format(card.name))
+            logs.append(end_turn(game_state))
+            return "\n".join(logs)
+        
     result = check_battle_result(game_state)
     if result:
         logs.append(result)
@@ -870,10 +878,16 @@ def end_turn(game_state):
         player=player,
         source=player
     )
-    logs.extend(dispatch_event(game_state, EVENT_TURN_START, context))
+    turn_start_logs = dispatch_event(game_state, EVENT_TURN_START, context)
+    logs.extend(turn_start_logs)
+    result = check_battle_result(game_state)
+    if result:
+        logs.append(result)
+        return "\n".join(logs)
     logs.append(player.status_text())
     logs.append(format_enemy_current_status(game_state.enemies))
     logs.extend(player.draw_cards(5))
+
     return "\n".join(logs)
 
 

@@ -3,14 +3,14 @@
 from game.constants import EVENT_DAMAGE_AFTER, EVENT_TURN_END, EVENT_TURN_START
 from game.modifiers import get_status_value
 
-
 STATUS_EVENT_PRIORITY = {
     "thorns": 50,
     "poison_thorns": 49,
-    "demon_form": 30,
+    "god_in_hand": 40,
+    "mirage_shadows": 35,
     "poison": 20,
+    "temporary_dexterity_loss": 10,
 }
-
 
 def get_status_event_priority(status_key):
     return STATUS_EVENT_PRIORITY.get(status_key, 0)
@@ -251,9 +251,158 @@ def handle_demon_form(event_name, context, owner, value):
 
     return logs
 
+def handle_mirage_shadows(event_name, context, owner, value):
+    """
+    蜃楼复影：
+    每个玩家回合开始时，根据记录的延迟格挡条目获得格挡。
+    注意：
+    这里直接修改 owner.block，不走 gain_block / modifier_profile="block"。
+    所以该格挡不受敏捷、脆弱等格挡修正影响。
+    """
+    logs = []
+    if event_name != EVENT_TURN_START:
+        return logs
+    if owner is None:
+        return logs
+    if not owner.is_alive():
+        return logs
+    entries = getattr(owner, "_mirage_shadow_entries", None)
+    if not entries:
+        if hasattr(owner, "statuses"):
+            owner.statuses.remove("mirage_shadows")
+        return logs
+    total_block = 0
+    new_entries = []
+    for entry in entries:
+        remaining = int(entry.get("remaining", 0))
+        block_amount = int(entry.get("block", 0))
+        if remaining <= 0 or block_amount <= 0:
+            continue
+        total_block += block_amount
+        remaining -= 1
+        if remaining > 0:
+            new_entries.append({
+                "remaining": remaining,
+                "block": block_amount
+            })
+    if total_block > 0:
+        owner.block += total_block
+        logs.append("{} 的蜃楼复影触发，获得 {} 点格挡。当前格挡：{}。".format(
+            owner.name,
+            total_block,
+            owner.block
+        ))
+    setattr(owner, "_mirage_shadow_entries", new_entries)
+    if hasattr(owner, "statuses"):
+        if new_entries:
+            owner.statuses.set("mirage_shadows", len(new_entries))
+        else:
+            owner.statuses.remove("mirage_shadows")
+            logs.append("{} 的蜃楼复影消散了。".format(owner.name))
+    return logs
+
+def handle_temporary_dexterity_loss(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    current = owner.gain_status("dexterity", amount)
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("temporary_dexterity_loss")
+    logs.append("{} 的临时敏捷降低结束，恢复 {} 点敏捷。当前敏捷：{}。".format(
+        owner.name,
+        amount,
+        current
+    ))
+    return logs
+
+def handle_god_in_hand(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_START:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+    entries = getattr(owner, "_god_in_hand_entries", None)
+    if not entries:
+        if hasattr(owner, "statuses"):
+            owner.statuses.remove("god_in_hand")
+        return logs
+    new_entries = []
+    for entry in entries:
+        remaining = int(entry.get("remaining", 0))
+        hp_loss = int(entry.get("hp_loss", 0))
+        energy_loss = int(entry.get("energy_loss", 0))
+        final_hp_loss = int(entry.get("final_hp_loss", 0))
+        if remaining > 0:
+            if hp_loss > 0:
+                from game.damage import deal_damage
+                logs.append("{} 受到手中上帝影响，失去 {} 点生命。".format(
+                    owner.name,
+                    hp_loss
+                ))
+                logs.extend(deal_damage(
+                    game_state=context.game_state,
+                    source=owner,
+                    target=owner,
+                    amount=hp_loss,
+                    damage_kind="hp_loss",
+                    card=None,
+                    is_reaction_damage=False,
+                    ignore_block=True
+                ))
+            if energy_loss > 0:
+                old_cost = owner.cost
+                owner.cost -= energy_loss
+                if owner.cost < 0:
+                    owner.cost = 0
+                logs.append("{} 受到手中上帝影响，失去 {} 点能量。当前能量：{}。".format(
+                    owner.name,
+                    old_cost - owner.cost,
+                    owner.cost
+                ))
+            remaining -= 1
+            if remaining <= 0:
+                if final_hp_loss > 0 and owner.is_alive():
+                    from game.damage import deal_damage
+                    logs.append("{} 的手中上帝进入最终结算，失去 {} 点生命。".format(
+                        owner.name,
+                        final_hp_loss
+                    ))
+                    logs.extend(deal_damage(
+                        game_state=context.game_state,
+                        source=owner,
+                        target=owner,
+                        amount=final_hp_loss,
+                        damage_kind="hp_loss",
+                        card=None,
+                        is_reaction_damage=False,
+                        ignore_block=True
+                    ))
+                logs.append("{} 的手中上帝不再使其失去能量。".format(owner.name))
+                continue
+            new_entries.append({
+                "remaining": remaining,
+                "hp_loss": hp_loss,
+                "energy_loss": energy_loss,
+                "final_hp_loss": final_hp_loss,
+            })
+    setattr(owner, "_god_in_hand_entries", new_entries)
+    if hasattr(owner, "statuses"):
+        if new_entries:
+            owner.statuses.set("god_in_hand", len(new_entries))
+        else:
+            owner.statuses.remove("god_in_hand")
+    return logs
+
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "poison_thorns": handle_poison_thorns,
     "poison": handle_poison,
-    "demon_form": handle_demon_form,
+    "mirage_shadows": handle_mirage_shadows,
+    "temporary_dexterity_loss": handle_temporary_dexterity_loss,
+    "god_in_hand": handle_god_in_hand,
 }

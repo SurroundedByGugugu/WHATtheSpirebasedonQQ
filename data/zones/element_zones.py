@@ -31,14 +31,14 @@ class ElementZone(ZoneTemplate):
 
         if is_extreme:
             name = "极{}Zone".format(element_name)
-            description = "场地上充满了{}元素。同属性伤害 ×1.3，持续 {} 回合，不可覆盖。".format(
+            description = "场地上充满了{}元素。同属性伤害×1.3，持续 {} 回合，不可覆盖。".format(
                 element_name,
                 duration
             )
             multiplier = 1.3
         else:
             name = "{}Zone".format(element_name)
-            description = "场地上弥漫着{}元素。同属性伤害 ×1.1。".format(element_name)
+            description = "场地上弥漫着{}元素。同属性伤害×1.1。".format(element_name)
             multiplier = 1.1
 
         ZoneTemplate.__init__(

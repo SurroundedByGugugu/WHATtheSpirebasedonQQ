@@ -55,6 +55,11 @@ CHARACTER_CHOICES = [
     },
     {
         "index": 2,
+        "character_id": "character.lumine",
+        "name": "昼·里辛塔法"
+    },
+    {
+        "index": 3,
         "character_id": "character.yoirine",
         "name": "Yoirine"
     }

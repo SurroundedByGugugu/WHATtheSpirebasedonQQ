@@ -313,11 +313,9 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target_key=target_key,
             target_index=target_index
         )
-
         if target_entity is None:
             logs.append("格挡目标无效。")
             return logs
-
         amount = resolve_amount(
             game_state=game_state,
             card=card,
@@ -327,37 +325,29 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             block_source="played_card",
             effect_context=effect_context
         )
-
         if amount < 0:
             amount = 0
-
         target_entity.block += amount
-
         logs.append("{} 获得 {} 点格挡。".format(
             target_entity.name,
             amount
         ))
-
         return logs
 
     if op == "gain_status":
         status_key = effect.get("status")
         target_key = effect.get("target", "self")
-
         if not status_key:
             logs.append("gain_status 缺少 status。")
             return logs
-
         target_entity = get_effect_target_entity(
             game_state=game_state,
             target_key=target_key,
             target_index=target_index
         )
-
         if target_entity is None:
             logs.append("状态目标无效。")
             return logs
-
         amount = resolve_amount(
             game_state=game_state,
             card=card,
@@ -366,10 +356,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target=target_entity,
             effect_context=effect_context
         )
-
         current = target_entity.gain_status(status_key, amount)
         status_name = get_status_name(status_key)
-
         logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
             target_entity.name,
             amount,
@@ -377,9 +365,295 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             status_name,
             current
         ))
-
+        return logs
+    
+    if op == "gain_mirage_shadows":
+        target_key = effect.get("target", "self")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+        if target_entity is None:
+            logs.append("蜃楼复影目标无效。")
+            return logs
+        x = int(effect_context.get("x", 0))
+        threshold = int(effect.get("threshold", 0))
+        if x < threshold:
+            logs.append("X = {}，未达到蜃楼复影触发条件 {}。".format(
+                x,
+                threshold
+            ))
+            return logs
+        duration_add = int(effect.get("duration_add", 0))
+        duration = x + duration_add
+        if duration <= 0:
+            logs.append("蜃楼复影持续时间为 0，没有获得延迟格挡状态。")
+            return logs
+        block_amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        if block_amount <= 0:
+            logs.append("蜃楼复影的延迟格挡数值为 0，没有获得状态。")
+            return logs
+        entries = getattr(target_entity, "_mirage_shadow_entries", None)
+        if entries is None:
+            entries = []
+        entries.append({
+            "remaining": int(duration),
+            "block": int(block_amount)
+        })
+        setattr(target_entity, "_mirage_shadow_entries", entries)
+        if hasattr(target_entity, "statuses"):
+            target_entity.statuses.set("mirage_shadows", len(entries))
+        logs.append("{} 获得蜃楼复影：接下来 {} 个回合开始时，获得 {} 点格挡。".format(
+            target_entity.name,
+            duration,
+            block_amount
+        ))
+        return logs
+    
+    if op == "gain_god_in_hand":
+        target_key = effect.get("target", "self")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+        if target_entity is None:
+            logs.append("手中上帝目标无效。")
+            return logs
+        hp_loss = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("hp_loss"),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        energy_loss = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("energy_loss"),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        duration = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("duration"),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        final_hp_loss = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("final_hp_loss"),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        entries = getattr(target_entity, "_god_in_hand_entries", None)
+        if entries is None:
+            entries = []
+        entries.append({
+            "remaining": int(duration),
+            "hp_loss": int(hp_loss),
+            "energy_loss": int(energy_loss),
+            "final_hp_loss": int(final_hp_loss),
+        })
+        setattr(target_entity, "_god_in_hand_entries", entries)
+        if hasattr(target_entity, "statuses"):
+            target_entity.statuses.set("god_in_hand", len(entries))
+        logs.append("{} 获得手中上帝：接下来 {} 个回合开始时，失去 {} 点生命、{} 点能量；随后失去 {} 点生命。".format(
+            target_entity.name,
+            duration,
+            hp_loss,
+            energy_loss,
+            final_hp_loss
+        ))
         return logs
 
+    if op == "force_end_turn":
+        setattr(game_state, "force_end_turn_after_card", True)
+        logs.append("本张牌结算后将结束你的回合。")
+        return logs
+
+    if op == "move_exhaust_cards_by_name":
+        player = game_state.player
+        name_contains = effect.get("name_contains", "")
+        destination = effect.get("destination", "draw_pile_shuffle")
+        if not name_contains:
+            logs.append("move_exhaust_cards_by_name 缺少 name_contains。")
+            return logs
+        matched_cards = []
+        remaining_cards = []
+        for pile_card in player.exhaust_pile:
+            if name_contains in pile_card.name:
+                matched_cards.append(pile_card)
+            else:
+                remaining_cards.append(pile_card)
+        player.exhaust_pile = remaining_cards
+        if not matched_cards:
+            logs.append("消耗牌堆中没有名称包含“{}”的牌。".format(name_contains))
+            return logs
+        if destination == "hand":
+            moved_to_hand = 0
+            moved_to_draw = 0
+            for pile_card in matched_cards:
+                if len(player.hand) < player.max_hand_size:
+                    player.hand.append(pile_card)
+                    moved_to_hand += 1
+                else:
+                    # 手牌满时兜底放入抽牌堆，并重洗抽牌堆
+                    player.draw_pile.append(pile_card)
+                    moved_to_draw += 1
+            if moved_to_hand:
+                logs.append("将 {} 张名称包含“{}”的牌从消耗牌堆放入手牌。".format(
+                    moved_to_hand,
+                    name_contains
+                ))
+            if moved_to_draw:
+                random.shuffle(player.draw_pile)
+                logs.append("手牌已满，将 {} 张名称包含“{}”的牌放入抽牌堆，并重洗抽牌堆。".format(
+                    moved_to_draw,
+                    name_contains
+                ))
+            return logs
+        if destination == "draw_pile_top":
+            for pile_card in matched_cards:
+                player.draw_pile.append(pile_card)
+            logs.append("将 {} 张名称包含“{}”的牌从消耗牌堆放到抽牌堆顶。".format(
+                len(matched_cards),
+                name_contains
+            ))
+            return logs
+        if destination in ("draw_pile", "draw_pile_shuffle"):
+            player.draw_pile.extend(matched_cards)
+            random.shuffle(player.draw_pile)
+            logs.append("将 {} 张名称包含“{}”的牌从消耗牌堆放入抽牌堆，并重洗抽牌堆。".format(
+                len(matched_cards),
+                name_contains
+            ))
+            return logs
+        logs.append("未知目的地：{}。".format(destination))
+        return logs
+
+    if op == "transform_hand_skills_to_card":
+        from data.card.AAAregistry import create_card
+        from data.card.upgrade_rules import upgrade_card
+        player = game_state.player
+        new_card_id = effect.get("new_card_id")
+        new_card_upgraded = bool(effect.get("new_card_upgraded", False))
+        if not new_card_id:
+            logs.append("transform_hand_skills_to_card 缺少 new_card_id。")
+            return logs
+        transformed_count = 0
+        for index, hand_card in enumerate(list(player.hand)):
+            if getattr(hand_card, "card_type", "") != "skill":
+                continue
+            new_card = create_card(new_card_id)
+            if new_card_upgraded:
+                new_card = upgrade_card(new_card)
+            player.hand[index] = new_card
+            transformed_count += 1
+        if transformed_count <= 0:
+            logs.append("手牌中没有技能牌可转化。")
+        else:
+            suffix = "+" if new_card_upgraded else ""
+            logs.append("将手牌中 {} 张技能牌变为【转移{}】。".format(
+                transformed_count,
+                suffix
+            ))
+        return logs
+
+    if op == "lose_dexterity_this_turn":
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=game_state.player,
+            effect_context=effect_context
+        )
+        amount = int(amount)
+        player = game_state.player
+        current_dexterity = player.gain_status("dexterity", -amount)
+        restore_value = player.gain_status("temporary_dexterity_loss", amount)
+        logs.append("{} 本回合失去 {} 点敏捷。当前敏捷：{}。回合结束将恢复 {} 点。".format(
+            player.name,
+            amount,
+            current_dexterity,
+            restore_value
+        ))
+        return logs
+
+    if op == "gain_status_if_target_has_block":
+        target_key = effect.get("target", "selected_enemy")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+        if target_entity is None:
+            logs.append("条件状态目标无效。")
+            return logs
+        if getattr(target_entity, "block", 0) <= 0:
+            logs.append("{} 没有格挡，未施加额外状态。".format(target_entity.name))
+            return logs
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        statuses = effect.get("statuses", [])
+        for status_key in statuses:
+            current = target_entity.gain_status(status_key, amount)
+            status_name = get_status_name(status_key)
+
+            logs.append("{} 有格挡，获得 {} 层{}。当前{}：{}。".format(
+                target_entity.name,
+                amount,
+                status_name,
+                status_name,
+                current
+            ))
+        return logs
+
+    if op == "increase_card_var":
+        var_name = effect.get("var")
+        if not var_name:
+            logs.append("increase_card_var 缺少 var。")
+            return logs
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=game_state.player,
+            effect_context=effect_context
+        )
+        old_value = int(card.card_vars.get(var_name, 0))
+        new_value = old_value + int(amount)
+        card.card_vars[var_name] = new_value
+        logs.append("【{}】的 {} 从 {} 增加到 {}。".format(
+            card.name,
+            var_name,
+            old_value,
+            new_value
+        ))
+        return logs
+    
     if op == "draw_cards":
         amount = resolve_amount(
             game_state=game_state,

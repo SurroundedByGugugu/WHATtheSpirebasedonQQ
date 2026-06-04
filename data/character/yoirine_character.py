@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-
 from data.character.base_character import CharacterTemplate
-
-
 class YoirineCharacter(CharacterTemplate):
     """
     yoi酱（喂

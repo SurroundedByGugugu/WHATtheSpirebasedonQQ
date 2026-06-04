@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from data.card.global_cards.basic_cards import (
+from data.card.basic_cards import (
     create_strike,
     create_defend
 )
@@ -29,6 +29,17 @@ from data.card.character.yoirine_card import (
     create_crystal_zone
 )
 
+from data.card.character.lumine_card import (
+    create_mirage_shadows,
+    create_god_in_hand,
+    create_transfer,
+    create_inducing,
+    create_cheap_intuition,
+    create_energetic,
+    create_factor_separate,
+    create_fast_transfer,
+)
+
 CARD_REGISTRY = {
     "card.strike": create_strike,
     "card.defend": create_defend,
@@ -47,13 +58,15 @@ CARD_REGISTRY = {
     "card.crystal_zone":create_crystal_zone,
     "card.demon_form":create_demon_form,
     "card.armored_placeholder_skill": create_armored_placeholder_skill,
+    "card.mirage_shadows": create_mirage_shadows,
+    "card.god_in_hand": create_god_in_hand,
+    "card.transfer": create_transfer,
+    "card.inducing": create_inducing,
+    "card.cheap_intuition": create_cheap_intuition,
+    "card.energetic": create_energetic,
+    "card.factor_separate": create_factor_separate,
+    "card.fast_transfer": create_fast_transfer,
 }
-
-# CARD_REGISTRY = {
-#     "card.strike": create_strike,
-#     "card.defend": create_defend,
-#     "card.hard_blow": create_hard_blow,
-# }
 
 def create_card(card_id):
     create_func = CARD_REGISTRY.get(card_id)

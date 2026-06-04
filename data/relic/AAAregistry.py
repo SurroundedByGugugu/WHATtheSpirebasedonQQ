@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from data.relic.lumine_relic import CrossEarringRelic
 from data.relic.yoirine_relic import SaturatedFissureRelic
 from data.relic.armored_warrior_relic import BurningBloodRelic
 from data.relic.placeholder_stone_relic import PlaceholderStoneRelic
@@ -12,6 +13,7 @@ RELIC_REGISTRY = {
     "relic.homunculus_prototype":HomunculusPrototypeRelic,
     "relic.x_potion": XPotionRelic,
     "relic.saturated_fissure": SaturatedFissureRelic,
+    "relic.cross_earring": CrossEarringRelic,
 }
 
 
