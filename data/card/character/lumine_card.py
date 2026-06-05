@@ -173,6 +173,51 @@ def create_cheap_intuition():
         }
     )
 
+def create_ok_next():
+    return CardTemplate(
+        card_id="card.ok_next",
+        name="好，下一个",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="锁定一个敌人，三回合内无法切换攻击目标。对这名敌人造成的伤害增加 100%；如果该名敌人未死亡，每回合额外增加 50% 受到的伤害。造成 12 点伤害。",
+        quantity="rare",
+        owner_character_id="character.lumine",
+        card_vars={
+            "damage": 12,
+            "duration": 3,
+            "initial_bonus_percent": 100,
+        },
+        effects=[
+            {
+                "op": "lock_next_target",
+                "target": "selected_enemy",
+                "duration": {
+                    "var": "duration"
+                },
+                "initial_bonus_percent": {
+                    "var": "initial_bonus_percent"
+                }
+            },
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "好，下一个+",
+            "description": "锁定一个敌人，三回合内无法切换攻击目标。对这名敌人造成的伤害增加 100%；如果该名敌人未死亡，每回合额外增加 50% 受到的伤害。造成 15 点伤害。",
+            "card_vars": {
+                "damage": 15,
+            }
+        }
+    )
+
 #uncommon
 def create_energetic():
     return CardTemplate(
@@ -277,6 +322,49 @@ def create_mirage_shadows():
                     "value": 1
                 }
             ],
+        }
+    )
+
+def create_brain_shockwave():
+    return CardTemplate(
+        card_id="card.brain_shockwave",
+        name="脑·震荡波",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="造成 20 点伤害。如果敌人没有人工制品，则击晕。消耗。",
+        quantity="uncommon",
+        owner_character_id="character.lumine",
+        card_vars={
+            "damage": 20,
+            "stun": 1,
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "gain_status_if_target_has_no_artifact",
+                "target": "selected_enemy",
+                "status": "stun",
+                "amount": {
+                    "var": "stun"
+                }
+            }
+        ],
+        keywords=[
+            KEYWORD_EXHAUST
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "脑·震荡波+",
+            "cost": 1,
+            "description": "造成 20 点伤害。如果敌人没有人工制品，则击晕。消耗。",
         }
     )
 

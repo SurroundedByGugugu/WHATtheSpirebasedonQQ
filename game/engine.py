@@ -70,7 +70,7 @@ def move_innate_cards_to_opening_hand(player):
 
     return logs
 
-def format_enemy_start_info(enemies):
+def format_enemy_start_info(enemies, game_state=None):
     """
     战斗开始时显示敌人信息。
     多敌人时逐个显示。
@@ -82,7 +82,7 @@ def format_enemy_start_info(enemies):
     for index, enemy in enumerate(enemies):
         lines.append("[{}] {}".format(
             index,
-            enemy.status_text()
+            enemy.status_text(game_state)
         ))
     return "\n".join(lines)
 
@@ -128,7 +128,7 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
     )
     logs = []
     logs.append("战斗开始。")
-    logs.append(format_enemy_start_info(enemies))
+    logs.append(format_enemy_start_info(enemies, game_state))
     context = BattleContext(
         game_state=game_state,
         player=player,
@@ -174,7 +174,7 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
     )
     logs = []
     logs.append("战斗开始。")
-    logs.append(format_enemy_start_info(enemies))
+    logs.append(format_enemy_start_info(enemies, game_state))
     context = BattleContext(
         game_state=game_state,
         player=player,
@@ -752,15 +752,20 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         if not target.is_alive():
             logs.append("{} 的状态行动目标已经死亡。".format(enemy.name))
             return
-        current = target.gain_status(status_key, amount)
-        status_name = get_status_name(status_key)
-        logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
-            target.name,
-            amount,
-            status_name,
-            status_name,
-            current
-        ))
+        if hasattr(target, "gain_status_with_result"):
+            result = target.gain_status_with_result(status_key, amount)
+            from game.status.status_gain import format_status_gain_log
+            logs.append(format_status_gain_log(target, status_key, amount, result))
+        else:
+            current = target.gain_status(status_key, amount)
+            status_name = get_status_name(status_key)
+            logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
+                target.name,
+                amount,
+                status_name,
+                status_name,
+                current
+            ))
         return
     logs.append("敌人行动未处理：{}".format(op))
 
@@ -774,6 +779,13 @@ def process_enemy_action(game_state, enemy):
     old_block = enemy.clear_block()
     if old_block > 0:
         logs.append("{} 的 {} 点格挡消失。".format(enemy.name, old_block))
+    if enemy.get_status_value("stun") > 0:
+        current_stun = enemy.gain_status("stun", -1)
+        logs.append("{} 被眩晕，无法行动。剩余眩晕：{}。".format(
+            enemy.name,
+            current_stun
+        ))
+        return logs
     result = enemy.act()
     for log in result.logs:
         logs.append(log)
@@ -785,11 +797,12 @@ def process_enemy_action(game_state, enemy):
     )
     return logs
 
-def format_enemy_current_status(enemies):
+def format_enemy_current_status(game_state):
     """
     进入新回合时显示敌人当前状态。
-    主要用于查看敌人 HP、格挡、状态、下一步意图。
+    死亡敌人不从显示中跳过，意图会显示为“已经走了有一会了。”。
     """
+    enemies = game_state.enemies
     lines = []
     alive_enemies = [
         enemy for enemy in enemies
@@ -799,14 +812,12 @@ def format_enemy_current_status(enemies):
         return "敌人状态：无存活敌人"
     lines.append("敌人状态：")
     for index, enemy in enumerate(enemies):
-        if not enemy.is_alive():
-            continue
         lines.append("[{}] {}".format(
             index,
-            enemy.status_text()
+            enemy.status_text(game_state)
         ))
     return "\n".join(lines)
-
+    
 def end_turn(game_state):
     """
     结束玩家回合，敌人行动，然后进入下一回合。
@@ -857,12 +868,16 @@ def end_turn(game_state):
         logs.append("场地结算：")
         logs.extend(zone_tick_logs)
         logs.extend(field_tick_logs)
-
     result = check_battle_result(game_state)
     if result:
         logs.append(result)
         return "\n".join(logs)
-
+    from game.target_lock import tick_attack_target_lock_turn_end
+    target_lock_logs = tick_attack_target_lock_turn_end(game_state)
+    if target_lock_logs:
+        logs.append("")
+        logs.append("锁定目标结算：")
+        logs.extend(target_lock_logs)
     status_decay_logs = decay_statuses_by_timing(game_state, EVENT_TURN_END)
     if status_decay_logs:
         logs.append("")
@@ -885,7 +900,7 @@ def end_turn(game_state):
         logs.append(result)
         return "\n".join(logs)
     logs.append(player.status_text())
-    logs.append(format_enemy_current_status(game_state.enemies))
+    logs.append(format_enemy_current_status(game_state))
     logs.extend(player.draw_cards(5))
 
     return "\n".join(logs)
@@ -903,6 +918,17 @@ def validate_card_target(game_state, card, target_index):
             return "目标敌人编号无效。"
         if not game_state.enemies[target_index].is_alive():
             return "目标敌人已经死亡。"
+        if getattr(card, "card_type", "") == "attack":
+            from game.target_lock import (
+                get_locked_attack_target_index,
+                get_locked_attack_target_text
+            )
+            locked_index = get_locked_attack_target_index(game_state)
+            if locked_index is not None and target_index != locked_index:
+                return "当前已锁定攻击目标 {}，不能切换到 [{}]。".format(
+                    get_locked_attack_target_text(game_state),
+                    target_index
+                )
         return ""
     if card.target in ("all_enemies", "random_enemy"):
         if game_state.is_all_enemies_dead():
@@ -987,12 +1013,12 @@ def get_zone_field_view(game_state):
     return format_zone_field_detail(game_state)
 
 def get_hand(game_state):
-    return game_state.player.hand_text()
+    return game_state.player.hand_text(game_state)
 
 def get_combat_view(game_state):
     return "\n\n".join([
         game_state.status_text(),
-        game_state.player.hand_text()
+        game_state.player.hand_text(game_state)
     ])
 
 def format_relic_list(relics):

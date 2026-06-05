@@ -134,3 +134,36 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="artifact",
+    name="人工制品",
+    description="抵挡下一次将要获得的减益状态。每次抵挡消耗 1 层。",
+    category="buff",
+    display_mode="stack",
+    order=80,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="stun",
+    name="眩晕",
+    description="下一次行动时无法行动；敌人被眩晕时不会推进意图。",
+    category="debuff",
+    display_mode="turns",
+    order=90,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="next_target_damage_taken",
+    name="好，下一个",
+    description="被锁定的攻击目标。来自玩家攻击牌的伤害按层数百分比提高。",
+    category="debuff",
+    display_mode="percent",
+    order=95,
+    decay_timing="none",
+    decay_amount=0,
+))

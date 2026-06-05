@@ -174,7 +174,7 @@ class PlayerState:
     def exhaust_pile_text(self):
         return self.pile_text("exhaust_pile", "消耗牌堆")
 
-    def hand_text(self):
+    def hand_text(self, game_state=None):
         if not self.hand:
             return "当前没有手牌。"
 
@@ -182,15 +182,26 @@ class PlayerState:
         lines.append("当前手牌：")
 
         for index, card in enumerate(self.hand):
-            lines.append("[{}] {}".format(index, card.summary_text()))
-
+            line = "[{}] {}".format(index, card.summary_text())
+            if game_state is not None:
+                from game.card_preview import format_card_actual_preview
+                preview_text = format_card_actual_preview(game_state, card)
+                if preview_text:
+                    line += " | {}".format(preview_text)
+            lines.append(line)
         return "\n".join(lines)
     
     def get_status_value(self, key):
         return self.statuses.get(key)
 
     def gain_status(self, key, amount):
-        return self.statuses.add(key, amount)
+        from game.status.status_gain import add_status_with_artifact
+        result = add_status_with_artifact(self, key, amount)
+        return result["current"]
+
+    def gain_status_with_result(self, key, amount):
+        from game.status.status_gain import add_status_with_artifact
+        return add_status_with_artifact(self, key, amount)
 
     @property
     def dexterity(self):

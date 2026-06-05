@@ -87,7 +87,13 @@ class Enemy(object):
     def get_current_intent(self):
         raise NotImplementedError
 
-    def get_intent_text(self):
+    def get_intent_text(self, game_state=None):
+        if not self.is_alive():
+            return "已经走了有一会了。"
+        if game_state is not None:
+            from game.intent_preview import format_enemy_intent_text
+            return format_enemy_intent_text(game_state, self)
+
         return self.get_current_intent().to_text()
 
     def act(self):
@@ -114,13 +120,13 @@ class Enemy(object):
             self.block
         )
 
-    def status_text(self):
+    def status_text(self, game_state=None):
         return "{} HP：{}/{}，格挡：{}，意图：{}，状态：{}".format(
             self.name,
             self.hp,
             self.max_hp,
             self.block,
-            self.get_intent_text(),
+            self.get_intent_text(game_state),
             get_status_display_text(self.statuses)
         )
     
@@ -128,5 +134,11 @@ class Enemy(object):
         return self.statuses.get(key)
 
     def gain_status(self, key, amount):
-        return self.statuses.add(key, amount)
+        from game.status.status_gain import add_status_with_artifact
+        result = add_status_with_artifact(self, key, amount)
+        return result["current"]
+
+    def gain_status_with_result(self, key, amount):
+        from game.status.status_gain import add_status_with_artifact
+        return add_status_with_artifact(self, key, amount)
     

@@ -356,15 +356,20 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target=target_entity,
             effect_context=effect_context
         )
-        current = target_entity.gain_status(status_key, amount)
-        status_name = get_status_name(status_key)
-        logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
-            target_entity.name,
-            amount,
-            status_name,
-            status_name,
-            current
-        ))
+        if hasattr(target_entity, "gain_status_with_result"):
+            result = target_entity.gain_status_with_result(status_key, amount)
+            from game.status.status_gain import format_status_gain_log
+            logs.append(format_status_gain_log(target_entity, status_key, amount, result))
+        else:
+            current = target_entity.gain_status(status_key, amount)
+            status_name = get_status_name(status_key)
+            logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
+                target_entity.name,
+                amount,
+                status_name,
+                status_name,
+                current
+            ))
         return logs
     
     if op == "gain_mirage_shadows":
@@ -628,6 +633,83 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 status_name,
                 current
             ))
+        return logs
+
+    if op == "gain_status_if_target_has_no_artifact":
+        target_key = effect.get("target", "selected_enemy")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+        if target_entity is None:
+            logs.append("条件状态目标无效。")
+            return logs
+        artifact = 0
+        if hasattr(target_entity, "statuses"):
+            artifact = target_entity.statuses.get("artifact")
+        status_key = effect.get("status", "")
+        if not status_key:
+            logs.append("gain_status_if_target_has_no_artifact 缺少 status。")
+            return logs
+        if artifact > 0:
+            logs.append("{} 拥有人工制品，未被{}影响。".format(
+                target_entity.name,
+                get_status_name(status_key)
+            ))
+            return logs
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        current = target_entity.gain_status(status_key, amount)
+        status_name = get_status_name(status_key)
+        logs.append("{} 没有人工制品，获得 {} 点{}。当前{}：{}。".format(
+            target_entity.name,
+            amount,
+            status_name,
+            status_name,
+            current
+        ))
+        return logs
+
+    if op == "lock_next_target":
+        target_key = effect.get("target", "selected_enemy")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+        if target_entity is None:
+            logs.append("锁定目标无效。")
+            return logs
+        duration = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("duration", 3),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        initial_bonus = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("initial_bonus_percent", 100),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        from game.target_lock import lock_attack_target
+        logs.extend(lock_attack_target(
+            game_state=game_state,
+            enemy=target_entity,
+            duration=duration,
+            initial_bonus_percent=initial_bonus
+        ))
         return logs
 
     if op == "increase_card_var":

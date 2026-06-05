@@ -61,6 +61,7 @@ class PatternEnemy(Enemy):
                 "source_enemy_id": self.enemy_id,
                 "source_enemy_name": self.name,
                 "damage": intent.value,
+                "target": intent.target,
                 "attack_type": intent.attack_type,
                 "attack_element": intent.attack_element
             }

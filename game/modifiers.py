@@ -131,7 +131,11 @@ def apply_attack_damage_modifiers(
         damage_source=damage_source
     )
     value = int(value * status_multiplier)
-    # 3. 环境乘区
+    # 3. 锁定目标乘区：好，下一个
+    if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
+        from game.target_lock import get_next_target_damage_multiplier
+        value = int(value * get_next_target_damage_multiplier(target))
+    # 4. 环境乘区
     environment_multiplier = get_attack_environment_multiplier(
         game_state=game_state,
         attack_element=attack_element

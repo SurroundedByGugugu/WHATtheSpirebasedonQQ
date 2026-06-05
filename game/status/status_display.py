@@ -22,6 +22,11 @@ def format_status(key, value):
     if mode == "stack":
         return "{}({}层)".format(name, value)
 
+    if mode == "percent":
+        return "{}(+{}%)".format(name, value)
+
+    return "{}({})".format(name, value)
+
     return "{}({})".format(name, value)
 
 

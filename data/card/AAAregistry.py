@@ -38,6 +38,8 @@ from data.card.character.lumine_card import (
     create_energetic,
     create_factor_separate,
     create_fast_transfer,
+    create_brain_shockwave,
+    create_ok_next,
 )
 
 CARD_REGISTRY = {
@@ -66,6 +68,8 @@ CARD_REGISTRY = {
     "card.energetic": create_energetic,
     "card.factor_separate": create_factor_separate,
     "card.fast_transfer": create_fast_transfer,
+    "card.brain_shockwave": create_brain_shockwave,
+    "card.ok_next": create_ok_next,
 }
 
 def create_card(card_id):

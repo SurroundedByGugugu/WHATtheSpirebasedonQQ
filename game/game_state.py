@@ -47,7 +47,7 @@ class GameState:
         lines.append("敌人：")
 
         for index, enemy in enumerate(self.enemies):
-            lines.append("[{}] {}".format(index, enemy.status_text()))
+            lines.append("[{}] {}".format(index, enemy.status_text(self)))
 
         if self.active_zone is not None:
             lines.append("")
