@@ -13,7 +13,6 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.node.01",
         "node_type": "normal_enemy",
         "name": "入口战斗",
-        "encounter_id": "encounter.test_dummy",
         "next_node_ids": ["act1.node.02a", "act1.node.02b"]
     },
 
@@ -21,7 +20,6 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.node.02a",
         "node_type": "normal_enemy",
         "name": "左路战斗",
-        "encounter_id": "encounter.test_dummy",
         "next_node_ids": ["act1.node.03a", "act1.node.03b"]
     },
     {
@@ -48,14 +46,12 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.node.04a",
         "node_type": "elite",
         "name": "精英战斗",
-        "encounter_id": "encounter.elite.chaos_fragment",
         "next_node_ids": ["act1.node.05"]
     },
     {
         "node_id": "act1.node.04b",
         "node_type": "normal_enemy",
         "name": "普通战斗",
-        "encounter_id": "encounter.test_dummy",
         "next_node_ids": ["act1.node.05"]
     },
 
@@ -83,7 +79,6 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.node.07",
         "node_type": "normal_enemy",
         "name": "中段战斗",
-        "encounter_id": "encounter.test_dummy",
         "next_node_ids": ["act1.node.08a", "act1.node.08b"]
     },
 
@@ -104,7 +99,6 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.node.09",
         "node_type": "elite",
         "name": "门前精英",
-        "encounter_id": "encounter.elite_dummy",
         "next_node_ids": ["act1.node.10a", "act1.node.10b"]
     },
 
@@ -112,7 +106,6 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.node.10a",
         "node_type": "normal_enemy",
         "name": "最后战斗",
-        "encounter_id": "encounter.test_dummy",
         "next_node_ids": ["act1.rest.before_boss"]
     },
     {
@@ -133,16 +126,14 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.boss",
         "node_type": "boss",
         "name": "一层 Boss",
-        "encounter_id": "encounter.boss_dummy",
         "next_node_ids": ["act2.ancient.start"]
     },
-
-    {
-        "node_id": "act2.ancient.start",
-        "node_type": "ancient",
-        "name": "下一层的先古之民",
-        "next_node_ids": []
-    },
+    # {
+    #     "node_id": "act2.ancient.start",
+    #     "node_type": "ancient",
+    #     "name": "下一层的先古之民",
+    #     "next_node_ids": []
+    # },
 ]
 
 ACT2_TEST_ROUTE=[
@@ -156,7 +147,6 @@ ACT2_TEST_ROUTE=[
         "node_id": "act1.node.01",
         "node_type": "normal_enemy",
         "name": "入口战斗",
-        "encounter_id": "encounter.test_dummy",
         "next_node_ids": ["act1.node.02"]
     },
     {
@@ -182,7 +172,6 @@ ACT2_TEST_ROUTE=[
         "node_id": "act1.elite",
         "node_type": "elite",
         "name": "伪装成boss的精英",
-        "encounter_id": "encounter.elite_dummy",
         "next_node_ids": ["act1.boss"]
     },
     {
@@ -192,13 +181,5 @@ ACT2_TEST_ROUTE=[
         "next_node_ids": []
     },
 ]
-TEST_TEST_ROUTE=[
-    {
-        "node_id": "act1.boss",
-        "node_type": "boss",
-        "name": "珊瑚",
-        "next_node_ids": []
-    },
-]
 
-TEST_ROUTE = ACT2_TEST_ROUTE
+TEST_ROUTE = ACT1_TEST_ROUTE

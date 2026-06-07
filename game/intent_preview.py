@@ -79,11 +79,14 @@ def preview_enemy_block(game_state, enemy, base_block):
     )
 
 
-def format_enemy_intent_text(game_state, enemy):
-    if not enemy.is_alive():
-        return "已经走了有一会了。"
-
-    intent = enemy.get_current_intent()
+def _format_one_intent_text(game_state, enemy, intent):
+    if intent.kind == "multi":
+        parts = []
+        for child in getattr(intent, "actions", []):
+            text = _format_one_intent_text(game_state, enemy, child)
+            if text:
+                parts.append(text)
+        return "；".join(parts)
 
     if intent.kind == "attack":
         value = preview_enemy_attack_damage(
@@ -94,8 +97,22 @@ def format_enemy_intent_text(game_state, enemy):
             attack_type=getattr(intent, "attack_type", ""),
             attack_element=getattr(intent, "attack_element", "")
         )
+
+        repeat = int(getattr(intent, "repeat", 1))
+
+        if repeat > 1:
+            if value != intent.value:
+                return "攻击 {} ×{}（基础 {} ×{}）".format(
+                    value,
+                    repeat,
+                    intent.value,
+                    repeat
+                )
+            return "攻击 {} ×{}".format(value, repeat)
+
         if value != intent.value:
             return "攻击 {}（基础 {}）".format(value, intent.value)
+
         return intent.to_text()
 
     if intent.kind == "block":
@@ -109,3 +126,11 @@ def format_enemy_intent_text(game_state, enemy):
         return intent.to_text()
 
     return intent.to_text()
+
+
+def format_enemy_intent_text(game_state, enemy):
+    if not enemy.is_alive():
+        return "已经走了有一会了。"
+
+    intent = enemy.get_current_intent()
+    return _format_one_intent_text(game_state, enemy, intent)

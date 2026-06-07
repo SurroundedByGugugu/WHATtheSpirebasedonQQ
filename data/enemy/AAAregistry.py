@@ -2,13 +2,14 @@
 
 from data.enemy.chaos_fragment_enemy import ChaosFragmentEnemy
 from data.enemy.test_dummy_enemy import TestDummyEnemy
-from data.enemy.sea_enemy import CorsoalEnemy, MareanieEnemy
+from data.enemy.sea_enemy import CorsoalEnemy, MareanieEnemy, PlasticBagEnemy
 
 ENEMY_REGISTRY = {
     "enemy.test_dummy": TestDummyEnemy,
     "enemy.chaos_fragment":ChaosFragmentEnemy,
     "enemy.corsoal": CorsoalEnemy,
     "enemy.mareanie": MareanieEnemy,
+    "enemy.plastic_bag": PlasticBagEnemy,
 }
 
 

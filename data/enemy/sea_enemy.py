@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import random
-
-from data.enemy.base_enemy import Enemy, EnemyIntent, EnemyActionResult
+from data.enemy.base_enemy import EnemyIntent
 from data.enemy.pattern_enemy import PatternEnemy
-
 
 class CorsoalEnemy(PatternEnemy):
     def __init__(self):
@@ -22,114 +19,84 @@ class CorsoalEnemy(PatternEnemy):
             intent_cycle=intent_cycle
         )
 
-
-class MareanieEnemy(Enemy):
+class MareanieEnemy(PatternEnemy):
     """
     海星：
     1. 首次行动：荆棘4 / 毒荆棘1，概率 1:1，只触发一次。
-    2. 后续循环：毒4+打4 -> 防8 -> 毒4+打4 -> 防8 ...
+    2. 后续循环：毒2+打4 -> 防8 -> 毒2+打4 -> 防8 ...
     3. 攻击/施毒目标：若场上存在存活珊瑚，优先选择珊瑚；否则选择玩家。
     """
 
     def __init__(self):
-        Enemy.__init__(
+        opening_intents = [
+            EnemyIntent(kind="status", target="self", status="thorns", value=4),
+            EnemyIntent(kind="status", target="self", status="poison_thorns", value=1),
+        ]
+
+        poison_and_attack = EnemyIntent(
+            kind="multi",
+            actions=[
+                EnemyIntent(kind="status", target="corsoal_or_player", status="poison", value=2),
+                EnemyIntent(kind="attack", target="corsoal_or_player", value=4),
+            ]
+        )
+
+        intent_cycle = [
+            opening_intents,
+            poison_and_attack,
+            EnemyIntent(kind="block", value=8),
+        ]
+
+        PatternEnemy.__init__(
             self,
             enemy_id="enemy.mareanie",
             name="紫色的棘冠海星",
-            max_hp=36
+            max_hp=36,
+            intent_cycle=intent_cycle,
+            loop_start_index=1
         )
 
-        self._intent_index = 0
-        self._locked_opening_intent = None
+class PlasticBagEnemy(PatternEnemy):
+    def __init__(self):
+        intent_a = EnemyIntent(
+            kind="attack",
+            value=2,
+            repeat=3
+        )
+        intent_b = EnemyIntent(
+            kind="multi",
+            actions=[
+                EnemyIntent(kind="block", value=6),
+                EnemyIntent(kind="attack", value=6),
+            ]
+        )
+        intent_c = EnemyIntent(
+            kind="attack",
+            value=12
+        )
+        intent_d = EnemyIntent(
+            kind="status",
+            target="self",
+            status="strength",
+            value=3
+        )
+        intent_cycle = [
+            # 1. 固定 a
+            intent_a,
+            # 2. 加权随机：10% a，30% b，30% c，30% d
+            [
+                (10, intent_a),
+                (30, intent_b),
+                (30, intent_c),
+                (30, intent_d),
+            ],
+        ]
 
-    def _get_opening_intent(self):
-        if self._locked_opening_intent is None:
-            self._locked_opening_intent = random.choice([
-                EnemyIntent(kind="status", target="self", status="thorns", value=4),
-                EnemyIntent(kind="status", target="self", status="poison_thorns", value=1),
-            ])
-        return self._locked_opening_intent
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.plastic_bag",
+            name="飞翔塑料袋",
+            max_hp=80,
+            intent_cycle=intent_cycle
+        )
 
-    def get_current_intent(self):
-        if self._intent_index == 0:
-            return self._get_opening_intent()
-
-        if self._intent_index == 1:
-            return EnemyIntent(kind="attack", value=2, target="corsoal_or_player")
-
-        return EnemyIntent(kind="block", value=8)
-
-    def get_intent_text(self):
-        if self._intent_index == 0:
-            return self._get_opening_intent().to_text()
-        if self._intent_index == 1:
-            return "优先对珊瑚施加 2 层中毒，并攻击 4"
-        return "获得 8 点格挡"
-
-    def advance_intent(self):
-        if self._intent_index == 0:
-            self._intent_index = 1
-            return
-
-        if self._intent_index == 1:
-            self._intent_index = 2
-            return
-
-        self._intent_index = 1
-
-    def act(self):
-        logs = []
-
-        if self._intent_index == 0:
-            intent = self._get_opening_intent()
-            action = {
-                "op": "enemy_gain_status",
-                "source_enemy_id": self.enemy_id,
-                "source_enemy_name": self.name,
-                "target": "self",
-                "status": intent.status,
-                "amount": intent.value
-            }
-            logs.append("{} 准备使用状态效果：{}。".format(
-                self.name,
-                intent.to_text()
-            ))
-            self.advance_intent()
-            return EnemyActionResult(action=action, logs=logs)
-
-        if self._intent_index == 1:
-            action = {
-                "op": "enemy_multi_action",
-                "source_enemy_id": self.enemy_id,
-                "source_enemy_name": self.name,
-                "actions": [
-                    {
-                        "op": "enemy_gain_status",
-                        "source_enemy_id": self.enemy_id,
-                        "source_enemy_name": self.name,
-                        "target": "corsoal_or_player",
-                        "status": "poison",
-                        "amount": 2
-                    },
-                    {
-                        "op": "enemy_attack",
-                        "source_enemy_id": self.enemy_id,
-                        "source_enemy_name": self.name,
-                        "target": "corsoal_or_player",
-                        "damage": 4
-                    },
-                ]
-            }
-            logs.append("{} 准备优先对珊瑚施加 2 层中毒，并造成 4 点伤害。".format(self.name))
-            self.advance_intent()
-            return EnemyActionResult(action=action, logs=logs)
-
-        action = {
-            "op": "enemy_gain_block",
-            "source_enemy_id": self.enemy_id,
-            "source_enemy_name": self.name,
-            "block": 8
-        }
-        logs.append("{} 准备获得 8 点格挡。".format(self.name))
-        self.advance_intent()
-        return EnemyActionResult(action=action, logs=logs)

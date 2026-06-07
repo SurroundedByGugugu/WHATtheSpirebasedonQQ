@@ -11,15 +11,15 @@ class ChaosFragmentEnemy(PatternEnemy):
             EnemyIntent(kind="attack", value=7),
             # 第 2 个槽位：从三个动作里随机一个
             [
-                EnemyIntent(kind="attack", value=11),
-                EnemyIntent(kind="block", value=10),
-                EnemyIntent(kind="status", target="player", status="weak", value=2),
+                (1, EnemyIntent(kind="attack", value=11)),
+                (1, EnemyIntent(kind="block", value=10)),
+                (1, EnemyIntent(kind="status", target="player", status="weak", value=2)),
             ],
             # 第 3 个槽位：从三个动作里随机一个
             [
-                EnemyIntent(kind="status", target="player", status="vulnerable", value=2),
-                EnemyIntent(kind="status", target="player", status="frail", value=2),
-                EnemyIntent(kind="status", target="self", status="thorns", value=3),
+                (1, EnemyIntent(kind="status", target="player", status="vulnerable", value=2)),
+                (1, EnemyIntent(kind="status", target="player", status="frail", value=2)),
+                (1, EnemyIntent(kind="status", target="self", status="thorns", value=3)),
             ],
         ]
         PatternEnemy.__init__(

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Any
 from game.status.status_container import StatusContainer
 from game.status.status_display import get_status_display_text
@@ -23,18 +23,39 @@ class EnemyIntent:
     target: str = "player"
     attack_type: str = ""
     attack_element: str = ""
+    repeat: int = 1
+    actions: List[Any] = field(default_factory=list)
+
     def to_text(self):
+        if self.kind == "multi":
+            parts = []
+            for child in self.actions:
+                if hasattr(child, "to_text"):
+                    parts.append(child.to_text())
+            if parts:
+                return "；".join(parts)
+            return "复合行动"
+
         if self.kind == "attack":
             tag_parts = []
             if self.attack_element:
                 tag_parts.append(get_element_display_name(self.attack_element))
             if self.attack_type:
                 tag_parts.append(get_attack_type_display_name(self.attack_type))
+
             if tag_parts:
-                return "{} 攻击 {}".format("/".join(tag_parts), self.value)
-            return "攻击 {}".format(self.value)
+                prefix = "{} 攻击".format("/".join(tag_parts))
+            else:
+                prefix = "攻击"
+
+            if int(self.repeat) > 1:
+                return "{} {} ×{}".format(prefix, self.value, int(self.repeat))
+
+            return "{} {}".format(prefix, self.value)
+
         if self.kind == "block":
             return "获得 {} 点格挡".format(self.value)
+
         if self.kind == "status":
             status_name_map = {
                 "vulnerable": "易伤",
@@ -45,11 +66,14 @@ class EnemyIntent:
                 "dexterity": "敏捷",
                 "poison": "中毒",
                 "poison_thorns": "毒荆棘",
+                "artifact": "人工制品",
+                "stun": "眩晕",
             }
             status_name = status_name_map.get(self.status, self.status)
             if self.target == "self":
                 return "自身获得 {} 点{}".format(self.value, status_name)
             return "给予玩家 {} 点{}".format(self.value, status_name)
+
         return "未知意图"
     
 @dataclass
