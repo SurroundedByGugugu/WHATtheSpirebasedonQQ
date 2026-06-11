@@ -107,7 +107,9 @@ class PatternEnemy(Enemy):
                 "op": "enemy_gain_block",
                 "source_enemy_id": self.enemy_id,
                 "source_enemy_name": self.name,
-                "block": intent.value
+                "block": intent.value,
+                "attack_type": intent.attack_type,
+                "attack_element": intent.attack_element
             }
 
         if intent.kind == "status":
@@ -117,7 +119,9 @@ class PatternEnemy(Enemy):
                 "source_enemy_name": self.name,
                 "target": intent.target,
                 "status": intent.status,
-                "amount": intent.value
+                "amount": intent.value,
+                "attack_type": intent.attack_type,
+                "attack_element": intent.attack_element
             }
 
         if intent.kind == "multi":

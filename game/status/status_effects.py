@@ -5,10 +5,13 @@ from game.modifiers import get_status_value
 
 STATUS_EVENT_PRIORITY = {
     "thorns": 50,
+    "temporary_thorns": 50,
     "poison_thorns": 49,
     "god_in_hand": 40,
     "mirage_shadows": 35,
     "poison": 20,
+    "burn": 19,
+    "regeneration": 18,
     "temporary_dexterity_loss": 10,
 }
 
@@ -135,6 +138,24 @@ def handle_thorns(event_name, context, owner, value):
 
     return logs
 
+
+def handle_temporary_thorns(event_name, context, owner, value):
+    if event_name == EVENT_DAMAGE_AFTER:
+        return handle_thorns(event_name, context, owner, value)
+
+    logs = []
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None:
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("temporary_thorns")
+    logs.append("{} 的临时荆棘消失了。".format(owner.name))
+    return logs
+
 def handle_poison_thorns(event_name, context, owner, value):
     """
     毒荆棘：
@@ -224,6 +245,60 @@ def handle_poison(event_name, context, owner, value):
         card=None,
         is_reaction_damage=False,
         ignore_block=True
+    ))
+    return logs
+
+
+def handle_burn(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    hp_loss = int(owner.hp / 8)
+    if hp_loss <= 0:
+        hp_loss = 1
+    logs.append("{} 受到 {} 层烧伤影响，失去当前生命 1/8（{} 点）。".format(
+        owner.name,
+        amount,
+        hp_loss
+    ))
+    from game.damage import deal_damage
+    logs.extend(deal_damage(
+        game_state=context.game_state,
+        source=owner,
+        target=owner,
+        amount=hp_loss,
+        damage_kind="burn",
+        card=None,
+        is_reaction_damage=False,
+        ignore_block=True
+    ))
+    return logs
+
+
+def handle_regeneration(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    old_hp = owner.hp
+    owner.hp += amount
+    if owner.hp > owner.max_hp:
+        owner.hp = owner.max_hp
+    real_heal = owner.hp - old_hp
+    logs.append("{} 的再生触发，恢复 {} 点生命。当前 HP：{}/{}。".format(
+        owner.name,
+        real_heal,
+        owner.hp,
+        owner.max_hp
     ))
     return logs
 
@@ -400,8 +475,11 @@ def handle_god_in_hand(event_name, context, owner, value):
 
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
+    "temporary_thorns": handle_temporary_thorns,
     "poison_thorns": handle_poison_thorns,
     "poison": handle_poison,
+    "burn": handle_burn,
+    "regeneration": handle_regeneration,
     "mirage_shadows": handle_mirage_shadows,
     "temporary_dexterity_loss": handle_temporary_dexterity_loss,
     "god_in_hand": handle_god_in_hand,

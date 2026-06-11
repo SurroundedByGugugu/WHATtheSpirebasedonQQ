@@ -137,18 +137,10 @@ def deploy_element_zone(game_state, element, source=None, card=None, force_extre
 
 def get_zone_damage_multiplier(game_state, attack_element):
     """
-    获取当前 Zone 对指定元素攻击的伤害倍率。
-    无 Zone / 无属性 / 属性不匹配时返回 1.0。
+    兼容旧接口。
+    新版 Zone 不再提供通用同属性伤害倍率，具体效果由元素能力表处理。
     """
-    attack_element = normalize_element(attack_element)
-    if not attack_element:
-        return 1.0
-    zone = getattr(game_state, "active_zone", None)
-    if zone is None:
-        return 1.0
-    if getattr(zone, "element", "") != attack_element:
-        return 1.0
-    return float(getattr(zone, "damage_multiplier", 1.0))
+    return 1.0
 
 
 def apply_zone_damage_modifier(value, game_state, attack_element):
@@ -159,6 +151,276 @@ def apply_zone_damage_modifier(value, game_state, attack_element):
 
     return int(value * multiplier)
 
+
+
+# =========================
+# Zone ability helpers
+# =========================
+
+ZONE_REPLAY_EXTRA = {
+    "crystal": (1, 2),
+    "thunder": (0, 1),
+}
+
+ZONE_SHADE_MULTIPLIER = {
+    "shade": (1.5, 2.0),
+}
+
+ZONE_FIRE_BURN = {
+    "fire": (1, 2),
+}
+
+ZONE_EARTH_TEMP_THORNS_RATIO = {
+    "earth": (0.5, 0.8),
+}
+
+ZONE_WATER_REGEN = {
+    "water": (2, 3),
+}
+
+ZONE_WIND_BLOCK_EFFECT = {
+    "wind": (1.3, 1.5),
+}
+
+
+def get_zone_value(zone, table, default=0):
+    if zone is None:
+        return default
+    element = getattr(zone, "element", "")
+    if element not in table:
+        return default
+    normal_value, extreme_value = table[element]
+    if getattr(zone, "is_extreme", False):
+        return extreme_value
+    return normal_value
+
+
+def has_relic(player, relic_id):
+    if player is None:
+        return False
+    for relic in getattr(player, "relics", []):
+        if getattr(relic, "relic_id", "") == relic_id:
+            return True
+    return False
+
+
+def get_card_battle_key(card):
+    # 同一场战斗内，同一张牌对象在手牌/弃牌/抽牌堆之间移动时 id 不变。
+    return id(card)
+
+
+def is_card_first_play_this_battle(game_state, card):
+    played = getattr(game_state, "played_card_keys_this_battle", None)
+    if played is None:
+        played = set()
+        setattr(game_state, "played_card_keys_this_battle", played)
+    return get_card_battle_key(card) not in played
+
+
+def mark_card_played_this_battle(game_state, card):
+    played = getattr(game_state, "played_card_keys_this_battle", None)
+    if played is None:
+        played = set()
+        setattr(game_state, "played_card_keys_this_battle", played)
+    played.add(get_card_battle_key(card))
+
+
+def card_has_ether_medium_override(game_state, effect_context=None):
+    player = getattr(game_state, "player", None)
+    if not has_relic(player, "relic.ether_medium"):
+        return False
+    if effect_context is None:
+        return False
+    return bool(effect_context.get("card_first_play_this_battle", False))
+
+
+def get_active_zone(game_state):
+    return getattr(game_state, "active_zone", None)
+
+
+def get_card_or_effect_element(card=None, effect=None):
+    if effect is not None:
+        effect_element = effect.get("attack_element", None)
+        if effect_element is not None:
+            return normalize_element(effect_element)
+    return normalize_element(getattr(card, "attack_element", ""))
+
+
+def get_effective_zone_element_for_card(game_state, card=None, effect=None, effect_context=None):
+    """
+    返回本次卡牌/效果实际吃到的 Zone 元素。
+
+    正常规则：卡牌/效果元素 tag 必须与当前 Zone 元素一致。
+    以太介质：该场战斗中第一次打出该牌时，无视 tag，直接吃当前 Zone。
+    """
+    zone = get_active_zone(game_state)
+    if zone is None:
+        return ""
+
+    zone_element = normalize_element(getattr(zone, "element", ""))
+    if not zone_element:
+        return ""
+
+    if card_has_ether_medium_override(game_state, effect_context):
+        return zone_element
+
+    element = get_card_or_effect_element(card=card, effect=effect)
+    if element == zone_element:
+        return zone_element
+
+    return ""
+
+
+def is_zone_effect_active_for_card(game_state, card=None, effect=None, effect_context=None, element=""):
+    zone_element = get_effective_zone_element_for_card(
+        game_state=game_state,
+        card=card,
+        effect=effect,
+        effect_context=effect_context
+    )
+    if not element:
+        return bool(zone_element)
+    return zone_element == normalize_element(element)
+
+
+def get_effective_zone_element_for_enemy_action(game_state, attack_element=""):
+    zone = get_active_zone(game_state)
+    if zone is None:
+        return ""
+    zone_element = normalize_element(getattr(zone, "element", ""))
+    action_element = normalize_element(attack_element)
+    if zone_element and action_element == zone_element:
+        return zone_element
+    return ""
+
+
+def apply_zone_amount_modifier(value, game_state, zone_element):
+    zone = get_active_zone(game_state)
+    zone_element = normalize_element(zone_element)
+    if zone is None or zone_element != "shade":
+        return int(value)
+    multiplier = get_zone_value(zone, ZONE_SHADE_MULTIPLIER, 1.0)
+    return int(int(value) * float(multiplier))
+
+
+def get_zone_replay_extra(game_state, zone_element):
+    zone = get_active_zone(game_state)
+    zone_element = normalize_element(zone_element)
+    if zone is None:
+        return 0
+    return int(get_zone_value(zone, ZONE_REPLAY_EXTRA, 0))
+
+
+def get_zone_burn_amount(game_state, zone_element):
+    zone = get_active_zone(game_state)
+    zone_element = normalize_element(zone_element)
+    if zone is None or zone_element != "fire":
+        return 0
+    return int(get_zone_value(zone, ZONE_FIRE_BURN, 0))
+
+
+def get_zone_temp_thorns_amount(game_state, zone_element, block_amount):
+    zone = get_active_zone(game_state)
+    zone_element = normalize_element(zone_element)
+    if zone is None or zone_element != "earth":
+        return 0
+    ratio = float(get_zone_value(zone, ZONE_EARTH_TEMP_THORNS_RATIO, 0.0))
+    return int(int(block_amount) * ratio)
+
+
+def get_zone_regeneration_amount(game_state, zone_element):
+    zone = get_active_zone(game_state)
+    zone_element = normalize_element(zone_element)
+    if zone is None or zone_element != "water":
+        return 0
+    return int(get_zone_value(zone, ZONE_WATER_REGEN, 0))
+
+
+def get_zone_wind_block_effect_multiplier(game_state, zone_element):
+    zone = get_active_zone(game_state)
+    zone_element = normalize_element(zone_element)
+    if zone is None or zone_element != "wind":
+        return 1.0
+    return float(get_zone_value(zone, ZONE_WIND_BLOCK_EFFECT, 1.0))
+
+
+def should_zone_thunder_make_all(game_state, zone_element):
+    return normalize_element(zone_element) == "thunder" and get_active_zone(game_state) is not None
+
+
+def apply_zone_source_hp_loss_if_needed(game_state, source, zone_element, logs, label="Zone"):
+    zone_element = normalize_element(zone_element)
+    if zone_element != "shade":
+        return
+    if source is None or not source.is_alive():
+        return
+    amount = int(source.hp * 0.05)
+    if amount <= 0:
+        amount = 1
+    logs.append("{} 受到{}反噬，失去当前生命 5%（{} 点）。".format(
+        source.name,
+        label,
+        amount
+    ))
+    from game.damage import deal_damage
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=source,
+        target=source,
+        amount=amount,
+        damage_kind="hp_loss",
+        card=None,
+        ignore_block=True
+    ))
+
+
+def add_status_to_target(target, status_key, amount):
+    if hasattr(target, "gain_status_with_result"):
+        result = target.gain_status_with_result(status_key, amount)
+        from game.status.status_gain import format_status_gain_log
+        return format_status_gain_log(target, status_key, amount, result)
+    current = target.gain_status(status_key, amount)
+    from game.status.status_defs import get_status_name
+    status_name = get_status_name(status_key)
+    return "{} 获得 {} 点{}。当前{}：{}。".format(
+        target.name,
+        amount,
+        status_name,
+        status_name,
+        current
+    )
+
+
+def apply_fire_zone_burn(game_state, source, target, card, zone_element, logs):
+    if getattr(card, "card_type", "") != "attack":
+        return
+    burn = get_zone_burn_amount(game_state, zone_element)
+    if burn <= 0 or target is None or not target.is_alive():
+        return
+    logs.append(add_status_to_target(target, "burn", burn))
+
+
+def apply_earth_zone_temp_thorns(game_state, target, zone_element, block_amount, logs):
+    thorns = get_zone_temp_thorns_amount(game_state, zone_element, block_amount)
+    if thorns <= 0 or target is None or not target.is_alive():
+        return
+    logs.append(add_status_to_target(target, "temporary_thorns", thorns))
+
+
+def apply_water_zone_regeneration_on_card_play(game_state, card, effect_context, logs):
+    zone_element = get_effective_zone_element_for_card(
+        game_state=game_state,
+        card=card,
+        effect=None,
+        effect_context=effect_context
+    )
+    regen = get_zone_regeneration_amount(game_state, zone_element)
+    if regen <= 0:
+        return
+    player = getattr(game_state, "player", None)
+    if player is None or not player.is_alive():
+        return
+    logs.append(add_status_to_target(player, "regeneration", regen))
 
 def tick_zone_turn_end(game_state):
     logs = []
@@ -225,13 +487,13 @@ def format_zone_field_detail(game_state):
         if getattr(zone, "is_extreme", False):
             lines.append("当前：{}".format(zone.name))
             lines.append("提示：场地上充满了{}元素。".format(element_name))
-            lines.append("同属性伤害倍率：×{:.2f}".format(float(getattr(zone, "damage_multiplier", 1.0))))
+            lines.append("能力：{}".format(getattr(zone, "ability_text", "暂未定义")))
             lines.append("剩余：{} 回合".format(getattr(zone, "duration", 0)))
             lines.append("覆盖规则：极 Zone 持续期间不可覆盖。")
         else:
             lines.append("当前：{}".format(zone.name))
             lines.append("提示：场地上弥漫着{}元素。".format(element_name))
-            lines.append("同属性伤害倍率：×{:.2f}".format(float(getattr(zone, "damage_multiplier", 1.0))))
+            lines.append("能力：{}".format(getattr(zone, "ability_text", "暂未定义")))
             lines.append("覆盖规则：持续到战斗结束或被覆盖；再次展开同属性 Zone 会升级为极 Zone。")
 
     lines.append("")

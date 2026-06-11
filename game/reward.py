@@ -40,6 +40,7 @@ POTION_REWARD_POOL = [
 RELIC_REWARD_POOL = [
     "relic.placeholder_stone",
     "relic.x_potion",
+    "relic.ether_medium",
     "relic.homunculus_prototype",
 ]
 

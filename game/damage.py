@@ -5,6 +5,53 @@ from game.event_bus import dispatch_event
 from game.constants import EVENT_DAMAGE_AFTER
 
 
+def take_damage_with_wind_block_effect(target, amount, multiplier):
+    """
+    风 Zone：攻击对格挡效果提升。
+    multiplier=1.3 时，13 点格挡约只能抵消 10 点伤害。
+    """
+    import math
+
+    amount = int(amount)
+    multiplier = float(multiplier)
+
+    if amount <= 0:
+        return "{} 没有受到伤害。".format(target.name)
+
+    if multiplier <= 1.0 or getattr(target, "block", 0) <= 0:
+        return target.take_damage(amount)
+
+    old_block = int(target.block)
+
+    blocked_damage = min(amount, int(old_block / multiplier))
+    if blocked_damage <= 0:
+        used_block = old_block
+    else:
+        used_block = int(math.ceil(blocked_damage * multiplier))
+        if used_block > old_block:
+            used_block = old_block
+
+    target.block -= used_block
+    if target.block < 0:
+        target.block = 0
+
+    real_damage = amount - blocked_damage
+    if real_damage < 0:
+        real_damage = 0
+
+    target.hp -= real_damage
+    if target.hp < 0:
+        target.hp = 0
+
+    return "{} 受到 {} 点伤害，剩余 HP：{}/{}, 格挡：{}。".format(
+        target.name,
+        real_damage,
+        target.hp,
+        target.max_hp,
+        target.block
+    )
+
+
 def deal_damage(
     game_state,
     source,
@@ -15,7 +62,8 @@ def deal_damage(
     is_reaction_damage=False,
     ignore_block=False,
     attack_type="",
-    attack_element=""
+    attack_element="",
+    zone_element=""
 ):
     """
     统一伤害入口。
@@ -66,7 +114,21 @@ def deal_damage(
                 target.block
             ))
     else:
-        logs.append(target.take_damage(amount))
+        wind_block_multiplier = 1.0
+        if damage_kind == "attack":
+            from game.zone_utils import get_zone_wind_block_effect_multiplier
+            wind_block_multiplier = get_zone_wind_block_effect_multiplier(
+                game_state=game_state,
+                zone_element=zone_element
+            )
+        if wind_block_multiplier > 1.0:
+            logs.append(take_damage_with_wind_block_effect(
+                target=target,
+                amount=amount,
+                multiplier=wind_block_multiplier
+            ))
+        else:
+            logs.append(target.take_damage(amount))
 
     real_damage = old_hp - target.hp
     blocked = old_block - target.block
@@ -92,6 +154,7 @@ def deal_damage(
             "ignore_block": ignore_block,
             "attack_type": attack_type,
             "attack_element": attack_element,
+            "zone_element": zone_element,
         }
     )
 

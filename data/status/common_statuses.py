@@ -91,6 +91,41 @@ register_status_def(StatusDef(
     decay_amount=0,
 ))
 
+
+
+register_status_def(StatusDef(
+    key="burn",
+    name="烧伤",
+    description="造成攻击伤害减半；回合结束时失去当前生命的 1/8，然后层数减少 1。",
+    category="debuff",
+    display_mode="turns",
+    order=52,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
+
+register_status_def(StatusDef(
+    key="temporary_thorns",
+    name="临时荆棘",
+    description="受到攻击后，对攻击来源造成等同于层数的反伤；回合结束时消失。",
+    category="buff",
+    display_mode="stack",
+    order=66,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="regeneration",
+    name="再生",
+    description="回合结束时恢复等同于层数的生命，然后层数减少 1。",
+    category="buff",
+    display_mode="stack",
+    order=67,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
+
 register_status_def(StatusDef(
     key="demon_form",
     name="恶魔形态",

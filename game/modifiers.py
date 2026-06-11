@@ -69,6 +69,9 @@ def get_attack_status_multiplier(source, target, damage_source):
         elif damage_source == DAMAGE_SOURCE_ENEMY_ACTION:
             multiplier *= WEAK_ENEMY_ATTACK_DAMAGE_MULT
 
+    if get_status_value(source, "burn") > 0:
+        multiplier *= 0.5
+
     if get_status_value(target, "vulnerable") > 0:
         if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
             multiplier *= VULNERABLE_PLAYER_CARD_DAMAGE_MULT

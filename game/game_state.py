@@ -31,6 +31,9 @@ class GameState:
     active_zone: Any = None
     active_fields: List[Any] = field(default_factory=list)
 
+    # 本场战斗已经打出过的牌对象，用于“第一次打出”类效果。
+    played_card_keys_this_battle: set = field(default_factory=set)
+
     def get_alive_enemies(self):
         return [enemy for enemy in self.enemies if enemy.is_alive()]
 

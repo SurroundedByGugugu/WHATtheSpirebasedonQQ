@@ -32,7 +32,9 @@ from data.card.keyword_rules import (
 from game.zone_utils import (
     tick_zone_turn_end, 
     tick_fields_turn_end, 
-    format_zone_field_detail
+    format_zone_field_detail,
+    is_card_first_play_this_battle,
+    mark_card_played_this_battle,
 )
 
 
@@ -216,7 +218,16 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
         logs.append("【{}】因奇巧被{}，免费打出。".format(card.name, reason))
 
         target_index = get_default_target_index(game_state)
-        logs.extend(apply_card_effects(game_state, card, target_index))
+        effect_context = {
+            "card_first_play_this_battle": is_card_first_play_this_battle(game_state, card)
+        }
+        logs.extend(apply_card_effects(
+            game_state,
+            card,
+            target_index,
+            effect_context=effect_context
+        ))
+        mark_card_played_this_battle(game_state, card)
 
         context = BattleContext(
             game_state=game_state,
@@ -405,6 +416,7 @@ def play_card(game_state, hand_index, target_index=0):
             "x": x_value,
             "spent_cost": spent_cost
         }
+    effect_context["card_first_play_this_battle"] = is_card_first_play_this_battle(game_state, card)
 
     logs.extend(apply_card_effects(
         game_state,
@@ -412,6 +424,7 @@ def play_card(game_state, hand_index, target_index=0):
         target_index,
         effect_context=effect_context
     ))
+    mark_card_played_this_battle(game_state, card)
 
     # 出牌后事件：先用于测试遗物的“打出技能牌”触发
     context = BattleContext(
@@ -671,6 +684,38 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
     op = action.get("op")
     attack_type = action.get("attack_type", "")
     attack_element = action.get("attack_element", "")
+
+    from game.zone_utils import (
+        get_effective_zone_element_for_enemy_action,
+        get_zone_replay_extra,
+    )
+
+    zone_element = get_effective_zone_element_for_enemy_action(
+        game_state=game_state,
+        attack_element=attack_element
+    )
+
+    if zone_element and not action.get("_zone_replay_applied", False) and op != "enemy_multi_action":
+        replay_extra = get_zone_replay_extra(game_state, zone_element)
+        if replay_extra > 0:
+            total_times = 1 + replay_extra
+            logs.append("{} 的 Zone 使本次意图重放，总结算 {} 次。".format(
+                enemy.name,
+                total_times
+            ))
+            replay_action = dict(action)
+            replay_action["_zone_replay_applied"] = True
+            for replay_index in range(total_times):
+                if not enemy.is_alive() or game_state.battle_over:
+                    break
+                logs.append("{} 的 Zone 重放第 {}/{} 次：".format(
+                    enemy.name,
+                    replay_index + 1,
+                    total_times
+                ))
+                process_enemy_action_payload(game_state, enemy, replay_action, logs)
+            return
+
     if op == "enemy_multi_action":
         child_actions = action.get("actions", [])
         if not child_actions:
@@ -708,6 +753,13 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             attack_type=attack_type,
             attack_element=attack_element
         )
+        from game.zone_utils import (
+            apply_zone_amount_modifier,
+            apply_zone_source_hp_loss_if_needed,
+            get_zone_burn_amount,
+            add_status_to_target,
+        )
+        damage = apply_zone_amount_modifier(damage, game_state, zone_element)
         logs.extend(deal_damage(
             game_state=game_state,
             source=enemy,
@@ -716,8 +768,19 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             damage_kind="attack",
             card=None,
             attack_type=attack_type,
-            attack_element=attack_element
+            attack_element=attack_element,
+            zone_element=zone_element
         ))
+        burn = get_zone_burn_amount(game_state, zone_element)
+        if burn > 0 and target.is_alive():
+            logs.append(add_status_to_target(target, "burn", burn))
+        apply_zone_source_hp_loss_if_needed(
+            game_state=game_state,
+            source=enemy,
+            zone_element=zone_element,
+            logs=logs,
+            label="阴 Zone"
+        )
         return
     if op == "enemy_gain_block":
         block = int(action.get("block", 0))
@@ -730,6 +793,12 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             card=None,
             block_source=BLOCK_SOURCE_ENEMY_ACTION
         )
+        from game.zone_utils import (
+            apply_zone_amount_modifier,
+            apply_earth_zone_temp_thorns,
+            apply_zone_source_hp_loss_if_needed,
+        )
+        block = apply_zone_amount_modifier(block, game_state, zone_element)
         if block < 0:
             block = 0
         enemy.block += block
@@ -737,11 +806,27 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             enemy.name,
             block
         ))
+        apply_earth_zone_temp_thorns(
+            game_state=game_state,
+            target=enemy,
+            zone_element=zone_element,
+            block_amount=block,
+            logs=logs
+        )
+        apply_zone_source_hp_loss_if_needed(
+            game_state=game_state,
+            source=enemy,
+            zone_element=zone_element,
+            logs=logs,
+            label="阴 Zone"
+        )
         return
     if op == "enemy_gain_status":
         target_key = action.get("target", "player")
         status_key = action.get("status", "")
         amount = int(action.get("amount", 0))
+        from game.zone_utils import apply_zone_amount_modifier, apply_zone_source_hp_loss_if_needed
+        amount = apply_zone_amount_modifier(amount, game_state, zone_element)
         if not status_key:
             logs.append("敌人状态行动缺少 status。")
             return
@@ -766,6 +851,13 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 status_name,
                 current
             ))
+        apply_zone_source_hp_loss_if_needed(
+            game_state=game_state,
+            source=enemy,
+            zone_element=zone_element,
+            logs=logs,
+            label="阴 Zone"
+        )
         return
     logs.append("敌人行动未处理：{}".format(op))
 

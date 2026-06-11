@@ -112,6 +112,18 @@ def resolve_amount(
         attack_type=attack_type,
         attack_element=attack_element
     )
+
+    zone_element = ""
+    if effect_context is not None:
+        zone_element = effect_context.get("zone_element", "")
+    if zone_element:
+        from game.zone_utils import apply_zone_amount_modifier
+        value = apply_zone_amount_modifier(
+            value=value,
+            game_state=game_state,
+            zone_element=zone_element
+        )
+
     return int(value)
 
 
@@ -143,6 +155,78 @@ def get_effect_attack_tags(card, effect):
     attack_element = effect.get("attack_element", getattr(card, "attack_element", ""))
     return attack_type, attack_element
 
+
+def get_effect_zone_element(game_state, card, effect, effect_context):
+    from game.zone_utils import get_effective_zone_element_for_card
+    return get_effective_zone_element_for_card(
+        game_state=game_state,
+        card=card,
+        effect=effect,
+        effect_context=effect_context
+    )
+
+
+def make_zone_effect_context(effect_context, zone_element):
+    if effect_context is None:
+        effect_context = {}
+    new_context = dict(effect_context)
+    new_context["zone_element"] = zone_element
+    return new_context
+
+
+def get_all_alive_enemies(game_state):
+    return [enemy for enemy in game_state.enemies if enemy.is_alive()]
+
+
+def should_convert_enemy_target_to_all(game_state, zone_element, target_key):
+    from game.zone_utils import should_zone_thunder_make_all
+    if target_key not in ("selected_enemy", "enemy", "random_enemy"):
+        return False
+    return should_zone_thunder_make_all(game_state, zone_element)
+
+
+def deal_card_attack_damage_to_target(game_state, card, effect, target_entity, effect_context, attack_type, attack_element, zone_element, logs, prefix):
+    from game.zone_utils import apply_fire_zone_burn
+
+    damage = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=game_state.player,
+        target=target_entity,
+        damage_source="played_card",
+        effect_context=effect_context,
+        attack_type=attack_type,
+        attack_element=attack_element
+    )
+
+    logs.append(prefix.format(
+        card=card,
+        target=target_entity,
+        damage=damage
+    ))
+
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=game_state.player,
+        target=target_entity,
+        amount=damage,
+        damage_kind="attack",
+        card=card,
+        attack_type=attack_type,
+        attack_element=attack_element,
+        zone_element=zone_element
+    ))
+
+    apply_fire_zone_burn(
+        game_state=game_state,
+        source=game_state.player,
+        target=target_entity,
+        card=card,
+        zone_element=zone_element,
+        logs=logs
+    )
+
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):
     """
     执行单个卡牌效果。
@@ -156,7 +240,33 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
     if op == "deal_damage":
         attack_type, attack_element = get_effect_attack_tags(card, effect)
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
         target_key = effect.get("target", "selected_enemy")
+
+        if should_convert_enemy_target_to_all(game_state, zone_element, target_key):
+            alive_enemies = get_all_alive_enemies(game_state)
+            if not alive_enemies:
+                logs.append("没有可攻击的敌人。")
+                return logs
+            logs.append("雷 Zone 使【{}】的目标变为全体。".format(card.name))
+            for target_entity in alive_enemies:
+                if game_state.battle_over:
+                    break
+                deal_card_attack_damage_to_target(
+                    game_state=game_state,
+                    card=card,
+                    effect=effect,
+                    target_entity=target_entity,
+                    effect_context=local_context,
+                    attack_type=attack_type,
+                    attack_element=attack_element,
+                    zone_element=zone_element,
+                    logs=logs,
+                    prefix="【{card.name}】对 {target.name} 造成 {damage} 点攻击伤害。"
+                )
+            return logs
+
         target_entity = get_effect_target_entity(
             game_state=game_state,
             target_key=target_key,
@@ -165,32 +275,25 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         if target_entity is None:
             logs.append("目标敌人无效。")
             return logs
-        damage = resolve_amount(
+
+        deal_card_attack_damage_to_target(
             game_state=game_state,
             card=card,
-            amount_spec=effect.get("amount"),
-            source=game_state.player,
-            target=target_entity,
-            damage_source="played_card",
-            effect_context=effect_context,
+            effect=effect,
+            target_entity=target_entity,
+            effect_context=local_context,
             attack_type=attack_type,
-            attack_element=attack_element
+            attack_element=attack_element,
+            zone_element=zone_element,
+            logs=logs,
+            prefix="【{card.name}】造成 {damage} 点攻击伤害。"
         )
-        logs.append("【{}】造成 {} 点攻击伤害。".format(card.name, damage))
-        logs.extend(deal_damage(
-            game_state=game_state,
-            source=game_state.player,
-            target=target_entity,
-            amount=damage,
-            damage_kind="attack",
-            card=card,
-            attack_type=attack_type,
-            attack_element=attack_element
-        ))
         return logs
     
     if op == "deal_damage_random_enemies":
         attack_type, attack_element = get_effect_attack_tags(card, effect)
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
         times_spec = effect.get("times", None)
         if times_spec is None:
             times_spec = effect.get("count", 1)
@@ -200,12 +303,40 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             amount_spec=times_spec,
             source=game_state.player,
             target=game_state.player,
-            effect_context=effect_context
+            effect_context=local_context
         )
         times = int(times)
         if times <= 0:
             logs.append("随机伤害次数为 0，【{}】没有造成伤害。".format(card.name))
             return logs
+
+        if should_convert_enemy_target_to_all(game_state, zone_element, "random_enemy"):
+            logs.append("雷 Zone 使【{}】的随机目标变为全体。".format(card.name))
+            for hit_index in range(times):
+                alive_enemies = get_all_alive_enemies(game_state)
+                if not alive_enemies:
+                    logs.append("没有可攻击的敌人。")
+                    break
+                logs.append("全体随机替代效果第 {}/{} 次：".format(hit_index + 1, times))
+                for target_entity in alive_enemies:
+                    if game_state.battle_over:
+                        break
+                    deal_card_attack_damage_to_target(
+                        game_state=game_state,
+                        card=card,
+                        effect=effect,
+                        target_entity=target_entity,
+                        effect_context=local_context,
+                        attack_type=attack_type,
+                        attack_element=attack_element,
+                        zone_element=zone_element,
+                        logs=logs,
+                        prefix="【{card.name}】对 {target.name} 造成 {damage} 点攻击伤害。"
+                    )
+                if game_state.battle_over:
+                    break
+            return logs
+
         unique_targets = bool(effect.get("unique_targets", False))
         if unique_targets:
             candidate_pool = get_alive_enemies(game_state)
@@ -231,6 +362,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     logs.append("没有可攻击的敌人。")
                     break
                 target_entity = random.choice(alive_enemies)
+
             damage = resolve_amount(
                 game_state=game_state,
                 card=card,
@@ -238,7 +370,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 source=game_state.player,
                 target=target_entity,
                 damage_source="played_card",
-                effect_context=effect_context,
+                effect_context=local_context,
                 attack_type=attack_type,
                 attack_element=attack_element
             )
@@ -257,12 +389,24 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 damage_kind="attack",
                 card=card,
                 attack_type=attack_type,
-                attack_element=attack_element
+                attack_element=attack_element,
+                zone_element=zone_element
             ))
+            from game.zone_utils import apply_fire_zone_burn
+            apply_fire_zone_burn(
+                game_state=game_state,
+                source=game_state.player,
+                target=target_entity,
+                card=card,
+                zone_element=zone_element,
+                logs=logs
+            )
         return logs
 
     if op == "deal_damage_all_enemies":
         attack_type, attack_element = get_effect_attack_tags(card, effect)
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
         alive_enemies = []
         for enemy in game_state.enemies:
             if enemy.is_alive():
@@ -276,37 +420,25 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 break
             if not target_entity.is_alive():
                 continue
-            damage = resolve_amount(
+            deal_card_attack_damage_to_target(
                 game_state=game_state,
                 card=card,
-                amount_spec=effect.get("amount"),
-                source=game_state.player,
-                target=target_entity,
-                damage_source="played_card",
-                effect_context=effect_context,
+                effect=effect,
+                target_entity=target_entity,
+                effect_context=local_context,
                 attack_type=attack_type,
-                attack_element=attack_element
+                attack_element=attack_element,
+                zone_element=zone_element,
+                logs=logs,
+                prefix="【{card.name}】对 {target.name} 造成 {damage} 点攻击伤害。"
             )
-            logs.append("【{}】对 {} 造成 {} 点攻击伤害。".format(
-                card.name,
-                target_entity.name,
-                damage
-            ))
-            logs.extend(deal_damage(
-                game_state=game_state,
-                source=game_state.player,
-                target=target_entity,
-                amount=damage,
-                damage_kind="attack",
-                card=card,
-                attack_type=attack_type,
-                attack_element=attack_element
-            ))
             if game_state.battle_over:
                 break
         return logs
 
     if op == "gain_block":
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
         target_key = effect.get("target", "self")
         target_entity = get_effect_target_entity(
             game_state=game_state,
@@ -323,7 +455,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             source=game_state.player,
             target=target_entity,
             block_source="played_card",
-            effect_context=effect_context
+            effect_context=local_context
         )
         if amount < 0:
             amount = 0
@@ -332,44 +464,65 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target_entity.name,
             amount
         ))
+        from game.zone_utils import apply_earth_zone_temp_thorns
+        apply_earth_zone_temp_thorns(
+            game_state=game_state,
+            target=target_entity,
+            zone_element=zone_element,
+            block_amount=amount,
+            logs=logs
+        )
         return logs
 
     if op == "gain_status":
         status_key = effect.get("status")
         target_key = effect.get("target", "self")
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
         if not status_key:
             logs.append("gain_status 缺少 status。")
             return logs
-        target_entity = get_effect_target_entity(
-            game_state=game_state,
-            target_key=target_key,
-            target_index=target_index
-        )
-        if target_entity is None:
+
+        target_entities = []
+        if should_convert_enemy_target_to_all(game_state, zone_element, target_key):
+            target_entities = get_all_alive_enemies(game_state)
+            logs.append("雷 Zone 使【{}】的状态目标变为全体。".format(card.name))
+        else:
+            target_entity = get_effect_target_entity(
+                game_state=game_state,
+                target_key=target_key,
+                target_index=target_index
+            )
+            if target_entity is not None:
+                target_entities = [target_entity]
+
+        if not target_entities:
             logs.append("状态目标无效。")
             return logs
-        amount = resolve_amount(
-            game_state=game_state,
-            card=card,
-            amount_spec=effect.get("amount"),
-            source=game_state.player,
-            target=target_entity,
-            effect_context=effect_context
-        )
-        if hasattr(target_entity, "gain_status_with_result"):
-            result = target_entity.gain_status_with_result(status_key, amount)
-            from game.status.status_gain import format_status_gain_log
-            logs.append(format_status_gain_log(target_entity, status_key, amount, result))
-        else:
-            current = target_entity.gain_status(status_key, amount)
-            status_name = get_status_name(status_key)
-            logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
-                target_entity.name,
-                amount,
-                status_name,
-                status_name,
-                current
-            ))
+
+        for target_entity in target_entities:
+            amount = resolve_amount(
+                game_state=game_state,
+                card=card,
+                amount_spec=effect.get("amount"),
+                source=game_state.player,
+                target=target_entity,
+                effect_context=local_context
+            )
+            if hasattr(target_entity, "gain_status_with_result"):
+                result = target_entity.gain_status_with_result(status_key, amount)
+                from game.status.status_gain import format_status_gain_log
+                logs.append(format_status_gain_log(target_entity, status_key, amount, result))
+            else:
+                current = target_entity.gain_status(status_key, amount)
+                status_name = get_status_name(status_key)
+                logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
+                    target_entity.name,
+                    amount,
+                    status_name,
+                    status_name,
+                    current
+                ))
         return logs
     
     if op == "gain_mirage_shadows":
@@ -835,14 +988,70 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
 
     if effect_context is None:
         effect_context = {}
+    else:
+        effect_context = dict(effect_context)
 
-    for effect in card.effects:
-        logs.extend(apply_card_effect(
-            game_state,
-            card,
-            effect,
-            target_index,
-            effect_context=effect_context
-        ))
+    from game.zone_utils import (
+        get_effective_zone_element_for_card,
+        get_zone_replay_extra,
+        apply_zone_source_hp_loss_if_needed,
+        apply_water_zone_regeneration_on_card_play,
+    )
+
+    card_zone_element = get_effective_zone_element_for_card(
+        game_state=game_state,
+        card=card,
+        effect=None,
+        effect_context=effect_context
+    )
+
+    # 打出牌时触发一次的 Zone 能力。重放不会重复触发这里。
+    apply_water_zone_regeneration_on_card_play(
+        game_state=game_state,
+        card=card,
+        effect_context=effect_context,
+        logs=logs
+    )
+    apply_zone_source_hp_loss_if_needed(
+        game_state=game_state,
+        source=game_state.player,
+        zone_element=card_zone_element,
+        logs=logs,
+        label="阴 Zone"
+    )
+
+    replay_extra = int(getattr(card, "replay_extra", 0))
+    replay_extra += int(effect_context.get("replay_extra", 0))
+    replay_extra += get_zone_replay_extra(game_state, card_zone_element)
+    total_times = 1 + replay_extra
+    if total_times < 1:
+        total_times = 1
+
+    if total_times > 1:
+        logs.append("【{}】重放总次数：{}。".format(card.name, total_times))
+
+    for play_index in range(total_times):
+        if game_state.battle_over:
+            logs.append("战斗已经结束，后续重放不再结算。")
+            break
+
+        if total_times > 1:
+            logs.append("【{}】第 {}/{} 次结算：".format(
+                card.name,
+                play_index + 1,
+                total_times
+            ))
+
+        for effect in card.effects:
+            logs.extend(apply_card_effect(
+                game_state,
+                card,
+                effect,
+                target_index,
+                effect_context=effect_context
+            ))
+
+            if game_state.battle_over:
+                break
 
     return logs

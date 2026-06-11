@@ -6,6 +6,7 @@ from data.relic.armored_warrior_relic import BurningBloodRelic
 from data.relic.placeholder_stone_relic import PlaceholderStoneRelic
 from data.relic.Homunculus import HomunculusPrototypeRelic
 from data.relic.shop_relics import XPotionRelic
+from data.relic.common_relics import EtherMediumRelic
 
 RELIC_REGISTRY = {
     "relic.placeholder_stone": PlaceholderStoneRelic,
@@ -14,6 +15,7 @@ RELIC_REGISTRY = {
     "relic.x_potion": XPotionRelic,
     "relic.saturated_fissure": SaturatedFissureRelic,
     "relic.cross_earring": CrossEarringRelic,
+    "relic.ether_medium": EtherMediumRelic,
 }
 
 
