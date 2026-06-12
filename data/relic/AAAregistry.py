@@ -6,7 +6,7 @@ from data.relic.armored_warrior_relic import BurningBloodRelic
 from data.relic.placeholder_stone_relic import PlaceholderStoneRelic
 from data.relic.Homunculus import HomunculusPrototypeRelic
 from data.relic.shop_relics import XPotionRelic
-from data.relic.common_relics import EtherMediumRelic
+from data.relic.uncommon_relics import EtherMediumRelic
 
 RELIC_REGISTRY = {
     "relic.placeholder_stone": PlaceholderStoneRelic,
