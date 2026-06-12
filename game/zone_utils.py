@@ -306,7 +306,14 @@ def apply_zone_amount_modifier(value, game_state, zone_element):
 def get_zone_replay_extra(game_state, zone_element):
     zone = get_active_zone(game_state)
     zone_element = normalize_element(zone_element)
-    if zone is None:
+    # 必须以调用方传入的“已判定可吃 Zone 的元素”为准。
+    # 如果 zone_element 为空或不等于当前 Zone 元素，说明本次效果没有吃到 Zone。
+    if zone is None or not zone_element:
+        return 0
+    current_zone_element = normalize_element(getattr(zone, "element", ""))
+    if zone_element != current_zone_element:
+        return 0
+    if zone_element not in ZONE_REPLAY_EXTRA:
         return 0
     return int(get_zone_value(zone, ZONE_REPLAY_EXTRA, 0))
 
