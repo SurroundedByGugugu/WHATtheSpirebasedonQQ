@@ -5,6 +5,10 @@ from data.card.basic_cards import (
     create_defend
 )
 
+from data.card.status_cards import (
+    create_slime_i,
+)
+
 from data.card.character.test_character_cards import (
     create_gain_status_strength,
     create_exhaust_strength,
@@ -45,6 +49,8 @@ from data.card.character.lumine_card import (
 CARD_REGISTRY = {
     "card.strike": create_strike,
     "card.defend": create_defend,
+    "card.status.slime_i": create_slime_i,
+    
     "card.gain_status_strength": create_gain_status_strength,
     "card.exhaust_strength": create_exhaust_strength,
     "card.ethereal_strength": create_ethereal_strength,

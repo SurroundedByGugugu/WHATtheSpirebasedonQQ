@@ -91,7 +91,16 @@ register_status_def(StatusDef(
     decay_amount=0,
 ))
 
-
+register_status_def(StatusDef(
+    key="curl_up",
+    name="蜷缩",
+    description="受到攻击后，获得等同于层数的格挡，然后移除此状态。",
+    category="buff",
+    display_mode="stack",
+    order=68,
+    decay_timing="none",
+    decay_amount=0,
+))
 
 register_status_def(StatusDef(
     key="burn",
@@ -129,10 +138,32 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="demon_form",
     name="恶魔形态",
-    description="每个玩家回合开始时，获得等同于层数的力量。",
+    description="每个回合开始时，获得等同于层数的力量。",
     category="buff",
     display_mode="stack",
     order=70,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="ritual",
+    name="仪式",
+    description="每个回合开始时，获得等同于层数的力量。",
+    category="buff",
+    display_mode="stack",
+    order=72,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="spore_cloud",
+    name="孢子云",
+    description="死亡时，使玩家获得等同于层数的易伤。",
+    category="buff",
+    display_mode="stack",
+    order=69,
     decay_timing="none",
     decay_amount=0,
 ))

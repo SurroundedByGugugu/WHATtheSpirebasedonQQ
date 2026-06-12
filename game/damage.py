@@ -160,7 +160,7 @@ def deal_damage(
 
     logs.extend(dispatch_event(game_state, EVENT_DAMAGE_AFTER, context))
 
-    if was_alive and not target.is_alive():
+    if was_alive and not target.is_alive() and not context.extra.get("suppress_death_message", False):
         if hasattr(target, "enemy_id"):
             from data.enemy.death_messages import get_enemy_death_message
             logs.append(get_enemy_death_message(target))

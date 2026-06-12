@@ -18,6 +18,10 @@ ENEMY_KILL_PLAYER_MESSAGES = {
     ],
     "enemy.mareanie":[
         "棘冠海星把你当成珊瑚准备开饭了。"
+    ],
+    "enemy.cultist":[
+        "咔咔！！",
+        "我的力量无人能及！"
     ]
 }
 

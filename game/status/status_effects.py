@@ -2,13 +2,18 @@
 
 from game.constants import EVENT_DAMAGE_AFTER, EVENT_TURN_END, EVENT_TURN_START
 from game.modifiers import get_status_value
+from game.status.status_defs import get_status_name
 
 STATUS_EVENT_PRIORITY = {
     "thorns": 50,
     "temporary_thorns": 50,
     "poison_thorns": 49,
+    "curl_up": 48,
+    "spore_cloud": 45,
     "god_in_hand": 40,
     "mirage_shadows": 35,
+    "demon_form": 30,
+    "ritual": 30,
     "poison": 20,
     "burn": 19,
     "regeneration": 18,
@@ -25,12 +30,9 @@ def iter_status_entities(game_state):
     后续如果有召唤物、队友，也可以从这里扩展。
     """
     entities = []
-
     if game_state.player is not None:
         entities.append(game_state.player)
-
     entities.extend(game_state.enemies)
-
     return entities
 
 
@@ -39,15 +41,11 @@ def dispatch_status_event(game_state, event_name, context):
     分发状态事件。
     """
     logs = []
-
     status_items = []
-
     for entity in iter_status_entities(game_state):
         statuses = getattr(entity, "statuses", None)
-
         if statuses is None:
             continue
-
         for status_key, value in statuses.all_active().items():
             status_items.append((
                 get_status_event_priority(status_key),
@@ -55,25 +53,19 @@ def dispatch_status_event(game_state, event_name, context):
                 status_key,
                 value
             ))
-
     status_items.sort(key=lambda item: item[0], reverse=True)
-
     for _, owner, status_key, value in status_items:
         handler = STATUS_EVENT_HANDLERS.get(status_key)
-
         if handler is None:
             continue
-
         result = handler(
             event_name=event_name,
             context=context,
             owner=owner,
             value=value
         )
-
         if result:
             logs.extend(result)
-
     return logs
 
 
@@ -81,7 +73,6 @@ def handle_thorns(event_name, context, owner, value):
     """
     荆棘：
     owner 被攻击后，对攻击来源造成荆棘层数的伤害。
-
     当前规则：
     1. 只响应 attack 类型伤害
     2. 荆棘反伤不会继续触发荆棘
@@ -92,50 +83,41 @@ def handle_thorns(event_name, context, owner, value):
 
     if event_name != EVENT_DAMAGE_AFTER:
         return logs
-
     if context.target is not owner:
         return logs
-
     if context.extra.get("damage_kind") != "attack":
         return logs
-
     if context.extra.get("is_reaction_damage"):
         return logs
-
     amount = int(context.extra.get("amount", 0))
     if amount <= 0:
         return logs
-
     source = context.source
-
     if source is None:
         return logs
-
     if source is owner:
         return logs
-
     if not source.is_alive():
         return logs
-
     thorns = int(value)
-
     if thorns <= 0:
         return logs
-
     logs.append("{} 的荆棘对 {} 造成 {} 点伤害。".format(
         owner.name,
         source.name,
         thorns
     ))
-
-    old_alive = source.is_alive()
-    logs.append(source.take_damage(thorns))
-
-    if old_alive and not source.is_alive():
-        if hasattr(source, "enemy_id"):
-            from data.enemy.death_messages import get_enemy_death_message
-            logs.append(get_enemy_death_message(source))
-
+    from game.damage import deal_damage
+    logs.extend(deal_damage(
+        game_state=context.game_state,
+        source=owner,
+        target=source,
+        amount=thorns,
+        damage_kind="thorns",
+        card=None,
+        is_reaction_damage=True,
+        ignore_block=False
+    ))
     return logs
 
 
@@ -170,45 +152,114 @@ def handle_poison_thorns(event_name, context, owner, value):
 
     if event_name != EVENT_DAMAGE_AFTER:
         return logs
-
     if context.target is not owner:
         return logs
-
     if context.extra.get("damage_kind") != "attack":
         return logs
-
     if context.extra.get("is_reaction_damage"):
         return logs
-
     amount = int(context.extra.get("amount", 0))
     if amount <= 0:
         return logs
-
     source = context.source
-
     if source is None:
         return logs
-
     if source is owner:
         return logs
-
     if not source.is_alive():
         return logs
-
     poison = int(value)
-
     if poison <= 0:
         return logs
-
     current = source.gain_status("poison", poison)
-
     logs.append("{} 的毒荆棘使 {} 获得 {} 层中毒。当前中毒：{}。".format(
         owner.name,
         source.name,
         poison,
         current
     ))
+    return logs
 
+def handle_curl_up(event_name, context, owner, value):
+    """
+    蜷缩：
+    受到攻击后，获得等同于层数的格挡，然后移除此状态。
+
+    当前规则：
+    1. 只响应 attack 类型伤害。
+    2. 反应伤害不触发，避免荆棘等反伤触发蜷缩。
+    3. 即使攻击被格挡完全抵消，只要攻击结算值 amount > 0，也会触发。
+    4. 如果拥有者已死亡，不触发。
+    """
+    logs = []
+    if event_name != EVENT_DAMAGE_AFTER:
+        return logs
+    if context.target is not owner:
+        return logs
+    if context.extra.get("damage_kind") != "attack":
+        return logs
+    if context.extra.get("is_reaction_damage"):
+        return logs
+    if owner is None:
+        return logs
+    if not owner.is_alive():
+        return logs
+    amount = int(context.extra.get("amount", 0))
+    if amount <= 0:
+        return logs
+    block = int(value)
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("curl_up")
+    if block <= 0:
+        logs.append("{} 的蜷缩消失了。".format(owner.name))
+        return logs
+    owner.block += block
+    logs.append("{} 的蜷缩触发，获得 {} 点格挡。蜷缩消失了。当前格挡：{}。".format(
+        owner.name,
+        block,
+        owner.block
+    ))
+    return logs
+
+def handle_spore_cloud(event_name, context, owner, value):
+    """
+    孢子云：
+    拥有者死亡时，使玩家获得等同于层数的易伤。
+    当前规则：
+    1. 只在伤害结算后检测。
+    2. 只对敌人生效。
+    3. 每个拥有者只触发一次。
+    """
+    logs = []
+    if event_name != EVENT_DAMAGE_AFTER:
+        return logs
+    if context.target is not owner:
+        return logs
+    if owner is None:
+        return logs
+    if not hasattr(owner, "enemy_id"):
+        return logs
+    if owner.is_alive():
+        return logs
+    if getattr(owner, "_spore_cloud_triggered", False):
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    player = context.player
+    if player is None:
+        player = context.game_state.player
+    if player is None or not player.is_alive():
+        return logs
+    owner._spore_cloud_triggered = True
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("spore_cloud")
+    current = player.gain_status("vulnerable", amount)
+    logs.append("{} 的孢子云爆开，使玩家获得 {} 层易伤。当前易伤：{}。".format(
+        owner.name,
+        amount,
+        current
+    ))
     return logs
 
 def handle_poison(event_name, context, owner, value):
@@ -302,10 +353,12 @@ def handle_regeneration(event_name, context, owner, value):
     ))
     return logs
 
-def handle_demon_form(event_name, context, owner, value):
+def handle_gain_strength_each_turn(event_name, context, owner, value, status_key):
     """
-    恶魔形态：
-    每个玩家回合开始时，拥有者获得等同于层数的力量。
+    通用：每个回合开始时，获得等同于状态层数的力量。
+    用于：
+    - 恶魔形态 demon_form
+    - 仪式 ritual
     """
     logs = []
     if event_name != EVENT_TURN_START:
@@ -318,13 +371,32 @@ def handle_demon_form(event_name, context, owner, value):
     if amount <= 0:
         return logs
     current = owner.gain_status("strength", amount)
-    logs.append("{} 的恶魔形态触发，获得 {} 点力量。当前力量：{}。".format(
+    status_name = get_status_name(status_key)
+    logs.append("{} 的{}触发，获得 {} 点力量。当前力量：{}。".format(
         owner.name,
+        status_name,
         amount,
         current
     ))
-
     return logs
+
+
+def handle_demon_form(event_name, context, owner, value):
+    return handle_gain_strength_each_turn(
+        event_name=event_name,
+        context=context,
+        owner=owner,
+        value=value,
+        status_key="demon_form"
+    )
+def handle_ritual(event_name, context, owner, value):
+    return handle_gain_strength_each_turn(
+        event_name=event_name,
+        context=context,
+        owner=owner,
+        value=value,
+        status_key="ritual"
+    )
 
 def handle_mirage_shadows(event_name, context, owner, value):
     """
@@ -477,8 +549,12 @@ STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "temporary_thorns": handle_temporary_thorns,
     "poison_thorns": handle_poison_thorns,
+    "curl_up": handle_curl_up,
+    "spore_cloud": handle_spore_cloud,
     "poison": handle_poison,
     "burn": handle_burn,
+    "demon_form": handle_demon_form,
+    "ritual": handle_ritual,
     "regeneration": handle_regeneration,
     "mirage_shadows": handle_mirage_shadows,
     "temporary_dexterity_loss": handle_temporary_dexterity_loss,

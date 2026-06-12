@@ -42,6 +42,14 @@ def dispatch_event(game_state, event_name, context=None):
     from game.status.status_effects import dispatch_status_event
     logs.extend(dispatch_status_event(game_state, event_name, context))
 
+    for enemy in list(getattr(game_state, "enemies", [])):
+        on_event = getattr(enemy, "on_event", None)
+        if on_event is None:
+            continue
+        result = on_event(event_name, context)
+        if result:
+            logs.extend(result)
+
     active_zone = getattr(game_state, "active_zone", None)
     
     if active_zone is not None:

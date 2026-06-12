@@ -134,7 +134,16 @@ class PatternEnemy(Enemy):
                     for child in getattr(intent, "actions", [])
                 ]
             }
-
+        
+        if intent.kind == "add_card_to_discard":
+            return {
+                "op": "enemy_add_card_to_discard",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "card_id": intent.card_id,
+                "count": intent.count,
+            }
+        
         return {
             "op": "enemy_unknown_action",
             "source_enemy_id": self.enemy_id,

@@ -10,6 +10,7 @@ from data.potion.AAAregistry import create_potions
 from game.status.status_defs import get_status_name
 
 from game.constants import (DEBUG_SEED, EVENT_POTION_USE_AFTER,
+                            EVENT_BATTLE_START,
                             EVENT_TURN_START, EVENT_TURN_END, 
                             EVENT_CARD_PLAY_AFTER,
                             DAMAGE_SOURCE_ENEMY_ACTION, BLOCK_SOURCE_ENEMY_ACTION)
@@ -130,12 +131,13 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
     )
     logs = []
     logs.append("战斗开始。")
-    logs.append(format_enemy_start_info(enemies, game_state))
     context = BattleContext(
         game_state=game_state,
         player=player,
         source=player
     )
+    logs.extend(dispatch_event(game_state, EVENT_BATTLE_START, context))
+    logs.append(format_enemy_start_info(enemies, game_state))
     logs.extend(dispatch_event(game_state, EVENT_TURN_START, context))
     logs.extend(move_innate_cards_to_opening_hand(player))
     logs.append(player.status_text())
@@ -176,12 +178,13 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
     )
     logs = []
     logs.append("战斗开始。")
-    logs.append(format_enemy_start_info(enemies, game_state))
     context = BattleContext(
         game_state=game_state,
         player=player,
         source=player
     )
+    logs.extend(dispatch_event(game_state, EVENT_BATTLE_START, context))
+    logs.append(format_enemy_start_info(enemies, game_state))
     logs.extend(dispatch_event(game_state, EVENT_TURN_START, context))
     logs.extend(move_innate_cards_to_opening_hand(player))
     logs.append(player.status_text())
@@ -821,6 +824,30 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             label="阴 Zone"
         )
         return
+    
+    if op == "enemy_add_card_to_discard":
+        card_id = action.get("card_id", "")
+        count = int(action.get("count", 1))
+        if not card_id:
+            logs.append("敌人加牌行动缺少 card_id。")
+            return
+        if count <= 0:
+            logs.append("敌人加牌数量为 0。")
+            return
+        from data.card.AAAregistry import create_card
+        added_cards = []
+        for _ in range(count):
+            card = create_card(card_id)
+            game_state.player.discard_pile.append(card)
+            added_cards.append(card)
+        card_name = added_cards[0].name if added_cards else card_id
+        logs.append("{} 向你的弃牌堆加入 {} 张【{}】。".format(
+            enemy.name,
+            count,
+            card_name
+        ))
+        return
+    
     if op == "enemy_gain_status":
         target_key = action.get("target", "player")
         status_key = action.get("status", "")

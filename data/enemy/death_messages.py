@@ -16,6 +16,12 @@ ENEMY_DEATH_MESSAGES = {
     ],
     "enemy.mareanie":[
         "棘冠海星从珊瑚礁上被剥离了。"
+    ],
+    "enemy.cultist":[
+        "咔咔！",
+        "咔咔！？",
+        "我的力量有人能及……",
+        "谷咕固！？（补兑"
     ]
 }
 

@@ -24,6 +24,8 @@ class EnemyIntent:
     attack_type: str = ""
     attack_element: str = ""
     repeat: int = 1
+    card_id: str = ""
+    count: int = 1
     actions: List[Any] = field(default_factory=list)
 
     def to_text(self):
@@ -55,6 +57,16 @@ class EnemyIntent:
 
         if self.kind == "block":
             return "获得 {} 点格挡".format(self.value)
+        
+        if self.kind == "add_card_to_discard":
+            card_name_map = {
+                "card.status.slime_i": "黏液I",
+            }
+            card_name = card_name_map.get(self.card_id, self.card_id)
+            return "向你的弃牌堆加入 {} 张【{}】".format(
+                int(self.count),
+                card_name
+            )
 
         if self.kind == "status":
             status_name_map = {
@@ -68,6 +80,9 @@ class EnemyIntent:
                 "poison_thorns": "毒荆棘",
                 "artifact": "人工制品",
                 "stun": "眩晕",
+                "ritual": "仪式",
+                "curl_up": "蜷缩",
+                "spore_cloud": "孢子云",
             }
             status_name = status_name_map.get(self.status, self.status)
             if self.target == "self":

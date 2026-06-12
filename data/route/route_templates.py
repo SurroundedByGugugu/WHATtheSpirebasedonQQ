@@ -11,15 +11,15 @@ ACT1_TEST_ROUTE = [
 
     {
         "node_id": "act1.node.01",
-        "node_type": "normal_enemy",
-        "name": "入口战斗",
+        "node_type": "starting",
+        "name": "普通战斗",
         "next_node_ids": ["act1.node.02a", "act1.node.02b"]
     },
 
     {
         "node_id": "act1.node.02a",
-        "node_type": "normal_enemy",
-        "name": "左路战斗",
+        "node_type": "starting",
+        "name": "普通战斗",
         "next_node_ids": ["act1.node.03a", "act1.node.03b"]
     },
     {
@@ -44,14 +44,14 @@ ACT1_TEST_ROUTE = [
 
     {
         "node_id": "act1.node.04a",
-        "node_type": "elite",
-        "name": "精英战斗",
+        "node_type": "normal_enemy",
+        "name": "普通战斗",
         "next_node_ids": ["act1.node.05"]
     },
     {
         "node_id": "act1.node.04b",
-        "node_type": "normal_enemy",
-        "name": "普通战斗",
+        "node_type": "elite",
+        "name": "精英战斗",
         "next_node_ids": ["act1.node.05"]
     },
 
@@ -71,14 +71,14 @@ ACT1_TEST_ROUTE = [
     {
         "node_id": "act1.node.06b",
         "node_type": "shop",
-        "name": "路边商店",
+        "name": "商店",
         "next_node_ids": ["act1.node.07"]
     },
 
     {
         "node_id": "act1.node.07",
         "node_type": "normal_enemy",
-        "name": "中段战斗",
+        "name": "普通战斗",
         "next_node_ids": ["act1.node.08a", "act1.node.08b"]
     },
 
@@ -86,26 +86,31 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.node.08a",
         "node_type": "mystery",
         "name": "深处？",
-        "next_node_ids": ["act1.node.09"]
+        "next_node_ids": ["act1.node.09a","act1.node.09b"]
     },
     {
         "node_id": "act1.node.08b",
         "node_type": "treasure",
         "name": "旧宝箱",
-        "next_node_ids": ["act1.node.09"]
+        "next_node_ids": ["act1.node.09a","act1.node.09b"]
     },
 
     {
-        "node_id": "act1.node.09",
+        "node_id": "act1.node.09a",
         "node_type": "elite",
-        "name": "门前精英",
+        "name": "精英战斗",
         "next_node_ids": ["act1.node.10a", "act1.node.10b"]
     },
-
+    {
+        "node_id": "act1.node.09b",
+        "node_type": "rest",
+        "name": "小火堆",
+        "next_node_ids": ["act1.node.10a", "act1.node.10b"]
+    },
     {
         "node_id": "act1.node.10a",
         "node_type": "normal_enemy",
-        "name": "最后战斗",
+        "name": "普通战斗",
         "next_node_ids": ["act1.rest.before_boss"]
     },
     {
