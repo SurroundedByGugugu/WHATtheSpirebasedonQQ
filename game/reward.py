@@ -33,6 +33,7 @@ CARD_REWARD_POOL = [
 POTION_REWARD_POOL = [
     "potion.test_strength",
     "potion.test_fire",
+    "potion.test_dexterity"
 ]
 
 # 当前只有占位符石头。
@@ -41,6 +42,7 @@ RELIC_REWARD_POOL = [
     "relic.placeholder_stone",
     "relic.x_potion",
     "relic.ether_medium",
+    "relic.charon_ashes",
     "relic.homunculus_prototype",
 ]
 
@@ -335,14 +337,15 @@ def get_available_relic_ids(run_state):
         # 造物原型只作为兜底，不参与正常随机
         if relic_id == FALLBACK_RELIC_ID:
             continue
-
         relic = create_relic(relic_id)
-        allow_duplicate = getattr(relic, "allow_duplicate", False)
-
-        if allow_duplicate:
-            result.append(relic_id)
+        relic_owner = getattr(relic, "owner_character_id", "")
+        current_character_id = getattr(run_state, "character_id", "")
+        if relic_owner and relic_owner != current_character_id:
             continue
-
+        allow_duplicate = getattr(relic, "allow_duplicate", False)
+        if allow_duplicate:
+                result.append(relic_id)
+                continue
         if relic_id not in owned_relic_ids:
             result.append(relic_id)
 

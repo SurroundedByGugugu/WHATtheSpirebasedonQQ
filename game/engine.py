@@ -12,7 +12,7 @@ from game.status.status_defs import get_status_name
 from game.constants import (DEBUG_SEED, EVENT_POTION_USE_AFTER,
                             EVENT_BATTLE_START,
                             EVENT_TURN_START, EVENT_TURN_END, 
-                            EVENT_CARD_PLAY_AFTER,
+                            EVENT_CARD_PLAY_AFTER, EVENT_CARD_EXHAUST,
                             DAMAGE_SOURCE_ENEMY_ACTION, BLOCK_SOURCE_ENEMY_ACTION)
 
 from game.player_state import PlayerState
@@ -200,14 +200,47 @@ def get_default_target_index(game_state):
             return index
     return 0
 
-def move_played_card_to_destination(player, card):
+def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
+    """
+    将牌放入消耗堆，并分发“卡牌被消耗”事件。
+    reason:
+    - after_play：因“消耗”关键词打出后进入消耗堆
+    - ethereal：因“虚无”在回合结束进入消耗堆
+    """
+    player = game_state.player
     logs = []
+    player.exhaust_pile.append(card)
+    reason_text_map = {
+        "after_play": "因消耗",
+        "ethereal": "因虚无",
+    }
+    reason_text = reason_text_map.get(reason, "因{}".format(reason))
+    logs.append("【{}】{}进入消耗堆。".format(card.name, reason_text))
+    context = BattleContext(
+        game_state=game_state,
+        player=player,
+        source=player,
+        card=card,
+        extra={
+            "reason": reason
+        }
+    )
+    logs.extend(dispatch_event(game_state, EVENT_CARD_EXHAUST, context))
+    return logs
+
+
+def move_played_card_to_destination(game_state, card):
+    logs = []
+    player = game_state.player
     if getattr(card, "card_type", "") == "power":
         logs.append("【{}】作为能力牌生效，本场战斗中消失。".format(card.name))
         return logs
     if should_exhaust_after_play(card):
-        player.exhaust_pile.append(card)
-        logs.append("【{}】因消耗进入消耗堆。".format(card.name))
+        logs.extend(move_card_to_exhaust_pile(
+            game_state=game_state,
+            card=card,
+            reason="after_play"
+        ))
     else:
         player.discard_pile.append(card)
         logs.append("【{}】进入弃牌堆。".format(card.name))
@@ -240,7 +273,7 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
         )
         logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
 
-        logs.extend(move_played_card_to_destination(player, card))
+        logs.extend(move_played_card_to_destination(game_state, card))
         return logs
 
     player.discard_pile.append(card)
@@ -258,8 +291,11 @@ def end_player_turn_hand_cleanup(game_state):
     for card in old_hand:
         # 虚无优先级最高：回合结束仍在手牌时，直接进入消耗堆。
         if should_exhaust_at_turn_end(card):
-            player.exhaust_pile.append(card)
-            logs.append("【{}】因虚无进入消耗堆。".format(card.name))
+            logs.extend(move_card_to_exhaust_pile(
+                game_state=game_state,
+                card=card,
+                reason="ethereal"
+            ))
             continue
 
         if should_retain_at_turn_end(card):
@@ -438,7 +474,7 @@ def play_card(game_state, hand_index, target_index=0):
     )
     logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
 
-    logs.extend(move_played_card_to_destination(player, card))
+    logs.extend(move_played_card_to_destination(game_state, card))
 
     if getattr(game_state, "force_end_turn_after_card", False):
         game_state.force_end_turn_after_card = False
@@ -952,7 +988,10 @@ def end_turn(game_state):
     game_state.pending_discard_selection = False
     game_state.pending_discard_source = ""
     logs.extend(end_player_turn_hand_cleanup(game_state))
-
+    result = check_battle_result(game_state)
+    if result:
+        logs.append(result)
+        return "\n".join(logs)
     logs.append("")
     logs.append("敌人行动：")
 

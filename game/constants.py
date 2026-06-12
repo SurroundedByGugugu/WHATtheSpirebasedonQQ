@@ -11,6 +11,7 @@ EVENT_TURN_END = "turn_end"
 
 EVENT_CARD_PLAY_BEFORE = "card_play_before"
 EVENT_CARD_PLAY_AFTER = "card_play_after"
+EVENT_CARD_EXHAUST = "card_exhaust"
 
 EVENT_DAMAGE_BEFORE = "damage_before"
 EVENT_DAMAGE_AFTER = "damage_after"
@@ -24,8 +25,6 @@ EVENT_DRAW_CARD_AFTER = "draw_card_after"
 EVENT_ENEMY_DEATH = "enemy_death"
 EVENT_PLAYER_DEATH = "player_death"
 
-EVENT_TURN_START = "turn_start"
-EVENT_CARD_PLAY_AFTER = "card_play_after"
 
 # 药水
 EVENT_POTION_USE_BEFORE = "potion_use_before"

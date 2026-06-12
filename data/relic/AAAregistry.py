@@ -2,7 +2,7 @@
 
 from data.relic.lumine_relic import CrossEarringRelic
 from data.relic.yoirine_relic import SaturatedFissureRelic
-from data.relic.armored_warrior_relic import BurningBloodRelic
+from data.relic.armored_warrior_relic import (BurningBloodRelic, CharonAshesRelic)
 from data.relic.placeholder_stone_relic import PlaceholderStoneRelic
 from data.relic.Homunculus import HomunculusPrototypeRelic
 from data.relic.shop_relics import XPotionRelic
@@ -11,6 +11,7 @@ from data.relic.uncommon_relics import EtherMediumRelic
 RELIC_REGISTRY = {
     "relic.placeholder_stone": PlaceholderStoneRelic,
     "relic.burning_blood":BurningBloodRelic,
+    "relic.charon_ashes":CharonAshesRelic,
     "relic.homunculus_prototype":HomunculusPrototypeRelic,
     "relic.x_potion": XPotionRelic,
     "relic.saturated_fissure": SaturatedFissureRelic,
