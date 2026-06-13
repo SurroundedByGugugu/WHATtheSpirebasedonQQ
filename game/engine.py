@@ -29,6 +29,7 @@ from data.card.keyword_rules import (
     should_retain_at_turn_end,
     should_play_when_discarded,
     should_start_in_hand,
+    can_play_card,
 )
 from game.zone_utils import (
     tick_zone_turn_end, 
@@ -251,6 +252,16 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
     logs = []
 
     if trigger_clever and should_play_when_discarded(card):
+        can_play, cannot_play_reason = can_play_card(
+            game_state=game_state,
+            card=card,
+            play_reason="discard_trigger"
+        )
+        if not can_play:
+            logs.append(cannot_play_reason)
+            player.discard_pile.append(card)
+            logs.append("【{}】被 {}，进入弃牌堆。".format(card.name, reason))
+            return logs
         logs.append("【{}】因奇巧被{}，免费打出。".format(card.name, reason))
 
         target_index = get_default_target_index(game_state)
@@ -316,6 +327,195 @@ def end_player_turn_hand_cleanup(game_state):
         logs.append("没有手牌需要处理。")
 
     return logs
+
+def clear_pending_discard_to_draw_top(game_state):
+    game_state.pending_discard_to_draw_selection = False
+    game_state.pending_discard_to_draw_source = ""
+    game_state.pending_discard_to_draw_options = []
+
+def choose_pending_discard_to_draw_top(game_state, choice_index):
+    """
+    处理头槌类效果：
+    从 pending 选项中选择一张弃牌堆里的牌，放到抽牌堆顶。
+    """
+    if not game_state.pending_discard_to_draw_selection:
+        return "当前没有需要处理的弃牌堆置顶选择。"
+
+    options = getattr(game_state, "pending_discard_to_draw_options", [])
+
+    if not options:
+        clear_pending_discard_to_draw_top(game_state)
+        return "没有可选择的弃牌堆卡牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(choice_index)
+
+    player = game_state.player
+    chosen_card = options[choice_index]
+
+    if chosen_card not in player.discard_pile:
+        clear_pending_discard_to_draw_top(game_state)
+        return "所选牌已经不在弃牌堆中，选择已取消。"
+
+    player.discard_pile.remove(chosen_card)
+    player.draw_pile.append(chosen_card)
+
+    source = game_state.pending_discard_to_draw_source
+    clear_pending_discard_to_draw_top(game_state)
+
+    return "【{}】选择了【{}】，将其放到抽牌堆顶。它会成为下一张抽到的牌。".format(
+        source,
+        chosen_card.name
+    )
+
+def clear_pending_exhaust_hand_selection(game_state):
+    game_state.pending_exhaust_hand_selection = False
+    game_state.pending_exhaust_hand_source = ""
+    game_state.pending_exhaust_hand_options = []
+
+
+def choose_pending_exhaust_hand(game_state, choice_index):
+    """
+    处理坚毅+：
+    选择 1 张手牌消耗。
+    """
+    if not game_state.pending_exhaust_hand_selection:
+        return "当前没有需要处理的手牌消耗选择。"
+
+    options = getattr(game_state, "pending_exhaust_hand_options", [])
+
+    if not options:
+        clear_pending_exhaust_hand_selection(game_state)
+        return "没有可选择的手牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(choice_index)
+
+    player = game_state.player
+    chosen_card = options[choice_index]
+
+    if chosen_card not in player.hand:
+        clear_pending_exhaust_hand_selection(game_state)
+        return "所选牌已经不在手牌中，选择已取消。"
+
+    player.hand.remove(chosen_card)
+
+    source = game_state.pending_exhaust_hand_source
+    clear_pending_exhaust_hand_selection(game_state)
+
+    logs = []
+    logs.append("【{}】选择消耗手牌【{}】。".format(
+        source,
+        chosen_card.name
+    ))
+    logs.extend(move_card_to_exhaust_pile(
+        game_state=game_state,
+        card=chosen_card,
+        reason="selected"
+    ))
+
+    result = check_battle_result(game_state)
+    if result:
+        logs.append(result)
+
+    return "\n".join(logs)
+
+def clear_pending_hand_to_draw_top_selection(game_state):
+    game_state.pending_hand_to_draw_top_selection = False
+    game_state.pending_hand_to_draw_top_source = ""
+    game_state.pending_hand_to_draw_top_options = []
+
+def choose_pending_hand_to_draw_top(game_state, choice_index):
+    """
+    处理战吼：
+    选择 1 张手牌放到抽牌堆顶。
+    """
+    if not game_state.pending_hand_to_draw_top_selection:
+        return "当前没有需要处理的手牌置顶选择。"
+
+    options = getattr(game_state, "pending_hand_to_draw_top_options", [])
+
+    if not options:
+        clear_pending_hand_to_draw_top_selection(game_state)
+        return "没有可选择的手牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(choice_index)
+
+    player = game_state.player
+    chosen_card = options[choice_index]
+
+    if chosen_card not in player.hand:
+        clear_pending_hand_to_draw_top_selection(game_state)
+        return "所选牌已经不在手牌中，选择已取消。"
+
+    player.hand.remove(chosen_card)
+    player.draw_pile.append(chosen_card)
+
+    source = game_state.pending_hand_to_draw_top_source
+    clear_pending_hand_to_draw_top_selection(game_state)
+
+    return "【{}】选择了【{}】，将其放到抽牌堆顶。它会成为下一张抽到的牌。".format(
+        source,
+        chosen_card.name
+    )
+
+def clear_pending_upgrade_hand_selection(game_state):
+    game_state.pending_upgrade_hand_selection = False
+    game_state.pending_upgrade_hand_source = ""
+    game_state.pending_upgrade_hand_options = []
+
+def choose_pending_upgrade_hand_card(game_state, choice_index):
+    """
+    处理武装：
+    选择 1 张手牌在本场战斗中临时升级。
+    """
+    if not game_state.pending_upgrade_hand_selection:
+        return "当前没有需要处理的手牌升级选择。"
+
+    options = getattr(game_state, "pending_upgrade_hand_options", [])
+
+    if not options:
+        clear_pending_upgrade_hand_selection(game_state)
+        return "没有可选择的手牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(choice_index)
+
+    player = game_state.player
+    chosen_card = options[choice_index]
+
+    if chosen_card not in player.hand:
+        clear_pending_upgrade_hand_selection(game_state)
+        return "所选牌已经不在手牌中，选择已取消。"
+
+    from game.effects import upgrade_card_for_this_combat
+
+    upgraded_card = upgrade_card_for_this_combat(chosen_card)
+
+    if upgraded_card is None:
+        clear_pending_upgrade_hand_selection(game_state)
+        return "【{}】不能被升级。".format(chosen_card.name)
+
+    replaced = False
+
+    for index, hand_card in enumerate(player.hand):
+        if hand_card is chosen_card:
+            player.hand[index] = upgraded_card
+            replaced = True
+            break
+
+    source = game_state.pending_upgrade_hand_source
+    clear_pending_upgrade_hand_selection(game_state)
+
+    if not replaced:
+        return "所选牌已经不在手牌中，选择已取消。"
+
+    return "【{}】将【{}】临时升级为【{}】。".format(
+        source,
+        chosen_card.name,
+        upgraded_card.name
+    )
 
 def discard_selected_hand_cards(game_state, hand_indices):
     player = game_state.player
@@ -400,6 +600,13 @@ def play_card(game_state, hand_index, target_index=0):
         return "手牌编号无效。"
 
     card = player.hand[hand_index]
+    can_play, cannot_play_reason = can_play_card(
+        game_state=game_state,
+        card=card,
+        play_reason="normal"
+    )
+    if not can_play:
+        return cannot_play_reason
 
     is_x_cost = is_x_cost_card(card)
     x_value = None
@@ -533,6 +740,18 @@ def play_cards_by_original_indices(game_state, hand_indices, target_index=0):
             logs.append("原手牌编号 [{}] 的【{}】已不在手牌中，批量出牌中止。".format(
                 original_index,
                 card.name
+            ))
+            break
+        can_play, cannot_play_reason = can_play_card(
+            game_state=game_state,
+            card=card,
+            play_reason="batch"
+        )
+        if not can_play:
+            logs.append("原手牌编号 [{}] 的【{}】无法打出，批量出牌中止：{}".format(
+                original_index,
+                card.name,
+                cannot_play_reason
             ))
             break
         is_x_cost = is_x_cost_card(card)
@@ -987,6 +1206,10 @@ def end_turn(game_state):
     logs.append("玩家回合结束。")
     game_state.pending_discard_selection = False
     game_state.pending_discard_source = ""
+    clear_pending_discard_to_draw_top(game_state)
+    clear_pending_exhaust_hand_selection(game_state)
+    clear_pending_hand_to_draw_top_selection(game_state)
+    clear_pending_upgrade_hand_selection(game_state)
     logs.extend(end_player_turn_hand_cleanup(game_state))
     result = check_battle_result(game_state)
     if result:

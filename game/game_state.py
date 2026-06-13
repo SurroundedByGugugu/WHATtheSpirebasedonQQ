@@ -25,7 +25,18 @@ class GameState:
     # 需要玩家继续选择的临时流程。
     pending_discard_selection: bool = False
     pending_discard_source: str = ""
-    
+    pending_discard_to_draw_selection: bool = False
+    pending_discard_to_draw_source: str = ""
+    pending_discard_to_draw_options: List[Any] = field(default_factory=list)
+    pending_exhaust_hand_selection: bool = False
+    pending_exhaust_hand_source: str = ""
+    pending_exhaust_hand_options: List[Any] = field(default_factory=list)
+    pending_hand_to_draw_top_selection: bool = False
+    pending_hand_to_draw_top_source: str = ""
+    pending_hand_to_draw_top_options: List[Any] = field(default_factory=list)
+    pending_upgrade_hand_selection: bool = False
+    pending_upgrade_hand_source: str = ""
+    pending_upgrade_hand_options: List[Any] = field(default_factory=list)
 
     # 先占位，后续 zone / field 系统接这里
     active_zone: Any = None

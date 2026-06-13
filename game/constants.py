@@ -42,6 +42,7 @@ KEYWORD_ETHEREAL = "ethereal"    # 虚无
 KEYWORD_RETAIN = "retain"        # 保留
 KEYWORD_INNATE = "innate"        # 固有
 KEYWORD_CLEVER = "clever"        # 奇巧
+KEYWORD_UNPLAYABLE = "unplayable"  # 不可打出
 
 # 目标类型
 TARGET_SELF = "self"

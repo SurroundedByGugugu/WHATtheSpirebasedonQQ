@@ -236,10 +236,18 @@ def create_energetic():
         },
         effects=[
             {
-                "op": "lose_dexterity_this_turn",
-                "amount": {
+                "op": "gain_temporary_status_delta",
+                "target": "self",
+                "status": "dexterity",
+                "delta": {
                     "var": "dexterity_loss"
-                }
+                },
+                "delta_multiplier": -1,
+                "temporary_status": "temporary_dexterity_loss",
+                "temporary_amount": {
+                    "var": "dexterity_loss"
+                },
+                "block_policy": "skip_delta_if_temporary_blocked"
             },
             {
                 "op": "gain_energy",

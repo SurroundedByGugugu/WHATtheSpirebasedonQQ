@@ -13,8 +13,12 @@ from game.engine import (
     get_exhaust_pile,
     get_combat_view,
     discard_selected_hand_cards,
+    choose_pending_discard_to_draw_top,
+    choose_pending_exhaust_hand,
+    choose_pending_hand_to_draw_top,
     get_status_detail,
     get_zone_field_view,
+    choose_pending_upgrade_hand_card,
 )
 
 from game.run_engine import (
@@ -387,10 +391,55 @@ class GameService(object):
                 return "当前没有需要处理的弃牌选择。"
             reply = self.handle_drop(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-
         if game_state.pending_discard_selection:
             return "当前需要先处理丢弃选择。使用 /card drop 0 2 3，或 /card drop none。"
+
+        if command in ("top", "headbutt", "置顶", "选择弃牌置顶"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not game_state.pending_discard_to_draw_selection:
+                return "当前没有需要处理的弃牌堆置顶选择。"
+            reply = self.handle_discard_to_draw_top(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if game_state.pending_discard_to_draw_selection:
+            return "当前需要先处理弃牌堆置顶选择。使用 /card top 0。"
         
+        if command in ("exhaust_hand", "burn", "consume", "选择消耗", "消耗手牌") or (
+            command == "exhaust" and game_state.pending_exhaust_hand_selection
+        ):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not game_state.pending_exhaust_hand_selection:
+                return "当前没有需要处理的手牌消耗选择。"
+            reply = self.handle_exhaust_hand(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if game_state.pending_exhaust_hand_selection:
+            return "当前需要先处理手牌消耗选择。使用 /card exhaust_hand 0。"
+
+        if command in ("handtop", "hand_top", "warcry", "置顶手牌", "手牌置顶"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not game_state.pending_hand_to_draw_top_selection:
+                return "当前没有需要处理的手牌置顶选择。"
+            reply = self.handle_hand_to_draw_top(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if game_state.pending_hand_to_draw_top_selection:
+            return "当前需要先处理手牌置顶选择。使用 /card handtop 0。"
+        
+        if command in ("upgrade_hand", "upgradehand", "armaments", "选择升级", "升级手牌"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not game_state.pending_upgrade_hand_selection:
+                return "当前没有需要处理的手牌升级选择。"
+            reply = self.handle_upgrade_hand(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if game_state.pending_upgrade_hand_selection:
+            return "当前需要先处理手牌升级选择。使用 /card upgrade_hand 0。"
+                        
         if command in ("potion", "use_potion", "useitem", "item", "使用药水", "使用道具"):
             game_state = run_state.current_battle
             if game_state is None:
@@ -682,7 +731,80 @@ class GameService(object):
                 return "手牌编号必须是数字，或使用 none 表示不丢弃。"
 
         return discard_selected_hand_cards(game_state, hand_indices)
+    
+    def handle_discard_to_draw_top(self, game_state, parts):
+        """
+        /card top 0
+        用于头槌：选择弃牌堆中的一张牌放到抽牌堆顶。
+        """
+        if not game_state.pending_discard_to_draw_selection:
+            return "当前没有需要处理的弃牌堆置顶选择。"
 
+        if len(parts) < 3:
+            return "用法：/card top 0。"
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "选择编号必须是数字。"
+
+        return choose_pending_discard_to_draw_top(game_state, choice_index)
+
+    def handle_exhaust_hand(self, game_state, parts):
+        """
+        /card exhaust_hand 0
+        /card exhaust 0
+        用于坚毅+：选择一张手牌消耗。
+        """
+        if not game_state.pending_exhaust_hand_selection:
+            return "当前没有需要处理的手牌消耗选择。"
+
+        if len(parts) < 3:
+            return "用法：/card exhaust_hand 0。"
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "选择编号必须是数字。"
+
+        return choose_pending_exhaust_hand(game_state, choice_index)
+
+    def handle_hand_to_draw_top(self, game_state, parts):
+        """
+        /card handtop 0
+        用于战吼：选择一张手牌放到抽牌堆顶。
+        """
+        if not game_state.pending_hand_to_draw_top_selection:
+            return "当前没有需要处理的手牌置顶选择。"
+
+        if len(parts) < 3:
+            return "用法：/card handtop 0。"
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "选择编号必须是数字。"
+
+        return choose_pending_hand_to_draw_top(game_state, choice_index)
+
+    def handle_upgrade_hand(self, game_state, parts):
+        """
+        /card upgrade_hand 0
+        用于武装：选择一张手牌临时升级。
+        """
+        if not game_state.pending_upgrade_hand_selection:
+            return "当前没有需要处理的手牌升级选择。"
+
+        if len(parts) < 3:
+            return "用法：/card upgrade_hand 0。"
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "选择编号必须是数字。"
+
+        return choose_pending_upgrade_hand_card(game_state, choice_index)
+    
     def help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",

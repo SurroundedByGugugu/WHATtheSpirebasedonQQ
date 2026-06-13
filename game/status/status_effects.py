@@ -17,6 +17,7 @@ STATUS_EVENT_PRIORITY = {
     "poison": 20,
     "burn": 19,
     "regeneration": 18,
+    "flex": 11,
     "temporary_dexterity_loss": 10,
 }
 
@@ -467,6 +468,25 @@ def handle_temporary_dexterity_loss(event_name, context, owner, value):
     ))
     return logs
 
+def handle_flex(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    current_strength = owner.gain_status("strength", -amount)
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("flex")
+    logs.append("{} 的活动肌肉结束，失去 {} 点力量。当前力量：{}。".format(
+        owner.name,
+        amount,
+        current_strength
+    ))
+    return logs
+
 def handle_god_in_hand(event_name, context, owner, value):
     logs = []
     if event_name != EVENT_TURN_START:
@@ -558,5 +578,6 @@ STATUS_EVENT_HANDLERS = {
     "regeneration": handle_regeneration,
     "mirage_shadows": handle_mirage_shadows,
     "temporary_dexterity_loss": handle_temporary_dexterity_loss,
+    "flex": handle_flex,
     "god_in_hand": handle_god_in_hand,
 }

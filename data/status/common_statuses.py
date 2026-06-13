@@ -1,4 +1,3 @@
-# data/status/common_statuses.py
 # -*- coding: utf-8 -*-
 
 from data.status.base_status import StatusDef
@@ -13,6 +12,16 @@ register_status_def(StatusDef(
     display_mode="value",
     order=10,
     can_be_negative=True,
+))
+register_status_def(StatusDef(
+    key="flex",
+    name="活动肌肉",
+    description="回合结束时，失去等同于层数的力量，然后移除此状态。",
+    category="debuff",
+    display_mode="stack",
+    order=15,
+    decay_timing="none",
+    decay_amount=0,
 ))
 
 register_status_def(StatusDef(
