@@ -11,37 +11,59 @@ from data.potion.AAAregistry import create_potion
 from data.relic.AAAregistry import create_relic
 from game.reward import (
     POTION_REWARD_POOL,
+    SHOP_RELIC_POOL,
+    FALLBACK_RELIC_ID,
     get_available_relic_ids,
     format_potion_slots,
     format_card_reward_choice,
 )
 
-CARD_PRICE_BY_QUANTITY = {
-    "starting": 30,
-    "common": 50,
-    "uncommon": 75,
-    "rare": 150,
-    "myth": 250,
-    "test": 30,
+CARD_RARITY_WEIGHTS = [
+    ("common", 8),
+    ("uncommon", 7),
+    ("rare", 5),
+]
+
+SHOP_CARD_QUANTITIES = {"common", "uncommon", "rare"}
+SHOP_CARD_FALLBACK_QUANTITIES = {"starting", "common", "uncommon", "rare", "test"}
+
+COLORED_CARD_PRICE_RANGE_BY_QUANTITY = {
+    "common": (45, 55),
+    "uncommon": (68, 82),
+    "rare": (135, 165),
+
+    # 小卡池兜底用。
+    "starting": (45, 55),
+    "test": (45, 55),
 }
 
-RELIC_PRICE_BY_QUANTITY = {
-    "starting": 150,
-    "common": 150,
-    "uncommon": 200,
-    "rare": 250,
-    "myth": 350,
-    "shop": 180,
-    "event": 200,
-    "test": 120,
-    "ENDER": 150,
+COLORLESS_CARD_PRICE_RANGE_BY_QUANTITY = {
+    "uncommon": (81, 99),
+    "rare": (162, 198),
+
+    # 当前还没有真正的无色罕见 / 稀有牌时兜底用。
+    "starting": (81, 99),
+    "common": (81, 99),
+    "test": (81, 99),
 }
 
-POTION_PRICE_BY_QUANTITY = {
-    "common": 50,
-    "uncommon": 75,
-    "rare": 100,
-    "test": 40,
+RELIC_PRICE_RANGE_BY_QUANTITY = {
+    "common": (143, 157),
+    "uncommon": (238, 262),
+    "rare": (285, 315),
+    "shop": (143, 157),
+
+    # 现有占位遗物兜底用。
+    "starting": (143, 157),
+    "test": (143, 157),
+    "ENDER": (143, 157),
+}
+
+POTION_PRICE_RANGE_BY_QUANTITY = {
+    "common": (48, 52),
+    "uncommon": (72, 78),
+    "rare": (95, 105),
+    "test": (48, 52),
 }
 
 SHOP_RANDOM_REMOVE_PRICE = 25
@@ -69,100 +91,285 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
     items = []
 
     character_id = getattr(run_state, "character_id", "")
-    # 1. 本角色攻击牌 * 2
-    add_card_shop_items(
-        items=items,
+    used_card_ids = set()
+
+    # 1. 五张有色卡：2 攻击、2 技能、1 能力。
+    colored_card_indices = []
+    colored_slots = [
+        ("attack", 2),
+        ("skill", 2),
+        ("power", 1),
+    ]
+
+    for card_type, count in colored_slots:
+        for _ in range(count):
+            item = create_colored_card_shop_item(
+                rng=rng,
+                owner_character_id=character_id,
+                card_type=card_type,
+                used_card_ids=used_card_ids
+            )
+            if item is not None:
+                card = item.payload.get("card")
+                if card is not None:
+                    used_card_ids.add(getattr(card, "card_id", ""))
+
+                colored_card_indices.append(len(items))
+                items.append(item)
+
+    # 有色卡中随机一张打五折。
+    if colored_card_indices:
+        discount_index = rng.choice(colored_card_indices)
+        apply_shop_discount(items[discount_index])
+
+    # 2. 两张无色卡：左边罕见，右边稀有。
+    colorless_uncommon = create_colorless_card_shop_item(
         rng=rng,
-        card_ids=get_card_shop_pool(
-            owner_character_id=character_id,
-            card_type="attack"
-        ),
-        count=2
+        target_quantity="uncommon",
+        used_card_ids=used_card_ids
     )
-    # 2. 本角色技能牌 * 2
-    add_card_shop_items(
-        items=items,
+    if colorless_uncommon is not None:
+        card = colorless_uncommon.payload.get("card")
+        if card is not None:
+            used_card_ids.add(getattr(card, "card_id", ""))
+        items.append(colorless_uncommon)
+
+    colorless_rare = create_colorless_card_shop_item(
         rng=rng,
-        card_ids=get_card_shop_pool(
-            owner_character_id=character_id,
-            card_type="skill"
-        ),
-        count=2
+        target_quantity="rare",
+        used_card_ids=used_card_ids
     )
-    # 3. 本角色能力牌 * 1
-    add_card_shop_items(
-        items=items,
-        rng=rng,
-        card_ids=get_card_shop_pool(
-            owner_character_id=character_id,
-            card_type="power"
-        ),
-        count=1
-    )
-    # 4. 无归属牌 * 2
-    add_card_shop_items(
-        items=items,
-        rng=rng,
-        card_ids=get_card_shop_pool(
-            unowned_only=True
-        ),
-        count=2
-    )
-    # 5. 遗物 * 3，不够就用造物原型补足
-    relic_ids = get_shop_relic_ids(
+    if colorless_rare is not None:
+        card = colorless_rare.payload.get("card")
+        if card is not None:
+            used_card_ids.add(getattr(card, "card_id", ""))
+        items.append(colorless_rare)
+
+    # 3. 三件遗物：前两件正常遗物，最右边固定商店遗物。
+    relic_ids = get_normal_shop_relic_ids(
         run_state=run_state,
         rng=rng,
-        count=3
+        count=2
     )
+    relic_ids.append(get_shop_exclusive_relic_id(run_state, rng))
+
     for relic_id in relic_ids:
         relic = create_relic(relic_id)
         items.append(ShopItem(
             item_type="relic",
             title="遗物：【{}】".format(relic.name),
-            price=get_relic_shop_price(relic),
+            price=get_relic_shop_price(relic, rng),
             payload={
                 "relic": relic
             }
         ))
-    # 6. 药水 * 3
-    potion_ids = _sample_or_choices(rng, POTION_REWARD_POOL, 3)
-    for potion_id in potion_ids:
+
+    # 4. 三瓶药水。
+    for _ in range(3):
+        potion_id = pick_potion_id_by_weighted_rarity(rng)
+        if potion_id is None:
+            continue
+
         potion = create_potion(potion_id)
         items.append(ShopItem(
             item_type="potion",
             title="药水：【{}】".format(potion.name),
-            price=get_potion_shop_price(potion),
+            price=get_potion_shop_price(potion, rng),
             payload={
                 "potion": potion
             }
         ))
+
     return ShopState(
         items=items,
         source_node_type=source_node_type
     )
 
-def get_card_shop_price(card):
-    quantity = getattr(card, "quantity", "common")
-    return CARD_PRICE_BY_QUANTITY.get(quantity, 50)
+
+def get_card_shop_price(card, rng, colorless=False, forced_quantity=None, discount=False):
+    quantity = forced_quantity or getattr(card, "quantity", "common")
+
+    if colorless:
+        ranges = COLORLESS_CARD_PRICE_RANGE_BY_QUANTITY
+    else:
+        ranges = COLORED_CARD_PRICE_RANGE_BY_QUANTITY
+
+    low, high = ranges.get(quantity, ranges["common"])
+    price = rng.randint(low, high)
+
+    if discount:
+        price = max(1, price // 2)
+
+    return price
 
 
-def get_relic_shop_price(relic):
+def get_relic_shop_price(relic, rng):
     quantity = getattr(relic, "quantity", "common")
-    return RELIC_PRICE_BY_QUANTITY.get(quantity, 150)
+    low, high = RELIC_PRICE_RANGE_BY_QUANTITY.get(
+        quantity,
+        RELIC_PRICE_RANGE_BY_QUANTITY["common"]
+    )
+    return rng.randint(low, high)
 
 
-def get_potion_shop_price(potion):
+def get_potion_shop_price(potion, rng):
     quantity = getattr(potion, "quantity", "common")
-    return POTION_PRICE_BY_QUANTITY.get(quantity, 50)
+    low, high = POTION_PRICE_RANGE_BY_QUANTITY.get(
+        quantity,
+        POTION_PRICE_RANGE_BY_QUANTITY["common"]
+    )
+    return rng.randint(low, high)
 
 
-def get_card_shop_pool(owner_character_id="", card_type=None, unowned_only=False):
+def apply_shop_discount(item):
+    item.price = max(1, item.price // 2)
+
+    if "打折" not in item.title:
+        item.title = item.title + "（打折）"
+
+    item.payload["discounted"] = True
+
+
+def weighted_choice(rng, weighted_items):
+    total = 0
+    for _, weight in weighted_items:
+        total += weight
+
+    if total <= 0:
+        return None
+
+    roll = rng.uniform(0, total)
+    current = 0
+
+    for value, weight in weighted_items:
+        current += weight
+        if roll <= current:
+            return value
+
+    return weighted_items[-1][0]
+
+
+def remove_used_ids(card_ids, used_card_ids):
+    if not used_card_ids:
+        return card_ids
+
+    unused = []
+    for card_id in card_ids:
+        if card_id not in used_card_ids:
+            unused.append(card_id)
+
+    # 如果小卡池不够，允许重复兜底，避免商店栏位缺失过多。
+    if unused:
+        return unused
+
+    return card_ids
+
+
+def create_colored_card_shop_item(rng, owner_character_id, card_type, used_card_ids=None):
+    target_quantity = weighted_choice(rng, CARD_RARITY_WEIGHTS)
+
+    card_ids = get_card_shop_pool(
+        owner_character_id=owner_character_id,
+        card_type=card_type,
+        quantity=target_quantity,
+        unowned_only=False,
+        strict_quantity=True
+    )
+    card_ids = remove_used_ids(card_ids, used_card_ids)
+
+    forced_price_quantity = None
+
+    # 小卡池兜底：
+    # 如果该类型没有抽中的稀有度，则放宽稀有度；
+    # 仍然保持角色归属和卡牌类型。
+    if not card_ids:
+        card_ids = get_card_shop_pool(
+            owner_character_id=owner_character_id,
+            card_type=card_type,
+            unowned_only=False,
+            strict_quantity=False
+        )
+        card_ids = remove_used_ids(card_ids, used_card_ids)
+        forced_price_quantity = target_quantity
+
+    if not card_ids:
+        return None
+
+    card_id = rng.choice(card_ids)
+    card = create_card(card_id)
+
+    return ShopItem(
+        item_type="card",
+        title="卡牌：【{}】".format(card.name),
+        price=get_card_shop_price(
+            card=card,
+            rng=rng,
+            colorless=False,
+            forced_quantity=forced_price_quantity
+        ),
+        payload={
+            "card": card,
+            "shop_slot": "colored",
+            "target_quantity": target_quantity,
+        }
+    )
+
+
+def create_colorless_card_shop_item(rng, target_quantity, used_card_ids=None):
+    card_ids = get_card_shop_pool(
+        unowned_only=True,
+        quantity=target_quantity,
+        strict_quantity=True
+    )
+    card_ids = remove_used_ids(card_ids, used_card_ids)
+
+    forced_price_quantity = None
+
+    # 当前项目还没有真正的无色罕见 / 稀有牌。
+    # 为了商店栏位稳定，临时回退到无归属非状态牌。
+    # 后续添加 quantity="uncommon"/"rare" 且 owner_character_id="" 的无色卡后，会自动优先使用真无色卡。
+    if not card_ids:
+        card_ids = get_card_shop_pool(
+            unowned_only=True,
+            strict_quantity=False
+        )
+        card_ids = remove_used_ids(card_ids, used_card_ids)
+        forced_price_quantity = target_quantity
+
+    if not card_ids:
+        return None
+
+    card_id = rng.choice(card_ids)
+    card = create_card(card_id)
+
+    return ShopItem(
+        item_type="card",
+        title="无色卡牌：【{}】".format(card.name),
+        price=get_card_shop_price(
+            card=card,
+            rng=rng,
+            colorless=True,
+            forced_quantity=forced_price_quantity
+        ),
+        payload={
+            "card": card,
+            "shop_slot": "colorless",
+            "target_quantity": target_quantity,
+        }
+    )
+
+
+def get_card_shop_pool(owner_character_id="", card_type=None, quantity=None, unowned_only=False, strict_quantity=True):
     """
     获取商店用卡牌池。
 
     owner_character_id:
     - 指定角色 ID 时，抽该角色归属卡。
-    - unowned_only=True 时，只抽 owner_character_id 为空的通用牌。
+    - unowned_only=True 时，只抽 owner_character_id 为空的无色 / 通用牌。
+
+    quantity:
+    - strict_quantity=True 时，只抽指定稀有度。
+    - strict_quantity=False 时，允许在 SHOP_CARD_FALLBACK_QUANTITIES 内兜底。
     """
     result = []
 
@@ -170,6 +377,11 @@ def get_card_shop_pool(owner_character_id="", card_type=None, unowned_only=False
         card = create_card(card_id)
         card_owner = getattr(card, "owner_character_id", "")
         current_card_type = getattr(card, "card_type", "")
+        current_quantity = getattr(card, "quantity", "")
+
+        # 状态牌永远不进商店。
+        if current_card_type == "status" or current_quantity == "status":
+            continue
 
         if unowned_only:
             if card_owner != "":
@@ -181,55 +393,132 @@ def get_card_shop_pool(owner_character_id="", card_type=None, unowned_only=False
         if card_type is not None and current_card_type != card_type:
             continue
 
+        if quantity is not None and strict_quantity:
+            if current_quantity != quantity:
+                continue
+        else:
+            if current_quantity not in SHOP_CARD_FALLBACK_QUANTITIES:
+                continue
+
         result.append(card_id)
 
     return result
 
 
-def add_card_shop_items(items, rng, card_ids, count):
-    selected_card_ids = _sample_or_choices(rng, card_ids, count)
-
-    for card_id in selected_card_ids:
-        card = create_card(card_id)
-        items.append(ShopItem(
-            item_type="card",
-            title="卡牌：【{}】".format(card.name),
-            price=get_card_shop_price(card),
-            payload={
-                "card": card
-            }
-        ))
-
-
-def get_shop_relic_ids(run_state, rng, count):
+def get_normal_shop_relic_ids(run_state, rng, count):
     """
-    商店遗物：
-    - 优先从当前可获得遗物中抽。
-    - 不够 count 个时，用造物原型补足。
+    商店前两件遗物：
+    - 来自正常遗物池。
+    - 排除 shop 稀有度遗物，保证商店遗物是唯一来源。
+    - 不够时用造物原型兜底，保证栏位稳定。
     """
-    fallback_relic_id = "relic.homunculus_prototype"
-
     available_relic_ids = list(get_available_relic_ids(run_state))
 
     normal_relic_ids = []
     for relic_id in available_relic_ids:
-        if relic_id == fallback_relic_id:
+        if relic_id == FALLBACK_RELIC_ID:
             continue
+
+        relic = create_relic(relic_id)
+        if getattr(relic, "quantity", "") == "shop":
+            continue
+
         normal_relic_ids.append(relic_id)
 
     result = []
 
-    if normal_relic_ids:
-        if len(normal_relic_ids) >= count:
-            result.extend(rng.sample(normal_relic_ids, count))
-        else:
-            result.extend(rng.sample(normal_relic_ids, len(normal_relic_ids)))
-
     while len(result) < count:
-        result.append(fallback_relic_id)
+        if normal_relic_ids:
+            relic_id = pick_relic_id_by_weighted_rarity(rng, normal_relic_ids)
+            if relic_id is None:
+                relic_id = rng.choice(normal_relic_ids)
+
+            result.append(relic_id)
+            normal_relic_ids.remove(relic_id)
+        else:
+            result.append(FALLBACK_RELIC_ID)
 
     return result
 
+
+def pick_relic_id_by_weighted_rarity(rng, relic_ids):
+    if not relic_ids:
+        return None
+
+    target_quantity = weighted_choice(rng, CARD_RARITY_WEIGHTS)
+
+    matching = []
+    for relic_id in relic_ids:
+        relic = create_relic(relic_id)
+        if getattr(relic, "quantity", "") == target_quantity:
+            matching.append(relic_id)
+
+    if matching:
+        return rng.choice(matching)
+
+    return rng.choice(relic_ids)
+
+
+def get_shop_exclusive_relic_id(run_state, rng):
+    """
+    商店最右侧遗物：只从 SHOP_RELIC_POOL 里出。
+    如果商店遗物都已拥有且不允许重复，使用造物原型兜底。
+    """
+    owned_relic_ids = set()
+    for relic in getattr(run_state, "relics", []):
+        owned_relic_ids.add(getattr(relic, "relic_id", ""))
+
+    current_character_id = getattr(run_state, "character_id", "")
+    candidates = []
+
+    for relic_id in SHOP_RELIC_POOL:
+        relic = create_relic(relic_id)
+
+        relic_owner = getattr(relic, "owner_character_id", "")
+        if relic_owner and relic_owner != current_character_id:
+            continue
+
+        allow_duplicate = getattr(relic, "allow_duplicate", False)
+        if not allow_duplicate and relic_id in owned_relic_ids:
+            continue
+
+        candidates.append(relic_id)
+
+    if candidates:
+        return rng.choice(candidates)
+
+    return FALLBACK_RELIC_ID
+
+
+def pick_potion_id_by_weighted_rarity(rng):
+    if not POTION_REWARD_POOL:
+        return None
+
+    target_quantity = weighted_choice(rng, CARD_RARITY_WEIGHTS)
+
+    matching = []
+    for potion_id in POTION_REWARD_POOL:
+        potion = create_potion(potion_id)
+        if getattr(potion, "quantity", "common") == target_quantity:
+            matching.append(potion_id)
+
+    if matching:
+        return rng.choice(matching)
+
+    return rng.choice(POTION_REWARD_POOL)
+
+
+def _sample_or_choices(rng, pool, count):
+    if not pool:
+        return []
+
+    if count <= len(pool):
+        return rng.sample(pool, count)
+
+    return [
+        rng.choice(pool)
+        for _ in range(count)
+    ]
 
 def format_owner_id(owner_character_id):
     if not owner_character_id:
@@ -238,11 +527,11 @@ def format_owner_id(owner_character_id):
     owner_names = {
         "character.armored_warrior": "铁甲战士",
         "character.yoirine": "Yoirine",
+        "character.lumine": "Lumine",
         "character.test": "测试角色",
     }
 
     return owner_names.get(owner_character_id, owner_character_id)
-
 
 def format_quantity(quantity):
     names = {
@@ -348,7 +637,11 @@ def format_shop_item_detail(run_state, item_index):
 
         lines.append("类型：卡牌")
         lines.append("归属：{}".format(format_owner_id(getattr(card, "owner_character_id", ""))))
-        lines.append("稀有度：{}".format(format_quantity(getattr(card, "quantity", ""))))
+        actual_quantity = getattr(card, "quantity", "")
+        target_quantity = item.payload.get("target_quantity", "")
+        lines.append("稀有度：{}".format(format_quantity(actual_quantity)))
+        if target_quantity and target_quantity != actual_quantity:
+            lines.append("商店栏位稀有度：{}".format(format_quantity(target_quantity)))
         lines.append("卡牌类型：{}".format(getattr(card, "card_type", "")))
         lines.append("")
         lines.append(format_card_reward_choice(card))

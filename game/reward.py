@@ -27,7 +27,61 @@ CARD_REWARD_POOL = [
     "card.innate_thorns",
     "card.draw_discard_test",
     "card.test_heavy_strike",
+    "card.hard_blow",
     "card.test_x_drill",
+
+    "card.whirlwind",
+    "card.clothesline",
+    "card.heavy_blade",
+    "card.anger",
+    "card.double_strike",
+    "card.sword_boomerang",
+    "card.thunderclap",
+    "card.cleave",
+    "card.iron_wave",
+    "card.wild_strike",
+    "card.pommel_strike",
+    "card.perfected_strike",
+    "card.headbutt",
+    "card.body_slam",
+    "card.clash",
+    "card.havoc",
+    "card.shrug_it_off",
+    "card.true_grit",
+    "card.warcry",
+    "card.uppercut",
+    "card.pummel",
+    "card.carnage",
+    "card.reckless_charge",
+    "card.bludgeon",
+    "card.blood_for_blood",
+    "card.dropkick",
+    "card.hemokinesis",
+    "card.rampage",
+    "card.searing_blow",
+    "card.sever_soul",
+    "card.immolate_history",
+    "card.death_reaper",
+    "card.immolate",
+    "card.fiend_fire",
+    "card.feed",
+    "card.demon_form",
+    "card.fire_strike",
+    "card.fire_zone",
+
+    "card.crystal_piercing",
+    "card.crystal_zone",
+
+    "card.mirage_shadows",
+    "card.god_in_hand",
+    "card.transfer",
+    "card.inducing",
+    "card.cheap_intuition",
+    "card.energetic",
+    "card.factor_separate",
+    "card.fast_transfer",
+    "card.brain_shockwave",
+    "card.ok_next",
 ]
 
 POTION_REWARD_POOL = [
@@ -40,10 +94,13 @@ POTION_REWARD_POOL = [
 # 如果不希望重复获得已有遗物，可以在 roll_relic_reward() 里过滤。
 RELIC_REWARD_POOL = [
     "relic.placeholder_stone",
-    "relic.x_potion",
     "relic.ether_medium",
     "relic.charon_ashes",
     "relic.homunculus_prototype",
+]
+
+SHOP_RELIC_POOL = [
+    "relic.x_potion",
 ]
 
 COMMON_RELIC_POOL = [
@@ -211,7 +268,8 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
     card_choices = roll_card_rewards(
         count=3,
         rng=rng,
-        upgrade_chance=upgrade_chance
+        upgrade_chance=upgrade_chance,
+        run_state=run_state
     )
 
     reward_state.options.append(RewardOption(
@@ -338,6 +396,9 @@ def get_available_relic_ids(run_state):
         if relic_id == FALLBACK_RELIC_ID:
             continue
         relic = create_relic(relic_id)
+        # 商店遗物不进入战斗 / 宝箱等普通遗物奖励池。
+        if getattr(relic, "quantity", "") == "shop":
+            continue
         relic_owner = getattr(relic, "owner_character_id", "")
         current_character_id = getattr(run_state, "character_id", "")
         if relic_owner and relic_owner != current_character_id:
@@ -382,12 +443,17 @@ def get_card_reward_upgrade_chance(run_state):
     return chance
 
 
-def roll_card_rewards(count, rng, upgrade_chance):
-    if count <= len(CARD_REWARD_POOL):
-        card_ids = rng.sample(CARD_REWARD_POOL, count)
+def roll_card_rewards(count, rng, upgrade_chance, run_state=None):
+    if run_state is None:
+        pool = list(CARD_REWARD_POOL)
+    else:
+        pool = get_card_reward_pool(run_state)
+
+    if count <= len(pool):
+        card_ids = rng.sample(pool, count)
     else:
         card_ids = [
-            rng.choice(CARD_REWARD_POOL)
+            rng.choice(pool)
             for _ in range(count)
         ]
 
@@ -660,3 +726,44 @@ def replace_potion_reward(run_state, reward_state, option_index, potion_index):
         old_potion.name,
         potion.name
     )
+
+def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=False):
+    """
+    获取当前角色可用的战斗卡牌奖励池。
+
+    规则：
+    - 当前角色有色卡：owner_character_id == run_state.character_id
+    - 可选无色卡：owner_character_id == ""
+    - 默认排除 starting / status / test
+    """
+    current_character_id = getattr(run_state, "character_id", "")
+    result = []
+
+    for card_id in CARD_REWARD_POOL:
+        card = create_card(card_id)
+        owner = getattr(card, "owner_character_id", "")
+        quantity = getattr(card, "quantity", "")
+        card_type = getattr(card, "card_type", "")
+
+        if card_type == "status" or quantity == "status":
+            continue
+
+        if quantity == "starting":
+            continue
+
+        if quantity == "test" and not include_test_cards:
+            continue
+
+        if owner == current_character_id:
+            result.append(card_id)
+            continue
+
+        if include_colorless and owner == "":
+            result.append(card_id)
+            continue
+
+    # 小卡池兜底，防止测试角色没有奖励牌。
+    if not result:
+        return list(CARD_REWARD_POOL)
+
+    return result
