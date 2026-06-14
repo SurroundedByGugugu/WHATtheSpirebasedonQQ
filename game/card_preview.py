@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from game.card_cost import get_card_current_cost
 from game.effects import resolve_amount
 from game.x_value import is_x_cost_card, calculate_card_x_value
 
@@ -111,6 +112,16 @@ def format_card_actual_preview(game_state, card):
         }
 
     parts = []
+    if not is_x_cost_card(card):
+        current_cost = get_card_current_cost(game_state, card)
+        try:
+            base_cost = int(card.cost)
+        except (TypeError, ValueError):
+            base_cost = card.cost
+
+        if current_cost != base_cost:
+            parts.append("费用 {}".format(current_cost))
+            
     for effect in getattr(card, "effects", []):
         text = _preview_effect(game_state, card, effect, effect_context)
         if text:

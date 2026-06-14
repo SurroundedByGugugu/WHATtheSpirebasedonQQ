@@ -7,7 +7,8 @@ from data.card.basic_cards import (
 
 from data.card.status_cards import (
     create_slime_i,
-    create_wound
+    create_wound,
+    create_dazed
 )
 
 from data.card.character.test_character_cards import (
@@ -43,6 +44,22 @@ from data.card.character.armored_warrior_card import(
     create_true_grit,
     create_warcry,
     create_whirlwind,
+    create_uppercut,
+    create_pummel,
+    create_carnage,
+    create_reckless_charge,
+    create_blood_for_blood,
+    create_dropkick,
+    create_hemokinesis,
+    create_rampage,
+    create_searing_blow,
+    create_sever_soul,
+    create_bludgeon,
+    create_immolate_history,
+    create_death_reaper,
+    create_immolate,
+    create_fiend_fire,
+    create_feed,
     create_fire_strike,
     create_fire_zone,
     create_demon_form,
@@ -72,6 +89,7 @@ CARD_REGISTRY = {
 
     "card.status.slime_i": create_slime_i,
     "card.status.wound":create_wound,
+    "card.status.dazed":create_dazed,
 
     "card.gain_status_strength": create_gain_status_strength,
     "card.exhaust_strength": create_exhaust_strength,
@@ -103,6 +121,22 @@ CARD_REGISTRY = {
     "card.shrug_it_off": create_shrug_it_off,
     "card.true_grit": create_true_grit,
     "card.warcry": create_warcry,
+    "card.uppercut": create_uppercut,
+    "card.pummel": create_pummel,
+    "card.carnage": create_carnage,
+    "card.reckless_charge": create_reckless_charge,
+    "card.bludgeon": create_bludgeon,
+    "card.blood_for_blood": create_blood_for_blood,
+    "card.dropkick": create_dropkick,
+    "card.hemokinesis": create_hemokinesis,
+    "card.rampage": create_rampage,
+    "card.searing_blow": create_searing_blow,
+    "card.sever_soul": create_sever_soul,
+    "card.immolate_history": create_immolate_history,
+    "card.death_reaper": create_death_reaper,
+    "card.immolate": create_immolate,
+    "card.fiend_fire": create_fiend_fire,
+    "card.feed": create_feed,
     "card.demon_form":create_demon_form,
     "card.fire_strike":create_fire_strike,
     "card.fire_zone":create_fire_zone,

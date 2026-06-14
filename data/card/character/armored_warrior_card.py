@@ -873,13 +873,646 @@ def create_whirlwind():
             ],
         }
     )
-
+def create_uppercut():
+    return CardTemplate(
+        card_id="card.uppercut",
+        name="上勾拳",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="造成13点伤害。赋予 1t 虚弱。赋予 1t 易伤。",
+        quantity="uncommon",
+        attack_type="blunt",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 13,
+            "weak": 1,
+            "vulnerable": 1
+        },
+        effects=[
+            {
+                "op":"deal_damage",
+                "target":"selected_enemy",
+                "amount":{
+                    "base_var":"damage",
+                    "modifier_profile":"attack_damage"
+                }
+            },
+            {
+                "op":"gain_status",
+                "target":"selected_enemy",
+                "status":"weak",
+                "amount":{
+                    "var":"weak"
+                }
+            },
+            {
+                "op":"gain_status",
+                "target":"selected_enemy",
+                "status":"vulnerable",
+                "amount":{
+                    "var":"vulnerable"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name":"上勾拳+",
+            "description":"造成 13 点伤害。赋予 2t 虚弱。赋予 2t 易伤。",
+            "card_vars":{
+                "weak": 2,
+                "vulnerable": 2
+            },
+        }
+    )
+def create_pummel():
+    return CardTemplate(
+        card_id="card.pummel",
+        name="连续拳",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="消耗。造成 2 点伤害 4 次。",
+        keywords=[KEYWORD_EXHAUST],
+        quantity="uncommon",
+        attack_type="blunt",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 2,
+            "repeat": 4
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "times": {
+                    "var": "repeat"
+                },
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "连续拳+",
+            "description": "消耗。造成 2 点伤害 5 次。",
+            "card_vars": {
+                "repeat": 5
+            },
+        }
+    )
+def create_carnage():
+    return CardTemplate(
+        card_id="card.carnage",
+        name="残杀",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="虚无。造成 20 点伤害。",
+        keywords=[KEYWORD_ETHEREAL],
+        quantity="uncommon",
+        attack_type="slash",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 20
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "残杀+",
+            "description": "虚无。造成 28 点伤害。",
+            "card_vars": {
+                "damage": 28
+            },
+        }
+    )
+def create_reckless_charge():
+    return CardTemplate(
+        card_id="card.reckless_charge",
+        name="无谋冲锋",
+        card_type="attack",
+        cost=0,
+        target="enemy",
+        description="造成 7 点伤害。在抽牌堆中加入 1 张【眩晕】。",
+        quantity="uncommon",
+        attack_type="slash",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 7,
+            "dazed_count": 1
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "add_card_to_draw_pile",
+                "card_id": "card.status.dazed",
+                "amount": {
+                    "var": "dazed_count"
+                },
+                "shuffle": True
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "无谋冲锋+",
+            "description": "造成 10 点伤害。在抽牌堆中加入 1 张【眩晕】。",
+            "card_vars": {
+                "damage": 10
+            },
+        }
+    )
+def create_blood_for_blood():
+    return CardTemplate(
+        card_id="card.blood_for_blood",
+        name="以血还血",
+        card_type="attack",
+        cost=4,
+        target="enemy",
+        description="本场战斗中你每失去生命一次，本牌耗能减少 1。造成 18 点伤害。",
+        quantity="uncommon",
+        attack_type="slash",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 18
+        },
+        cost_rules=[
+            {
+                "op": "reduce_by_player_life_loss_count",
+                "amount_per_loss": 1,
+                "min_cost": 0
+            }
+        ],
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "以血还血+",
+            "cost": 3,
+            "description": "本场战斗中你每失去生命一次，本牌耗能减少 1。造成 22 点伤害。",
+            "card_vars": {
+                "damage": 22
+            },
+        }
+    )
+def create_dropkick():
+    return CardTemplate(
+        card_id="card.dropkick",
+        name="飞身踢",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 5 点伤害。如果敌人有易伤，获得 1 点费用并抽 1 张牌。",
+        quantity="uncommon",
+        attack_type="blunt",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 5,
+            "energy": 1,
+            "draw": 1
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "if_target_has_status",
+                "target": "selected_enemy",
+                "status": "vulnerable",
+                "effects": [
+                    {
+                        "op": "gain_energy",
+                        "amount": {
+                            "var": "energy"
+                        }
+                    },
+                    {
+                        "op": "draw_cards",
+                        "amount": {
+                            "var": "draw"
+                        }
+                    }
+                ]
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "飞身踢+",
+            "description": "造成 8 点伤害。如果敌人有易伤，获得 1 点费用并抽 1 张牌。",
+            "card_vars": {
+                "damage": 8
+            },
+        }
+    )
+def create_hemokinesis():
+    return CardTemplate(
+        card_id="card.hemokinesis",
+        name="御血术",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="失去 2 点生命。造成 15 点伤害。",
+        quantity="uncommon",
+        attack_type="magic",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "hp_loss": 2,
+            "damage": 15
+        },
+        effects=[
+            {
+                "op": "lose_hp",
+                "target": "self",
+                "amount": {
+                    "var": "hp_loss"
+                }
+            },
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "御血术+",
+            "description": "失去 2 点生命。造成 20 点伤害。",
+            "card_vars": {
+                "damage": 20
+            },
+        }
+    )
+def create_rampage():
+    return CardTemplate(
+        card_id="card.rampage",
+        name="暴走",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 8 点伤害。本场战斗中，每打出一次，本牌伤害增加 5。",
+        quantity="uncommon",
+        attack_type="blunt",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 8,
+            "increase": 5
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "increase_card_var",
+                "var": "damage",
+                "amount": {
+                    "var": "increase"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "暴走+",
+            "description": "造成 8 点伤害。本场战斗中，每打出一次，本牌伤害增加 8。",
+            "card_vars": {
+                "increase": 8
+            },
+        }
+    )
+def create_searing_blow():
+    return CardTemplate(
+        card_id="card.searing_blow",
+        name="灼热攻击",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="造成 12 点伤害。能被多次升级。",
+        quantity="uncommon",
+        attack_type="slash",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 12
+        },
+        multi_upgrade=True,
+        upgrade_count=0,
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "multi_upgrade": True,
+            "damage_var": "damage",
+            "damage_bonus_offset": 3,
+            "description_template": "造成 {} 点伤害。能被多次升级。"
+        }
+    )
+def create_sever_soul():
+    return CardTemplate(
+        card_id="card.sever_soul",
+        name="断魂斩",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="消耗手牌中所有非攻击牌。造成 16 点伤害。",
+        quantity="uncommon",
+        attack_type="slash",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 16
+        },
+        effects=[
+            {
+                "op": "exhaust_non_attack_hand_cards"
+            },
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "断魂斩+",
+            "description": "消耗手牌中所有非攻击牌。造成 22 点伤害。",
+            "card_vars": {
+                "damage": 22
+            },
+        }
+    )
 
 #罕见 技能 uncommon skill
+def create_immolate_history():
+    return CardTemplate(
+        card_id="card.immolate_history",
+        name="燔祭·旧",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="消耗 1 张手牌。如果这张牌是诅咒牌或状态牌，对所有敌人造成 10 点伤害。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 10
+        },
+        effects=[
+            {
+                "op": "request_exhaust_hand_card_then_if_type",
+                "card_types": [
+                    "curse",
+                    "status"
+                ],
+                "effects": [
+                    {
+                        "op": "deal_damage_all_enemies",
+                        "amount": {
+                            "base_var": "damage",
+                            "modifier_profile": "attack_damage"
+                        }
+                    }
+                ]
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "燔祭·旧+",
+            "description": "消耗 1 张手牌。如果这张牌是诅咒牌或状态牌，对所有敌人造成 15 点伤害。",
+            "card_vars": {
+                "damage": 15
+            },
+        }
+    )
 
 #罕见 能力 uncommon power
 
 #稀有 攻击 rare attack
+def create_bludgeon():
+    return CardTemplate(
+        card_id="card.bludgeon",
+        name="重锤",
+        card_type="attack",
+        cost=3,
+        target="enemy",
+        description="造成 32 点伤害。",
+        quantity="rare",
+        attack_type="blunt",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 32
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name":"重锤+",
+            "description":"造成 42 点伤害。",
+            "card_vars":{
+                "damage": 42
+            }
+        }
+    )
+def create_feed():
+    return CardTemplate(
+        card_id="card.feed",
+        name="狂宴",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="消耗。造成 10 点伤害。若杀死了不为爪牙的敌人，获得 3 点最大生命。",
+        quantity="rare",
+        keywords=[KEYWORD_EXHAUST],
+        attack_type="slash",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 10,
+            "max_hp_gain": 3
+        },
+        effects=[
+            {
+                "op": "deal_damage_gain_max_hp_on_non_minion_kill",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                },
+                "max_hp_gain": {
+                    "var": "max_hp_gain"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "狂宴+",
+            "description": "消耗。造成 12 点伤害。若杀死了不为爪牙的敌人，获得 4 点最大生命。",
+            "card_vars": {
+                "damage": 12,
+                "max_hp_gain": 4
+            },
+        }
+    )
+def create_fiend_fire():
+    return CardTemplate(
+        card_id="card.fiend_fire",
+        name="恶魔之焰",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="消耗。消耗所有手牌。每消耗 1 张牌，对目标敌人造成 7 点伤害。",
+        quantity="rare",
+        keywords=[KEYWORD_EXHAUST],
+        attack_type="magic",
+        attack_element="fire",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 7
+        },
+        effects=[
+            {
+                "op": "exhaust_all_hand_cards_then_attack_per_card",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "恶魔之焰+",
+            "description": "消耗。消耗所有手牌。每消耗 1 张牌，对目标敌人造成 10 点伤害。",
+            "card_vars": {
+                "damage": 10
+            },
+        }
+    )
+def create_immolate():
+    return CardTemplate(
+        card_id="card.immolate",
+        name="燔祭",
+        card_type="attack",
+        cost=2,
+        target="all_enemies",
+        description="对所有敌人造成 21 点伤害。将 1 张【灼伤】放入弃牌堆。",
+        quantity="rare",
+        attack_type="magic",
+        attack_element="fire",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 21,
+            "burn_count": 1
+        },
+        effects=[
+            {
+                "op": "deal_damage_all_enemies",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "add_card_to_discard_pile",
+                "card_id": "card.status.burn",
+                "amount": {
+                    "var": "burn_count"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "燔祭+",
+            "description": "对所有敌人造成 28 点伤害。将 1 张【灼伤】放入弃牌堆。",
+            "card_vars": {
+                "damage": 28
+            },
+        }
+    )
+def create_death_reaper():
+    return CardTemplate(
+        card_id="card.death_reaper",
+        name="死亡收割",
+        card_type="attack",
+        cost=2,
+        target="all_enemies",
+        description="消耗。对所有敌人造成 4 点伤害。未被格挡的伤害将回复你的生命。",
+        quantity="rare",
+        keywords=[KEYWORD_EXHAUST],
+        attack_type="slash",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 4
+        },
+        effects=[
+            {
+                "op": "deal_damage_all_enemies_heal_unblocked",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "死亡收割+",
+            "description": "消耗。对所有敌人造成 5 点伤害。未被格挡的伤害将回复你的生命。",
+            "card_vars": {
+                "damage": 5
+            },
+        }
+    )
 
 #稀有 技能 rare skill
 
@@ -979,3 +1612,4 @@ def create_fire_zone():
             "cost":1
         }
     )
+# 我说要不再塞个私货遗物拾起时为3张攻击牌添加火词条

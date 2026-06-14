@@ -139,6 +139,11 @@ def deal_damage(
     if blocked < 0:
         blocked = 0
 
+    if target is game_state.player and real_damage > 0:
+        game_state.player_life_loss_count_this_battle = int(
+            getattr(game_state, "player_life_loss_count_this_battle", 0)
+        ) + 1
+        
     context = BattleContext(
         game_state=game_state,
         player=game_state.player,

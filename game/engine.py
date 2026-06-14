@@ -8,6 +8,7 @@ from data.relic.AAAregistry import create_relics
 from data.enemy.AAAregistry import create_enemy
 from data.potion.AAAregistry import create_potions
 from game.status.status_defs import get_status_name
+from game.card_cost import get_card_current_cost
 
 from game.constants import (DEBUG_SEED, EVENT_POTION_USE_AFTER,
                             EVENT_BATTLE_START,
@@ -372,12 +373,17 @@ def clear_pending_exhaust_hand_selection(game_state):
     game_state.pending_exhaust_hand_selection = False
     game_state.pending_exhaust_hand_source = ""
     game_state.pending_exhaust_hand_options = []
+    game_state.pending_exhaust_hand_source_card = None
+    game_state.pending_exhaust_hand_target_index = 0
+    game_state.pending_exhaust_hand_required_card_types = []
+    game_state.pending_exhaust_hand_after_effects = []
 
 
 def choose_pending_exhaust_hand(game_state, choice_index):
     """
-    处理坚毅+：
-    选择 1 张手牌消耗。
+    处理：
+    - 坚毅+：选择 1 张手牌消耗。
+    - 燔祭·旧：选择 1 张手牌消耗；如果是状态牌或诅咒牌，继续触发后续效果。
     """
     if not game_state.pending_exhaust_hand_selection:
         return "当前没有需要处理的手牌消耗选择。"
@@ -398,11 +404,12 @@ def choose_pending_exhaust_hand(game_state, choice_index):
         clear_pending_exhaust_hand_selection(game_state)
         return "所选牌已经不在手牌中，选择已取消。"
 
-    player.hand.remove(chosen_card)
-
     source = game_state.pending_exhaust_hand_source
-    clear_pending_exhaust_hand_selection(game_state)
-
+    source_card = game_state.pending_exhaust_hand_source_card
+    target_index = int(getattr(game_state, "pending_exhaust_hand_target_index", 0))
+    required_types = list(getattr(game_state, "pending_exhaust_hand_required_card_types", []))
+    after_effects = list(getattr(game_state, "pending_exhaust_hand_after_effects", []))
+    player.hand.remove(chosen_card)
     logs = []
     logs.append("【{}】选择消耗手牌【{}】。".format(
         source,
@@ -413,7 +420,35 @@ def choose_pending_exhaust_hand(game_state, choice_index):
         card=chosen_card,
         reason="selected"
     ))
+    clear_pending_exhaust_hand_selection(game_state)
 
+    if required_types:
+        chosen_type = getattr(chosen_card, "card_type", "")
+        if chosen_type not in required_types:
+            logs.append("【{}】不是指定类型，后续效果未触发。".format(
+                chosen_card.name
+            ))
+            result = check_battle_result(game_state)
+            if result:
+                logs.append(result)
+            return "\n".join(logs)
+    if after_effects and source_card is not None:
+        from game.effects import apply_card_effect
+
+        effect_context = {
+            "selected_exhausted_card": chosen_card,
+            "selected_exhausted_card_type": getattr(chosen_card, "card_type", "")
+        }
+        for child_effect in after_effects:
+            logs.extend(apply_card_effect(
+                game_state=game_state,
+                card=source_card,
+                effect=child_effect,
+                target_index=target_index,
+                effect_context=effect_context
+            ))
+            if game_state.battle_over:
+                break
     result = check_battle_result(game_state)
     if result:
         logs.append(result)
@@ -621,10 +656,12 @@ def play_card(game_state, hand_index, target_index=0):
             raw_x=raw_x
         )
     else:
-        if card.cost > player.cost:
+        current_cost = get_card_current_cost(game_state, card)
+
+        if current_cost > player.cost:
             return "费用不足。当前费用：{}，卡牌费用：{}。".format(
                 player.cost,
-                card.cost
+                current_cost
             )
 
     target_error = validate_card_target(game_state, card, target_index)
@@ -635,8 +672,8 @@ def play_card(game_state, hand_index, target_index=0):
         spent_cost = player.cost
         player.cost = 0
     else:
-        spent_cost = card.cost
-        player.cost -= card.cost
+        spent_cost = get_card_current_cost(game_state, card)
+        player.cost -= spent_cost
 
     # 从手牌中取出
     player.hand.pop(hand_index)
@@ -757,7 +794,7 @@ def play_cards_by_original_indices(game_state, hand_indices, target_index=0):
         is_x_cost = is_x_cost_card(card)
         if not is_x_cost:
             try:
-                fixed_cost = int(card.cost)
+                fixed_cost = int(get_card_current_cost(game_state, card))
             except (TypeError, ValueError):
                 logs.append("原手牌编号 [{}] 的【{}】费用类型无效，批量出牌中止：{}。".format(
                     original_index,

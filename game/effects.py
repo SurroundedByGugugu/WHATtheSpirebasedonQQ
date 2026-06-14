@@ -801,6 +801,187 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 )
         return logs
 
+    if op == "deal_damage_gain_max_hp_on_non_minion_kill":
+        attack_type, attack_element = get_effect_attack_tags(card, effect)
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
+
+        target_key = effect.get("target", "selected_enemy")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+
+        if target_entity is None:
+            logs.append("目标敌人无效。")
+            return logs
+
+        damage = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=target_entity,
+            damage_source="played_card",
+            effect_context=local_context,
+            attack_type=attack_type,
+            attack_element=attack_element
+        )
+
+        was_alive = target_entity.is_alive()
+        was_minion = bool(getattr(target_entity, "is_minion", False))
+
+        logs.append("【{}】造成 {} 点攻击伤害。".format(
+            card.name,
+            damage
+        ))
+
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=game_state.player,
+            target=target_entity,
+            amount=damage,
+            damage_kind="attack",
+            card=card,
+            attack_type=attack_type,
+            attack_element=attack_element,
+            zone_element=zone_element
+        ))
+
+        from game.zone_utils import apply_fire_zone_burn
+        apply_fire_zone_burn(
+            game_state=game_state,
+            source=game_state.player,
+            target=target_entity,
+            card=card,
+            zone_element=zone_element,
+            logs=logs
+        )
+
+        if was_alive and not target_entity.is_alive() and not was_minion:
+            max_hp_gain = resolve_amount(
+                game_state=game_state,
+                card=card,
+                amount_spec=effect.get("max_hp_gain"),
+                source=game_state.player,
+                target=game_state.player,
+                effect_context=local_context
+            )
+            max_hp_gain = int(max_hp_gain)
+
+            if max_hp_gain > 0:
+                player = game_state.player
+                player.max_hp += max_hp_gain
+                player.hp += max_hp_gain
+
+                if player.hp > player.max_hp:
+                    player.hp = player.max_hp
+
+                logs.append("【{}】击杀了非爪牙敌人，{} 获得 {} 点最大生命。当前 HP：{}/{}。".format(
+                    card.name,
+                    player.name,
+                    max_hp_gain,
+                    player.hp,
+                    player.max_hp
+                ))
+
+        elif was_alive and not target_entity.is_alive() and was_minion:
+            logs.append("目标是爪牙，【{}】不获得最大生命。".format(card.name))
+
+        return logs
+
+    if op == "deal_damage_all_enemies_heal_unblocked":
+        attack_type, attack_element = get_effect_attack_tags(card, effect)
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
+
+        alive_enemies = get_all_alive_enemies(game_state)
+        if not alive_enemies:
+            logs.append("没有可攻击的敌人。")
+            return logs
+
+        total_real_damage = 0
+
+        for target_entity in alive_enemies:
+            if game_state.battle_over:
+                break
+
+            if not target_entity.is_alive():
+                continue
+
+            damage = resolve_amount(
+                game_state=game_state,
+                card=card,
+                amount_spec=effect.get("amount"),
+                source=game_state.player,
+                target=target_entity,
+                damage_source="played_card",
+                effect_context=local_context,
+                attack_type=attack_type,
+                attack_element=attack_element
+            )
+
+            old_hp = target_entity.hp
+
+            logs.append("【{}】对 {} 造成 {} 点攻击伤害。".format(
+                card.name,
+                target_entity.name,
+                damage
+            ))
+
+            logs.extend(deal_damage(
+                game_state=game_state,
+                source=game_state.player,
+                target=target_entity,
+                amount=damage,
+                damage_kind="attack",
+                card=card,
+                attack_type=attack_type,
+                attack_element=attack_element,
+                zone_element=zone_element
+            ))
+
+            real_damage = old_hp - target_entity.hp
+            if real_damage < 0:
+                real_damage = 0
+
+            total_real_damage += real_damage
+
+            from game.zone_utils import apply_fire_zone_burn
+            apply_fire_zone_burn(
+                game_state=game_state,
+                source=game_state.player,
+                target=target_entity,
+                card=card,
+                zone_element=zone_element,
+                logs=logs
+            )
+
+        if total_real_damage <= 0:
+            logs.append("没有造成未被格挡的伤害，未回复生命。")
+            return logs
+
+        player = game_state.player
+        old_hp = player.hp
+        player.hp += total_real_damage
+        if player.hp > player.max_hp:
+            player.hp = player.max_hp
+
+        real_heal = player.hp - old_hp
+
+        if real_heal > 0:
+            logs.append("{} 根据未被格挡的伤害回复 {} 点生命。当前 HP：{}/{}。".format(
+                player.name,
+                real_heal,
+                player.hp,
+                player.max_hp
+            ))
+        else:
+            logs.append("{} 生命已满，没有实际回复。".format(player.name))
+
+        return logs
+
     if op == "gain_block":
         zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
         local_context = make_zone_effect_context(effect_context, zone_element)
@@ -837,6 +1018,95 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             block_amount=amount,
             logs=logs
         )
+        return logs
+
+    if op == "lose_hp":
+        target_key = effect.get("target", "self")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+
+        if target_entity is None:
+            logs.append("失去生命目标无效。")
+            return logs
+
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=target_entity,
+            effect_context=effect_context
+        )
+        amount = int(amount)
+
+        if amount <= 0:
+            logs.append("{} 没有失去生命。".format(target_entity.name))
+            return logs
+
+        from game.damage import deal_damage
+
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=game_state.player,
+            target=target_entity,
+            amount=amount,
+            damage_kind="life_loss",
+            card=card,
+            is_reaction_damage=False,
+            ignore_block=True
+        ))
+
+        return logs
+
+    if op == "if_target_has_status":
+        target_key = effect.get("target", "selected_enemy")
+        status_key = effect.get("status", "")
+
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+
+        if target_entity is None:
+            logs.append("条件判断目标无效。")
+            return logs
+
+        if not status_key:
+            logs.append("if_target_has_status 缺少 status。")
+            return logs
+
+        status_value = get_status_value(target_entity, status_key)
+
+        if status_value <= 0:
+            logs.append("{} 没有{}，【{}】的附加效果未触发。".format(
+                target_entity.name,
+                get_status_name(status_key),
+                card.name
+            ))
+            return logs
+
+        logs.append("{} 拥有{}，【{}】的附加效果触发。".format(
+            target_entity.name,
+            get_status_name(status_key),
+            card.name
+        ))
+
+        for child_effect in effect.get("effects", []):
+            logs.extend(apply_card_effect(
+                game_state=game_state,
+                card=card,
+                effect=child_effect,
+                target_index=target_index,
+                effect_context=effect_context
+            ))
+
+            if game_state.battle_over:
+                break
+
         return logs
 
     if op == "gain_status":
@@ -1433,6 +1703,46 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         return logs
 
+    if op == "add_card_to_discard_pile":
+        card_id = effect.get("card_id", "")
+        if not card_id:
+            logs.append("add_card_to_discard_pile 缺少 card_id。")
+            return logs
+
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount", 1),
+            source=game_state.player,
+            target=game_state.player,
+            effect_context=effect_context
+        )
+        amount = int(amount)
+
+        if amount <= 0:
+            logs.append("没有向弃牌堆加入卡牌。")
+            return logs
+
+        from data.card.AAAregistry import create_card
+
+        added_cards = []
+        for _ in range(amount):
+            new_card = create_card(card_id)
+            setattr(new_card, "temporary", True)
+            setattr(new_card, "created_in_battle", True)
+
+            game_state.player.discard_pile.append(new_card)
+            added_cards.append(new_card)
+
+        card_name = added_cards[0].name if added_cards else card_id
+
+        logs.append("将 {} 张【{}】加入弃牌堆。".format(
+            amount,
+            card_name
+        ))
+
+        return logs
+
     if op == "request_discard_to_draw_top":
         player = game_state.player
 
@@ -1505,6 +1815,103 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         return logs
 
+    if op == "exhaust_non_attack_hand_cards":
+        player = game_state.player
+        cards_to_exhaust = []
+
+        for hand_card in list(player.hand):
+            if getattr(hand_card, "card_type", "") != "attack":
+                cards_to_exhaust.append(hand_card)
+
+        if not cards_to_exhaust:
+            logs.append("手牌中没有需要消耗的非攻击牌。")
+            return logs
+
+        from game.engine import move_card_to_exhaust_pile
+
+        for hand_card in cards_to_exhaust:
+            if hand_card not in player.hand:
+                continue
+
+            player.hand.remove(hand_card)
+            logs.append("消耗非攻击牌【{}】。".format(hand_card.name))
+            logs.extend(move_card_to_exhaust_pile(
+                game_state=game_state,
+                card=hand_card,
+                reason="sever_soul"
+            ))
+
+        return logs
+
+    if op == "exhaust_all_hand_cards_then_attack_per_card":
+        player = game_state.player
+        target_key = effect.get("target", "selected_enemy")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+
+        if target_entity is None:
+            logs.append("目标敌人无效。")
+            return logs
+
+        cards_to_exhaust = list(player.hand)
+
+        from game.engine import move_card_to_exhaust_pile
+
+        exhausted_count = 0
+        for hand_card in cards_to_exhaust:
+            if hand_card not in player.hand:
+                continue
+
+            player.hand.remove(hand_card)
+            logs.append("消耗手牌【{}】。".format(hand_card.name))
+            logs.extend(move_card_to_exhaust_pile(
+                game_state=game_state,
+                card=hand_card,
+                reason="fiend_fire"
+            ))
+            exhausted_count += 1
+
+        if exhausted_count <= 0:
+            logs.append("没有消耗任何手牌，【{}】没有造成伤害。".format(card.name))
+            return logs
+
+        attack_type, attack_element = get_effect_attack_tags(card, effect)
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
+
+        for hit_index in range(exhausted_count):
+            if game_state.battle_over:
+                logs.append("战斗已经结束，后续伤害不再结算。")
+                break
+
+            if not target_entity.is_alive():
+                logs.append("目标已被击败，后续伤害不再结算。")
+                break
+
+            logs.append("【{}】第 {}/{} 次伤害：".format(
+                card.name,
+                hit_index + 1,
+                exhausted_count
+            ))
+
+            deal_card_attack_damage_to_target(
+                game_state=game_state,
+                card=card,
+                effect=effect,
+                target_entity=target_entity,
+                effect_context=local_context,
+                attack_type=attack_type,
+                attack_element=attack_element,
+                zone_element=zone_element,
+                logs=logs,
+                prefix="【{card.name}】造成 {damage} 点攻击伤害。"
+            )
+
+        return logs
+
     if op == "request_exhaust_hand_card":
         player = game_state.player
         options = list(player.hand)
@@ -1518,6 +1925,38 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         game_state.pending_exhaust_hand_options = options
 
         logs.append("请选择 1 张手牌消耗：/card exhaust_hand 0。")
+        logs.append("可选牌：")
+
+        for index, hand_card in enumerate(options):
+            logs.append("[{}] {}".format(
+                index,
+                hand_card.summary_text()
+            ))
+
+        return logs
+
+    if op == "request_exhaust_hand_card_then_if_type":
+        player = game_state.player
+        options = list(player.hand)
+
+        if not options:
+            logs.append("手牌为空，没有可以消耗的牌。")
+            return logs
+
+        game_state.pending_exhaust_hand_selection = True
+        game_state.pending_exhaust_hand_source = card.name
+        game_state.pending_exhaust_hand_options = options
+        game_state.pending_exhaust_hand_source_card = card
+        game_state.pending_exhaust_hand_target_index = int(target_index)
+        game_state.pending_exhaust_hand_required_card_types = list(
+            effect.get("card_types", [])
+        )
+        game_state.pending_exhaust_hand_after_effects = list(
+            effect.get("effects", [])
+        )
+
+        logs.append("请选择 1 张手牌消耗：/card exhaust_hand 0。")
+        logs.append("如果被消耗的是指定类型，将触发后续效果。")
         logs.append("可选牌：")
 
         for index, hand_card in enumerate(options):

@@ -36,6 +36,13 @@ class CardTemplate:
     # [{"op": "if_ge_mul", "threshold": 3, "multiplier": 2}]
     x_rules: List[Dict[str, Any]] = field(default_factory=list)
 
+    # 动态费用规则，例如以血还血：本场战斗每失去生命一次，费用 -1
+    cost_rules: List[Dict[str, Any]] = field(default_factory=list)
+    # 是否允许重复升级，例如灼热攻击
+    multi_upgrade: bool = False
+    # 已升级次数，主要给灼热攻击这类多次升级牌使用
+    upgrade_count: int = 0
+    
     # 出牌条件，例如交锋：手牌必须全是攻击牌
     play_conditions: List[Dict[str, Any]] = field(default_factory=list)
     

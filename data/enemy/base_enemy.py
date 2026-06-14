@@ -114,6 +114,8 @@ class Enemy(object):
         self.hp = max_hp
         self.block = 0
         self.statuses = StatusContainer()
+        # 狂宴等效果使用。普通敌人默认不是爪牙。
+        self.is_minion = False
 
     def is_alive(self):
         return self.hp > 0

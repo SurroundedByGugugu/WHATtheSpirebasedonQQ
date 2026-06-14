@@ -28,12 +28,19 @@ class GameState:
     pending_discard_to_draw_selection: bool = False
     pending_discard_to_draw_source: str = ""
     pending_discard_to_draw_options: List[Any] = field(default_factory=list)
+    
     pending_exhaust_hand_selection: bool = False
     pending_exhaust_hand_source: str = ""
     pending_exhaust_hand_options: List[Any] = field(default_factory=list)
+    pending_exhaust_hand_source_card: Any = None
+    pending_exhaust_hand_target_index: int = 0
+    pending_exhaust_hand_required_card_types: List[str] = field(default_factory=list)
+    pending_exhaust_hand_after_effects: List[Any] = field(default_factory=list)
+
     pending_hand_to_draw_top_selection: bool = False
     pending_hand_to_draw_top_source: str = ""
     pending_hand_to_draw_top_options: List[Any] = field(default_factory=list)
+
     pending_upgrade_hand_selection: bool = False
     pending_upgrade_hand_source: str = ""
     pending_upgrade_hand_options: List[Any] = field(default_factory=list)
@@ -44,6 +51,10 @@ class GameState:
 
     # 本场战斗已经打出过的牌对象，用于“第一次打出”类效果。
     played_card_keys_this_battle: set = field(default_factory=set)
+
+    # 本场战斗中，玩家 HP 实际减少的次数。
+    # 每次 real_damage > 0 记 1 次，不按损失点数累计。
+    player_life_loss_count_this_battle: int = 0
 
     def get_alive_enemies(self):
         return [enemy for enemy in self.enemies if enemy.is_alive()]

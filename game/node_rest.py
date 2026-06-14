@@ -131,7 +131,7 @@ def get_upgradable_cards(run_state):
     result = []
 
     for index, card in enumerate(getattr(run_state, "master_deck", [])):
-        if getattr(card, "upgraded", False):
+        if getattr(card, "upgraded", False) and not getattr(card, "multi_upgrade", False):
             continue
 
         if has_upgrade(card):
