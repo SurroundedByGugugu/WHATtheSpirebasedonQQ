@@ -25,8 +25,16 @@ class ZoneTemplate:
     is_extreme: bool = False
     duration: int = 0
 
-    # 同属性伤害倍率。后续可以被遗物、卡牌或平衡补丁修改。
+    # damage_multiplier: float = 1.0
+
+    # 旧字段名：同属性伤害倍率。
+    # 现在保留兼容，同时作为同属性牌 deal_damage 的基础 Zone 乘区。
     damage_multiplier: float = 1.0
+
+    # 同属性牌基础数值乘区。
+    # 用于卡牌 deal_damage 和 gain_block，普通 Zone 默认 1.1，极 Zone 默认 1.3。
+    base_amount_multiplier: float = 1.0
+
 
     def on_event(self, event_name, context):
         return []

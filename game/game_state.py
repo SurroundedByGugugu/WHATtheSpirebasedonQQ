@@ -45,6 +45,11 @@ class GameState:
     pending_upgrade_hand_source: str = ""
     pending_upgrade_hand_options: List[Any] = field(default_factory=list)
 
+    pending_duplicate_hand_selection: bool = False
+    pending_duplicate_hand_source: str = ""
+    pending_duplicate_hand_options: List[Any] = field(default_factory=list)
+    pending_duplicate_hand_count: int = 0
+    
     # 先占位，后续 zone / field 系统接这里
     active_zone: Any = None
     active_fields: List[Any] = field(default_factory=list)

@@ -228,6 +228,25 @@ def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
         }
     )
     logs.extend(dispatch_event(game_state, EVENT_CARD_EXHAUST, context))
+    exhaust_effects = getattr(card, "exhaust_effects", [])
+    if exhaust_effects:
+        from game.effects import apply_card_effect
+
+        effect_context = {
+            "exhaust_reason": reason
+        }
+
+        for exhaust_effect in exhaust_effects:
+            logs.extend(apply_card_effect(
+                game_state=game_state,
+                card=card,
+                effect=exhaust_effect,
+                target_index=0,
+                effect_context=effect_context
+            ))
+
+            if game_state.battle_over:
+                break
     return logs
 
 
@@ -334,6 +353,29 @@ def clear_pending_discard_to_draw_top(game_state):
     game_state.pending_discard_to_draw_source = ""
     game_state.pending_discard_to_draw_options = []
 
+def clear_turn_temporary_card_costs(player):
+    """
+    清除本回合临时费用变化。
+    例如地狱之刃生成的攻击牌：本回合费用为 0。
+    """
+    cleared = 0
+
+    pile_names = [
+        "draw_pile",
+        "hand",
+        "discard_pile",
+        "exhaust_pile"
+    ]
+
+    for pile_name in pile_names:
+        pile = getattr(player, pile_name, [])
+        for card in pile:
+            if hasattr(card, "temporary_cost_override"):
+                delattr(card, "temporary_cost_override")
+                cleared += 1
+
+    return cleared
+
 def choose_pending_discard_to_draw_top(game_state, choice_index):
     """
     处理头槌类效果：
@@ -368,6 +410,81 @@ def choose_pending_discard_to_draw_top(game_state, choice_index):
         source,
         chosen_card.name
     )
+
+def clear_pending_duplicate_hand_selection(game_state):
+    game_state.pending_duplicate_hand_selection = False
+    game_state.pending_duplicate_hand_source = ""
+    game_state.pending_duplicate_hand_options = []
+    game_state.pending_duplicate_hand_count = 0
+
+
+def choose_pending_duplicate_hand_card(game_state, choice_index):
+    """
+    处理双持：
+    选择一张攻击或能力牌，复制到手牌。
+    若手牌已满，复制品进入弃牌堆。
+    复制品保留原卡当前状态，包括升级、费用变化、card_vars 变化等。
+    """
+    if not game_state.pending_duplicate_hand_selection:
+        return "当前没有需要处理的复制手牌选择。"
+
+    options = getattr(game_state, "pending_duplicate_hand_options", [])
+
+    if not options:
+        clear_pending_duplicate_hand_selection(game_state)
+        return "没有可选择的手牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(choice_index)
+
+    player = game_state.player
+    chosen_card = options[choice_index]
+
+    if chosen_card not in player.hand:
+        clear_pending_duplicate_hand_selection(game_state)
+        return "所选牌已经不在手牌中，选择已取消。"
+
+    count = int(getattr(game_state, "pending_duplicate_hand_count", 0))
+    source = game_state.pending_duplicate_hand_source
+
+    import copy
+
+    added_to_hand = 0
+    added_to_discard = 0
+
+    for _ in range(count):
+        copied_card = copy.deepcopy(chosen_card)
+        setattr(copied_card, "temporary", True)
+        setattr(copied_card, "created_in_battle", True)
+
+        if player.is_hand_full():
+            player.discard_pile.append(copied_card)
+            added_to_discard += 1
+        else:
+            player.hand.append(copied_card)
+            added_to_hand += 1
+
+    clear_pending_duplicate_hand_selection(game_state)
+
+    logs = []
+
+    if added_to_hand > 0:
+        logs.append("【{}】复制了 {} 张【{}】到手牌。".format(
+            source,
+            added_to_hand,
+            chosen_card.name
+        ))
+
+    if added_to_discard > 0:
+        logs.append("手牌已满，{} 张【{}】的复制品进入弃牌堆。".format(
+            added_to_discard,
+            chosen_card.name
+        ))
+
+    if not logs:
+        logs.append("【{}】没有添加复制品。".format(source))
+
+    return "\n".join(logs)
 
 def clear_pending_exhaust_hand_selection(game_state):
     game_state.pending_exhaust_hand_selection = False

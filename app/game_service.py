@@ -19,6 +19,7 @@ from game.engine import (
     get_status_detail,
     get_zone_field_view,
     choose_pending_upgrade_hand_card,
+    choose_pending_duplicate_hand_card,
 )
 
 from game.run_engine import (
@@ -42,6 +43,7 @@ from game.run_engine import (
     handle_event_option,
     handle_ancient_option,
     handle_shop_item_detail,
+    
 )
 from game.route import format_route_text
 
@@ -207,7 +209,7 @@ class GameService(object):
                 return "遗物编号必须是数字。"
             return self.get_run_relic_story(run_state, relic_index)
 
-        if command in ("potions", "potion_list", "药水", "查看药水", "道具", "查看道具"):
+        if command in ("potions", "potion_list", "药水", "查看药水"):
             return self.get_run_potions(run_state)
         
         if command in ("deck", "master_deck", "牌库", "查看牌库", "卡组", "查看卡组"):
@@ -439,7 +441,18 @@ class GameService(object):
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if game_state.pending_upgrade_hand_selection:
             return "当前需要先处理手牌升级选择。使用 /card upgrade_hand 0。"
-                        
+        
+        if command in ("duplicate_hand", "dual_wield", "复制手牌", "双持"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not game_state.pending_duplicate_hand_selection:
+                return "当前没有需要处理的复制手牌选择。"
+            reply = self.handle_duplicate_hand(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if game_state.pending_duplicate_hand_selection:
+            return "当前需要先处理复制手牌选择。使用 /card duplicate_hand 0。"     
+                   
         if command in ("potion", "use_potion", "useitem", "item", "使用药水", "使用道具"):
             game_state = run_state.current_battle
             if game_state is None:
@@ -805,15 +818,34 @@ class GameService(object):
 
         return choose_pending_upgrade_hand_card(game_state, choice_index)
     
+    def handle_duplicate_hand(self, game_state, parts):
+        """
+        /card duplicate_hand 0
+        用于双持：选择一张攻击或能力牌复制到手牌。
+        """
+        if not game_state.pending_duplicate_hand_selection:
+            return "当前没有需要处理的复制手牌选择。"
+
+        if len(parts) < 3:
+            return "用法：/card duplicate_hand 0。"
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "选择编号必须是数字。"
+
+        return choose_pending_duplicate_hand_card(game_state, choice_index)
+    
     def help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.14（更新至战士哥在塔1的攻击蓝卡金卡",
+            "当前版本：v26.06.18（更新至战士哥在塔1的技能蓝卡",
             "/card characters 查看可选角色",
             "/card new 0      选择 0 号测试角色并开始测试战斗",
             "/card view       查看战斗状态和手牌",
             "/card help       查看帮助",
-            "*目前全部指令过多，请使用.help我超，塔 查看相关内容。"
+            "*目前全部指令过多，请使用(.help我超，塔)查看相关内容。",
+            "**可使用(.help塔指令等效)查看指令的其他等效写法，部分支持中文。"
         ])
             # "",
             # "兼容旧命令：/card status 和 /card hand 现在都会显示战斗状态 + 手牌。"

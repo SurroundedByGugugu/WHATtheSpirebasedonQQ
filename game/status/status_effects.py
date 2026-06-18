@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from game.constants import EVENT_DAMAGE_AFTER, EVENT_TURN_END, EVENT_TURN_START
+from game.constants import EVENT_CARD_PLAY_AFTER, EVENT_DAMAGE_AFTER, EVENT_TURN_END, EVENT_TURN_START
 from game.modifiers import get_status_value
 from game.status.status_defs import get_status_name
 
@@ -19,6 +19,8 @@ STATUS_EVENT_PRIORITY = {
     "regeneration": 18,
     "flex": 11,
     "temporary_dexterity_loss": 10,
+    "rage": 12,
+    "no_draw": 9,
 }
 
 def get_status_event_priority(status_key):
@@ -487,6 +489,59 @@ def handle_flex(event_name, context, owner, value):
     ))
     return logs
 
+def handle_no_draw(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_TURN_END:
+        return logs
+
+    if owner is None:
+        return logs
+
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("no_draw")
+
+    logs.append("{} 的不能抽牌状态消失了。".format(owner.name))
+    return logs
+
+
+def handle_rage(event_name, context, owner, value):
+    logs = []
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    if event_name == EVENT_CARD_PLAY_AFTER:
+        if context.player is not owner:
+            return logs
+
+        played_card = context.card
+        if played_card is None:
+            return logs
+
+        if getattr(played_card, "card_type", "") != "attack":
+            return logs
+
+        block = int(value)
+        if block <= 0:
+            return logs
+
+        owner.block += block
+        logs.append("{} 的愤怒触发，获得 {} 点格挡。当前格挡：{}。".format(
+            owner.name,
+            block,
+            owner.block
+        ))
+        return logs
+
+    if event_name == EVENT_TURN_END:
+        if hasattr(owner, "statuses"):
+            owner.statuses.remove("rage")
+        logs.append("{} 的愤怒消失了。".format(owner.name))
+        return logs
+
+    return logs
+
 def handle_god_in_hand(event_name, context, owner, value):
     logs = []
     if event_name != EVENT_TURN_START:
@@ -574,10 +629,13 @@ STATUS_EVENT_HANDLERS = {
     "poison": handle_poison,
     "burn": handle_burn,
     "demon_form": handle_demon_form,
+    "no_draw": handle_no_draw,
+    "rage": handle_rage,
     "ritual": handle_ritual,
     "regeneration": handle_regeneration,
     "mirage_shadows": handle_mirage_shadows,
     "temporary_dexterity_loss": handle_temporary_dexterity_loss,
     "flex": handle_flex,
     "god_in_hand": handle_god_in_hand,
+    
 }

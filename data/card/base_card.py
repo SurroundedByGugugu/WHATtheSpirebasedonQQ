@@ -45,6 +45,9 @@ class CardTemplate:
     
     # 出牌条件，例如交锋：手牌必须全是攻击牌
     play_conditions: List[Dict[str, Any]] = field(default_factory=list)
+
+    # 被消耗时触发的效果，例如哨卫：被消耗时获得能量
+    exhaust_effects: List[Dict[str, Any]] = field(default_factory=list)
     
     # 效果列表，例如 deal_damage / gain_block / gain_status
     effects: List[Dict[str, Any]] = field(default_factory=list)

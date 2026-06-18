@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from game.zone_utils import (
     apply_zone_damage_modifier,
-    get_zone_damage_multiplier
+    get_zone_damage_multiplier,
+    get_zone_base_amount_multiplier
 )
 
 from game.constants import (
@@ -34,7 +35,8 @@ def apply_block_modifiers(
         source,
         target,
         card=None,
-        block_source=None
+        block_source=None,
+        zone_element=""
     ):
     value = int(value)
     if block_source is None:
@@ -45,6 +47,10 @@ def apply_block_modifiers(
             value = int(value * FRAIL_PLAYER_CARD_BLOCK_MULT)
         elif block_source == BLOCK_SOURCE_ENEMY_ACTION:
             value = int(value * FRAIL_ENEMY_ACTION_BLOCK_MULT)
+    value = int(value * get_zone_base_amount_multiplier(
+        game_state=game_state,
+        zone_element=zone_element
+    ))
     if value < 0:
         value = 0
     return value
@@ -81,22 +87,21 @@ def get_attack_status_multiplier(source, target, damage_source):
     return multiplier
 
 
-def get_attack_environment_multiplier(game_state, attack_element=""):
+def get_attack_environment_multiplier(game_state, attack_element="", zone_element=""):
     """
     攻击环境乘区。
 
     当前包括：
-    - Zone 同属性倍率
+    - Zone 基础数值乘区
 
-    后续可以继续加入：
-    - Field 倍率
-    - 特殊环境修正
+    attack_element 保留给后续 Field / 类型修正使用；
+    Zone 是否生效以 zone_element 为准，避免以太介质等覆盖 tag 的效果失效。
     """
     multiplier = 1.0
 
-    multiplier *= get_zone_damage_multiplier(
+    multiplier *= get_zone_base_amount_multiplier(
         game_state=game_state,
-        attack_element=attack_element
+        zone_element=zone_element
     )
 
     return multiplier
@@ -110,7 +115,8 @@ def apply_attack_damage_modifiers(
         card=None,
         damage_source=None,
         attack_type="",
-        attack_element=""
+        attack_element="",
+        zone_element=""
     ):
     """
     攻击伤害通用修正。
@@ -141,7 +147,8 @@ def apply_attack_damage_modifiers(
     # 4. 环境乘区
     environment_multiplier = get_attack_environment_multiplier(
         game_state=game_state,
-        attack_element=attack_element
+        attack_element=attack_element,
+        zone_element=zone_element
     )
     value = int(value * environment_multiplier)
     if value < 0:
@@ -160,7 +167,8 @@ def apply_modifier_profile(
         damage_source=None,
         block_source=None,
         attack_type="",
-        attack_element=""
+        attack_element="",
+        zone_element=""
     ):
     if modifier_profile is None:
         return int(value)
@@ -173,7 +181,8 @@ def apply_modifier_profile(
             card=card,
             damage_source=damage_source,
             attack_type=attack_type,
-            attack_element=attack_element
+            attack_element=attack_element,
+            zone_element=zone_element
         )
     if modifier_profile == "block":
         return apply_block_modifiers(
@@ -182,6 +191,7 @@ def apply_modifier_profile(
             source=source,
             target=target,
             card=card,
-            block_source=block_source
+            block_source=block_source,
+            zone_element=zone_element
         )
     return int(value)

@@ -18,13 +18,20 @@ def get_card_current_cost(game_state, card):
     except (TypeError, ValueError):
         return card.cost
 
-    for rule in getattr(card, "cost_rules", []):
-        op = rule.get("op")
+    temporary_cost_override = getattr(card, "temporary_cost_override", None)
+    if temporary_cost_override is not None:
+        try:
+            current_cost = int(temporary_cost_override)
+        except (TypeError, ValueError):
+            pass
+    else:
+        for rule in getattr(card, "cost_rules", []):
+            op = rule.get("op")
 
-        if op == "reduce_by_player_life_loss_count":
-            count = int(getattr(game_state, "player_life_loss_count_this_battle", 0))
-            amount_per_loss = int(rule.get("amount_per_loss", 1))
-            current_cost -= count * amount_per_loss
+            if op == "reduce_by_player_life_loss_count":
+                count = int(getattr(game_state, "player_life_loss_count_this_battle", 0))
+                amount_per_loss = int(rule.get("amount_per_loss", 1))
+                current_cost -= count * amount_per_loss
 
     min_cost = 0
     for rule in getattr(card, "cost_rules", []):

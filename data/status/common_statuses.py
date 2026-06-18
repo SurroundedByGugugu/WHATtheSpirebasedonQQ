@@ -145,6 +145,28 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="no_draw",
+    name="不能抽牌",
+    description="本回合内不能再抽牌。",
+    category="debuff",
+    display_mode="stack",
+    order=78,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="rage",
+    name="愤怒",
+    description="本回合每打出一张攻击牌，获得等同于层数的格挡。该格挡不受敏捷等修正影响。",
+    category="buff",
+    display_mode="stack",
+    order=79,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
     key="demon_form",
     name="恶魔形态",
     description="每个回合开始时，获得等同于层数的力量。",

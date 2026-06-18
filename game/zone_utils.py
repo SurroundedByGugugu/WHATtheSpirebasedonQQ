@@ -135,12 +135,61 @@ def deploy_element_zone(game_state, element, source=None, card=None, force_extre
     return logs
 
 
+def get_zone_base_amount_multiplier(game_state, zone_element):
+    """
+    返回当前 Zone 的基础数值乘区。
+
+    这个乘区只应该由调用方用于明确属于卡牌/行动效果的：
+    - deal_damage
+    - gain_block
+
+    不应直接套给状态层数、抽牌数、重复次数、最大生命等泛用 amount。
+    """
+    zone = get_active_zone(game_state)
+    zone_element = normalize_element(zone_element)
+
+    if zone is None or not zone_element:
+        return 1.0
+
+    current_zone_element = normalize_element(getattr(zone, "element", ""))
+    if zone_element != current_zone_element:
+        return 1.0
+
+    multiplier = getattr(zone, "base_amount_multiplier", None)
+    if multiplier is None:
+        multiplier = getattr(zone, "damage_multiplier", 1.0)
+
+    try:
+        return float(multiplier)
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def apply_zone_base_amount_multiplier(value, game_state, zone_element):
+    multiplier = get_zone_base_amount_multiplier(game_state, zone_element)
+    if multiplier == 1.0:
+        return int(value)
+    return int(int(value) * multiplier)
+
+
 def get_zone_damage_multiplier(game_state, attack_element):
     """
-    兼容旧接口。
-    新版 Zone 不再提供通用同属性伤害倍率，具体效果由元素能力表处理。
+    兼容旧接口：按 attack_element 判断当前 Zone 基础伤害乘区。
+
+    新逻辑中，正式结算优先走 zone_element，
+    这样以太介质这类“无视自身 tag 吃当前 Zone”的效果也能正确生效。
     """
-    return 1.0
+    zone = get_active_zone(game_state)
+    if zone is None:
+        return 1.0
+
+    attack_element = normalize_element(attack_element)
+    zone_element = normalize_element(getattr(zone, "element", ""))
+
+    if not attack_element or attack_element != zone_element:
+        return 1.0
+
+    return get_zone_base_amount_multiplier(game_state, zone_element)
 
 
 def apply_zone_damage_modifier(value, game_state, attack_element):
@@ -149,7 +198,7 @@ def apply_zone_damage_modifier(value, game_state, attack_element):
     if multiplier == 1.0:
         return int(value)
 
-    return int(value * multiplier)
+    return int(int(value) * multiplier)
 
 
 

@@ -30,10 +30,15 @@ ZONE_ABILITY_TEXT = {
 
 
 def get_zone_ability_text(element, is_extreme=False):
+    base_text = "同属性牌造成的伤害和获得的格挡 ×{}。".format(
+        "1.3" if is_extreme else "1.1"
+    )
+
     pair = ZONE_ABILITY_TEXT.get(element)
     if pair is None:
-        return "暂未定义。"
-    return pair[1] if is_extreme else pair[0]
+        return base_text + "暂未定义特殊效果。"
+
+    return base_text + (pair[1] if is_extreme else pair[0])
 
 
 class ElementZone(ZoneTemplate):
@@ -56,11 +61,11 @@ class ElementZone(ZoneTemplate):
                 ability_text,
                 duration
             )
-            multiplier = 1.0
+            multiplier = 1.3
         else:
             name = "{}Zone".format(element_name)
             description = "场地上弥漫着{}元素。{}".format(element_name, ability_text)
-            multiplier = 1.0
+            multiplier = 1.1
 
         ZoneTemplate.__init__(
             self,
@@ -70,7 +75,8 @@ class ElementZone(ZoneTemplate):
             element=element,
             is_extreme=is_extreme,
             duration=duration,
-            damage_multiplier=multiplier
+            damage_multiplier=multiplier,
+            base_amount_multiplier=multiplier
         )
         self.ability_text = ability_text
 
