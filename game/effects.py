@@ -1071,32 +1071,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs=logs
         )
         return logs
-
+    
     if op == "double_block":
         player = game_state.player
         old_block = int(getattr(player, "block", 0))
 
-        from game.block import gain_block_without_modifiers
-
         if old_block <= 0:
             logs.append("{} 没有格挡可以翻倍。".format(player.name))
             return logs
-
-        logs.extend(gain_block_without_modifiers(
-            game_state=game_state,
-            source=game_state.player,
-            target=player,
-            amount=old_block,
-            block_source="played_card",
-            card=card,
-            message="{} 的格挡翻倍：{} -> {}。".format(
-                player.name,
-                old_block,
-                old_block * 2
-            )
-        ))
-
-        return logs
 
     if op == "double_status":
         target_key = effect.get("target", "self")
@@ -1153,8 +1135,6 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         if amount <= 0:
             logs.append("{} 没有失去生命。".format(target_entity.name))
             return logs
-
-        from game.damage import deal_damage
 
         logs.extend(deal_damage(
             game_state=game_state,
@@ -2225,7 +2205,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         if total_block < 0:
             total_block = 0
 
-        player.block += total_block
+        old_block = int(getattr(player, "block", 0))
 
         logs.extend(gain_block_without_modifiers(
             game_state=game_state,
@@ -2238,7 +2218,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 player.name,
                 exhausted_count,
                 total_block,
-                player.block + total_block
+                old_block + total_block
             )
         ))
 
