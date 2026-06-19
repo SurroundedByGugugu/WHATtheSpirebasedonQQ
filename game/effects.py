@@ -4,7 +4,7 @@ from game.modifiers import apply_modifier_profile, get_status_value
 from game.status.status_defs import get_status_name
 from game.damage import deal_damage
 import random
-from game.engine import apply_next_card_replay_statuses
+
 from game.zone_utils import (
     get_effective_zone_element_for_card,
     get_zone_replay_extra,
@@ -454,6 +454,7 @@ def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reas
             source_card.name,
             played_card.name
         ))
+    from game.engine import apply_next_card_replay_statuses
     apply_next_card_replay_statuses(
         game_state=game_state,
         card=played_card,
