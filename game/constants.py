@@ -8,6 +8,7 @@ EVENT_BATTLE_END = "battle_end"
 
 EVENT_TURN_START = "turn_start"
 EVENT_TURN_END = "turn_end"
+EVENT_PLAYER_TURN_END = "player_turn_end"
 
 EVENT_CARD_PLAY_BEFORE = "card_play_before"
 EVENT_CARD_PLAY_AFTER = "card_play_after"

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import random
-
+from game.block import gain_block_without_modifiers
 from data.character.AAAregistry import create_character
 from data.card.AAAregistry import create_deck
 from data.relic.AAAregistry import create_relics
@@ -9,10 +9,9 @@ from data.enemy.AAAregistry import create_enemy
 from data.potion.AAAregistry import create_potions
 from game.status.status_defs import get_status_name
 from game.card_cost import get_card_current_cost
-
 from game.constants import (DEBUG_SEED, EVENT_POTION_USE_AFTER,
                             EVENT_BATTLE_START,
-                            EVENT_TURN_START, EVENT_TURN_END, 
+                            EVENT_TURN_START, EVENT_TURN_END, EVENT_PLAYER_TURN_END,
                             EVENT_CARD_PLAY_AFTER, EVENT_CARD_EXHAUST,
                             DAMAGE_SOURCE_ENEMY_ACTION, BLOCK_SOURCE_ENEMY_ACTION)
 
@@ -38,6 +37,8 @@ from game.zone_utils import (
     format_zone_field_detail,
     is_card_first_play_this_battle,
     mark_card_played_this_battle,
+    record_player_card_played_this_turn,
+    make_empty_player_card_type_played_counts
 )
 
 
@@ -146,7 +147,11 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
     opening_draw_count = 5 - len(player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
-    logs.extend(player.draw_cards(opening_draw_count))
+    logs.extend(player.draw_cards(
+        opening_draw_count,
+        game_state=game_state,
+        draw_source="opening_hand"
+    ))
     return game_state, "\n".join(logs)
 
 def start_battle_with_player(session_id, character_id, player, enemy_ids=None, seed=DEBUG_SEED):
@@ -193,7 +198,11 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
     opening_draw_count = 5 - len(player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
-    logs.extend(player.draw_cards(opening_draw_count))
+    logs.extend(player.draw_cards(
+        opening_draw_count,
+        game_state=game_state,
+        draw_source="opening_hand"
+    ))
     return game_state, "\n".join(logs)
 
 def get_default_target_index(game_state):
@@ -253,9 +262,24 @@ def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
 def move_played_card_to_destination(game_state, card):
     logs = []
     player = game_state.player
+
     if getattr(card, "card_type", "") == "power":
         logs.append("【{}】作为能力牌生效，本场战斗中消失。".format(card.name))
         return logs
+
+    from game.modifiers import get_status_value
+
+    if (
+        getattr(card, "card_type", "") == "skill"
+        and get_status_value(player, "corruption") > 0
+    ):
+        logs.extend(move_card_to_exhaust_pile(
+            game_state=game_state,
+            card=card,
+            reason="corruption"
+        ))
+        return logs
+
     if should_exhaust_after_play(card):
         logs.extend(move_card_to_exhaust_pile(
             game_state=game_state,
@@ -265,6 +289,7 @@ def move_played_card_to_destination(game_state, card):
     else:
         player.discard_pile.append(card)
         logs.append("【{}】进入弃牌堆。".format(card.name))
+
     return logs
 
 def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=False):
@@ -282,12 +307,19 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
             player.discard_pile.append(card)
             logs.append("【{}】被 {}，进入弃牌堆。".format(card.name, reason))
             return logs
+
         logs.append("【{}】因奇巧被{}，免费打出。".format(card.name, reason))
 
         target_index = get_default_target_index(game_state)
         effect_context = {
             "card_first_play_this_battle": is_card_first_play_this_battle(game_state, card)
         }
+        apply_next_card_replay_statuses(
+            game_state=game_state,
+            card=card,
+            effect_context=effect_context,
+            logs=logs
+        )
         logs.extend(apply_card_effects(
             game_state,
             card,
@@ -295,6 +327,7 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
             effect_context=effect_context
         ))
         mark_card_played_this_battle(game_state, card)
+        record_player_card_played_this_turn(game_state, card, player)
 
         context = BattleContext(
             game_state=game_state,
@@ -669,6 +702,59 @@ def choose_pending_upgrade_hand_card(game_state, choice_index):
         upgraded_card.name
     )
 
+def clear_pending_exhume_selection(game_state):
+    game_state.pending_exhume_selection = False
+    game_state.pending_exhume_source = ""
+    game_state.pending_exhume_options = []
+
+
+def choose_pending_exhume_card(game_state, choice_index):
+    """
+    处理发掘：
+    选择一张消耗堆中的牌。
+    - 手牌未满：加入手牌
+    - 手牌已满：加入弃牌堆
+    """
+    if not game_state.pending_exhume_selection:
+        return "当前没有需要处理的发掘选择。"
+
+    options = getattr(game_state, "pending_exhume_options", [])
+
+    if not options:
+        clear_pending_exhume_selection(game_state)
+        return "没有可选择的消耗堆卡牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(choice_index)
+
+    player = game_state.player
+    chosen_card = options[choice_index]
+
+    if chosen_card not in player.exhaust_pile:
+        clear_pending_exhume_selection(game_state)
+        return "所选牌已经不在消耗堆中，选择已取消。"
+
+    player.exhaust_pile.remove(chosen_card)
+
+    source = game_state.pending_exhume_source
+
+    if player.is_hand_full():
+        player.discard_pile.append(chosen_card)
+        clear_pending_exhume_selection(game_state)
+
+        return "手牌已满，【{}】将【{}】从消耗堆移入弃牌堆。".format(
+            source,
+            chosen_card.name
+        )
+
+    player.hand.append(chosen_card)
+    clear_pending_exhume_selection(game_state)
+
+    return "【{}】将【{}】从消耗堆加入手牌。".format(
+        source,
+        chosen_card.name
+    )
+
 def discard_selected_hand_cards(game_state, hand_indices):
     player = game_state.player
     logs = []
@@ -736,6 +822,47 @@ def check_battle_result(game_state):
 
     return None
 
+def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
+    """
+    处理本回合下一张牌额外结算一次的状态。
+
+    - double_tap：攻击牌
+    - burst：技能牌
+    - amplify：能力牌
+    - duplication_potion_next_card：任意牌
+
+    这些效果都等效为 replay_extra +1。
+    """
+    player = game_state.player
+    card_type = getattr(card, "card_type", "")
+
+    replay_status_by_type = {
+        "attack": ("double_tap", "双发"),
+        "skill": ("burst", "爆发"),
+        "power": ("amplify", "增幅"),
+    }
+
+    status_pair = replay_status_by_type.get(card_type)
+    if status_pair is not None:
+        status_key, status_name = status_pair
+        if player.statuses.get(status_key) > 0:
+            effect_context["replay_extra"] = int(effect_context.get("replay_extra", 0)) + 1
+            remaining = player.statuses.add(status_key, -1)
+            logs.append("{} 触发，【{}】将额外结算 1 次。剩余次数：{}。".format(
+                status_name,
+                card.name,
+                remaining
+            ))
+
+    if player.statuses.get("duplication_potion_next_card") > 0:
+        effect_context["replay_extra"] = int(effect_context.get("replay_extra", 0)) + 1
+        remaining = player.statuses.add("duplication_potion_next_card", -1)
+        logs.append("复制药水触发，【{}】将额外结算 1 次。剩余次数：{}。".format(
+            card.name,
+            remaining
+        ))
+
+    return effect_context
 
 def play_card(game_state, hand_index, target_index=0):
     """
@@ -817,7 +944,12 @@ def play_card(game_state, hand_index, target_index=0):
             "spent_cost": spent_cost
         }
     effect_context["card_first_play_this_battle"] = is_card_first_play_this_battle(game_state, card)
-
+    apply_next_card_replay_statuses(
+        game_state=game_state,
+        card=card,
+        effect_context=effect_context,
+        logs=logs
+    )
     logs.extend(apply_card_effects(
         game_state,
         card,
@@ -825,6 +957,7 @@ def play_card(game_state, hand_index, target_index=0):
         effect_context=effect_context
     ))
     mark_card_played_this_battle(game_state, card)
+    record_player_card_played_this_turn(game_state, card, player)
 
     # 出牌后事件：先用于测试遗物的“打出技能牌”触发
     context = BattleContext(
@@ -1213,10 +1346,13 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         block = apply_zone_amount_modifier(block, game_state, zone_element)
         if block < 0:
             block = 0
-        enemy.block += block
-        logs.append("{} 获得 {} 点格挡。".format(
-            enemy.name,
-            block
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=enemy,
+            target=enemy,
+            amount=block,
+            block_source=BLOCK_SOURCE_ENEMY_ACTION,
+            card=None
         ))
         apply_earth_zone_temp_thorns(
             game_state=game_state,
@@ -1364,6 +1500,30 @@ def end_turn(game_state):
     clear_pending_exhaust_hand_selection(game_state)
     clear_pending_hand_to_draw_top_selection(game_state)
     clear_pending_upgrade_hand_selection(game_state)
+    clear_pending_exhume_selection(game_state)
+
+    player_turn_end_context = BattleContext(
+        game_state=game_state,
+        player=player,
+        source=player
+    )
+
+    player_turn_end_logs = dispatch_event(
+        game_state,
+        EVENT_PLAYER_TURN_END,
+        player_turn_end_context
+    )
+
+    if player_turn_end_logs:
+        logs.append("")
+        logs.append("玩家回合结束状态结算：")
+        logs.extend(player_turn_end_logs)
+
+    result = check_battle_result(game_state)
+    if result:
+        logs.append(result)
+        return "\n".join(logs)
+
     logs.extend(end_player_turn_hand_cleanup(game_state))
     result = check_battle_result(game_state)
     if result:
@@ -1420,7 +1580,10 @@ def end_turn(game_state):
         logs.extend(status_decay_logs)
     # 进入下一回合
     game_state.turn_count += 1
-    player.start_turn()
+    game_state.player_card_type_played_counts_this_turn = make_empty_player_card_type_played_counts()
+    start_turn_block_logs = player.start_turn(game_state)
+    if start_turn_block_logs:
+        logs.extend(start_turn_block_logs)
     logs.append("")
     logs.append("进入第 {} 回合。".format(game_state.turn_count))
     context = BattleContext(
@@ -1436,7 +1599,11 @@ def end_turn(game_state):
         return "\n".join(logs)
     logs.append(player.status_text())
     logs.append(format_enemy_current_status(game_state))
-    logs.extend(player.draw_cards(5))
+    logs.extend(player.draw_cards(
+        5,
+        game_state=game_state,
+        draw_source="turn_start"
+    ))
 
     return "\n".join(logs)
 

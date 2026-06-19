@@ -273,6 +273,83 @@ def mark_card_played_this_battle(game_state, card):
         setattr(game_state, "played_card_keys_this_battle", played)
     played.add(get_card_battle_key(card))
 
+def make_empty_player_card_type_played_counts():
+    return {
+        "attack": 0,
+        "skill": 0,
+        "power": 0,
+        "status": 0,
+        "curse": 0,
+    }
+
+
+def get_player_card_type_played_counts_this_turn(game_state):
+    """
+    获取本回合玩家打出的各类型牌数量。
+    自动兼容旧存档 / 旧 GameState 中没有该字段的情况。
+    """
+    if game_state is None:
+        return make_empty_player_card_type_played_counts()
+
+    counts = getattr(game_state, "player_card_type_played_counts_this_turn", None)
+
+    if not isinstance(counts, dict):
+        counts = make_empty_player_card_type_played_counts()
+        setattr(game_state, "player_card_type_played_counts_this_turn", counts)
+
+    for key in ("attack", "skill", "power", "status", "curse"):
+        if key not in counts:
+            counts[key] = 0
+
+    return counts
+
+
+def get_player_attack_cards_played_this_turn(game_state):
+    """
+    读取本回合玩家已打出的攻击牌数量。
+    火焰吐息·旧等效果使用。
+    """
+    counts = get_player_card_type_played_counts_this_turn(game_state)
+    return int(counts.get("attack", 0))
+
+
+def record_player_card_played_this_turn(game_state, card, player=None):
+    """
+    记录玩家本回合打出的牌类型数量。
+
+    统计：
+    - attack
+    - skill
+    - power
+    - status
+    - curse
+    - 其他未知类型也会按原 card_type 记入 dict
+
+    奇巧、破灭等免费打出牌，只要走到这个函数，也会被统计。
+    """
+    if game_state is None or card is None:
+        return get_player_card_type_played_counts_this_turn(game_state)
+
+    if player is not None and player is not getattr(game_state, "player", None):
+        return get_player_card_type_played_counts_this_turn(game_state)
+
+    counts = get_player_card_type_played_counts_this_turn(game_state)
+
+    card_type = getattr(card, "card_type", "")
+    if not card_type:
+        card_type = "unknown"
+
+    counts[card_type] = int(counts.get(card_type, 0)) + 1
+
+    # 兼容旧字段，后续确认无引用后可以删除
+    setattr(
+        game_state,
+        "player_attack_cards_played_this_turn",
+        int(counts.get("attack", 0))
+    )
+
+    return counts
+
 
 def card_has_ether_medium_override(game_state, effect_context=None):
     player = getattr(game_state, "player", None)

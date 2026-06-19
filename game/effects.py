@@ -4,6 +4,15 @@ from game.modifiers import apply_modifier_profile, get_status_value
 from game.status.status_defs import get_status_name
 from game.damage import deal_damage
 import random
+from game.engine import apply_next_card_replay_statuses
+from game.zone_utils import (
+    get_effective_zone_element_for_card,
+    get_zone_replay_extra,
+    apply_zone_source_hp_loss_if_needed,
+    apply_water_zone_regeneration_on_card_play,
+    record_player_card_played_this_turn
+)
+from game.block import gain_block_without_modifiers
 
 def iter_player_cards_by_piles(player, pile_names):
     """
@@ -445,7 +454,12 @@ def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reas
             source_card.name,
             played_card.name
         ))
-
+    apply_next_card_replay_statuses(
+        game_state=game_state,
+        card=played_card,
+        effect_context=effect_context,
+        logs=logs
+    )
     logs.extend(apply_card_effects(
         game_state=game_state,
         card=played_card,
@@ -454,6 +468,11 @@ def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reas
     ))
 
     mark_card_played_this_battle(game_state, played_card)
+    record_player_card_played_this_turn(
+        game_state,
+        played_card,
+        game_state.player
+    )
 
     context = BattleContext(
         game_state=game_state,
@@ -533,11 +552,17 @@ def upgrade_all_cards_in_pile_for_this_combat(pile):
 
     return upgraded_count, logs
 
-def draw_cards_with_no_draw_check(game_state, count):
+def draw_cards_with_no_draw_check(game_state, count, draw_source="card_effect"):
     player = game_state.player
+
     if get_status_value(player, "no_draw") > 0:
         return ["{} 受到不能抽牌影响，无法抽牌。".format(player.name)]
-    return player.draw_cards(count)
+
+    return player.draw_cards(
+        count,
+        game_state=game_state,
+        draw_source=draw_source
+    )
 
 def is_enemy_intent_attack(intent):
     if intent is None:
@@ -1027,10 +1052,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         )
         if amount < 0:
             amount = 0
-        target_entity.block += amount
-        logs.append("{} 获得 {} 点格挡。".format(
-            target_entity.name,
-            amount
+
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=game_state.player,
+            target=target_entity,
+            amount=amount,
+            block_source="played_card",
+            card=card
         ))
         from game.zone_utils import apply_earth_zone_temp_thorns
         apply_earth_zone_temp_thorns(
@@ -1045,12 +1074,55 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
     if op == "double_block":
         player = game_state.player
         old_block = int(getattr(player, "block", 0))
-        player.block = old_block * 2
 
-        logs.append("{} 的格挡翻倍：{} -> {}。".format(
-            player.name,
-            old_block,
-            player.block
+        from game.block import gain_block_without_modifiers
+
+        if old_block <= 0:
+            logs.append("{} 没有格挡可以翻倍。".format(player.name))
+            return logs
+
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=game_state.player,
+            target=player,
+            amount=old_block,
+            block_source="played_card",
+            card=card,
+            message="{} 的格挡翻倍：{} -> {}。".format(
+                player.name,
+                old_block,
+                old_block * 2
+            )
+        ))
+
+        return logs
+
+    if op == "double_status":
+        target_key = effect.get("target", "self")
+        status_key = effect.get("status", "")
+
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+
+        if target_entity is None:
+            logs.append("状态翻倍目标无效。")
+            return logs
+
+        if not status_key:
+            logs.append("double_status 缺少 status。")
+            return logs
+
+        current = get_status_value(target_entity, status_key)
+        new_value = target_entity.gain_status(status_key, current)
+
+        logs.append("{} 的{}翻倍：{} -> {}。".format(
+            target_entity.name,
+            get_status_name(status_key),
+            current,
+            new_value
         ))
 
         return logs
@@ -1181,10 +1253,20 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 target=target_entity,
                 effect_context=local_context
             )
+
+            status_applied = True
+
             if hasattr(target_entity, "gain_status_with_result"):
                 result = target_entity.gain_status_with_result(status_key, amount)
+                status_applied = bool(result.get("applied", False))
+
                 from game.status.status_gain import format_status_gain_log
-                logs.append(format_status_gain_log(target_entity, status_key, amount, result))
+                logs.append(format_status_gain_log(
+                    target_entity,
+                    status_key,
+                    amount,
+                    result
+                ))
             else:
                 current = target_entity.gain_status(status_key, amount)
                 status_name = get_status_name(status_key)
@@ -1195,6 +1277,32 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     status_name,
                     current
                 ))
+
+            if (
+                status_applied
+                and status_key == "fire_breathing_history"
+                and target_entity is game_state.player
+            ):
+                from game.zone_utils import get_player_attack_cards_played_this_turn
+
+                current_attack_count = get_player_attack_cards_played_this_turn(game_state)
+
+                old_attack_count = int(getattr(
+                    target_entity,
+                    "_fire_breathing_history_attack_count",
+                    0
+                ))
+
+                if current_attack_count > old_attack_count:
+                    setattr(
+                        target_entity,
+                        "_fire_breathing_history_attack_count",
+                        current_attack_count
+                    )
+                    logs.append("火焰吐息·旧记录本回合此前已打出的 {} 张攻击牌。".format(
+                        current_attack_count
+                    ))
+
         return logs
     
     if op == "gain_status_if_enemy_intent_attack":
@@ -2118,11 +2226,19 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         player.block += total_block
 
-        logs.append("{} 消耗了 {} 张非攻击牌，获得 {} 点格挡。当前格挡：{}。".format(
-            player.name,
-            exhausted_count,
-            total_block,
-            player.block
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=game_state.player,
+            target=player,
+            amount=total_block,
+            block_source="second_wind",
+            card=card,
+            message="{} 消耗了 {} 张非攻击牌，获得 {} 点格挡。当前格挡：{}。".format(
+                player.name,
+                exhausted_count,
+                total_block,
+                player.block + total_block
+            )
         ))
 
         apply_earth_zone_temp_thorns(
@@ -2341,6 +2457,29 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         return logs
 
+    if op == "request_exhume_card":
+        player = game_state.player
+        options = list(player.exhaust_pile)
+
+        if not options:
+            logs.append("消耗堆为空，没有可以发掘的牌。")
+            return logs
+
+        game_state.pending_exhume_selection = True
+        game_state.pending_exhume_source = card.name
+        game_state.pending_exhume_options = options
+
+        logs.append("请选择 1 张消耗堆中的牌加入手牌：/card exhume 0。")
+        logs.append("可选牌：")
+
+        for index, exhaust_card in enumerate(options):
+            logs.append("[{}] {}".format(
+                index,
+                exhaust_card.summary_text()
+            ))
+
+        return logs
+
     if op == "upgrade_cards":
         player = game_state.player
         scope = effect.get("scope", "hand")
@@ -2376,7 +2515,11 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             effect_context=effect_context
         )
 
-        logs.extend(draw_cards_with_no_draw_check(game_state, amount))
+        logs.extend(draw_cards_with_no_draw_check(
+            game_state,
+            amount,
+            draw_source="card_effect"
+        ))
         return logs
 
     if op == "draw_to_full":
@@ -2384,7 +2527,10 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         if get_status_value(player, "no_draw") > 0:
             logs.append("{} 受到不能抽牌影响，无法抽牌。".format(player.name))
             return logs
-        logs.extend(player.draw_to_full())
+        logs.extend(player.draw_to_full(
+            game_state=game_state,
+            draw_source="card_effect"
+        ))
         return logs
 
     if op == "request_discard_any":
@@ -2471,13 +2617,6 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
     else:
         effect_context = dict(effect_context)
 
-    from game.zone_utils import (
-        get_effective_zone_element_for_card,
-        get_zone_replay_extra,
-        apply_zone_source_hp_loss_if_needed,
-        apply_water_zone_regeneration_on_card_play,
-    )
-
     card_zone_element = get_effective_zone_element_for_card(
         game_state=game_state,
         card=card,
@@ -2535,3 +2674,5 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
                 break
 
     return logs
+
+

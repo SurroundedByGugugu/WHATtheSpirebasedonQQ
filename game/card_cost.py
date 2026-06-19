@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from game.x_value import is_x_cost_card
-
+from game.modifiers import get_status_value
 
 def get_card_current_cost(game_state, card):
     """
@@ -33,6 +33,12 @@ def get_card_current_cost(game_state, card):
                 amount_per_loss = int(rule.get("amount_per_loss", 1))
                 current_cost -= count * amount_per_loss
 
+    if (
+        game_state is not None
+        and getattr(card, "card_type", "") == "skill"
+        and get_status_value(game_state.player, "corruption") > 0
+    ):
+        current_cost = 0
     min_cost = 0
     for rule in getattr(card, "cost_rules", []):
         if "min_cost" in rule:

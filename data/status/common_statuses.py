@@ -59,12 +59,12 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="poison",
     name="中毒",
-    description="回合结束时失去等同于层数的生命，然后层数减少 1。",
+    description="敌人行动前，失去等同于层数的生命，然后层数减少 1。",
     category="debuff",
     display_mode="stack",
     order=50,
-    decay_timing="turn_end",
-    decay_amount=1,
+    decay_timing="none",
+    decay_amount=0,
 ))
 
 register_status_def(StatusDef(
@@ -167,6 +167,94 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="combust",
+    name="自燃",
+    description="你的回合结束时，失去 1 点生命，并对所有敌人造成等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=81,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="dark_embrace",
+    name="黑暗之拥",
+    description="每当有一张牌被消耗时，抽 1 张牌。",
+    category="buff",
+    display_mode="stack",
+    order=82,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="evolve",
+    name="进化",
+    description="每当你抽到状态牌时，抽等同于层数的牌。",
+    category="buff",
+    display_mode="stack",
+    order=83,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="feel_no_pain",
+    name="无惧疼痛",
+    description="每当有一张牌被消耗时，获得等同于层数的格挡。",
+    category="buff",
+    display_mode="stack",
+    order=84,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="fire_breathing",
+    name="火焰吐息",
+    description="每当你抽到状态牌或诅咒牌时，对所有敌人造成等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=85,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="fire_breathing_history",
+    name="火焰吐息·旧",
+    description="你的回合结束时，本回合每打出一张攻击牌，对所有敌人造成等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=86,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="metallicize",
+    name="金属化",
+    description="你的回合结束时，获得等同于层数的格挡。",
+    category="buff",
+    display_mode="stack",
+    order=87,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="rupture",
+    name="撕裂",
+    description="每当你因牌的效果失去生命时，获得等同于层数的力量。",
+    category="buff",
+    display_mode="stack",
+    order=88,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
     key="demon_form",
     name="恶魔形态",
     description="每个回合开始时，获得等同于层数的力量。",
@@ -261,6 +349,105 @@ register_status_def(StatusDef(
     category="debuff",
     display_mode="percent",
     order=95,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="barricade",
+    name="壁垒",
+    description="格挡不再在你的回合开始时消失。",
+    category="buff",
+    display_mode="stack",
+    order=89,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="berserk",
+    name="狂暴",
+    description="每个回合开始时，本场战斗费用上限增加等同于层数的数值。",
+    category="buff",
+    display_mode="stack",
+    order=90,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="brutality",
+    name="残暴",
+    description="每个回合开始时，失去等同于层数的生命，并抽等同于层数的牌。",
+    category="buff",
+    display_mode="stack",
+    order=91,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="corruption",
+    name="腐化",
+    description="所有技能牌耗能变为 0。所有技能牌被打出时消耗。",
+    category="buff",
+    display_mode="stack",
+    order=92,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="juggernaut",
+    name="势不可当",
+    description="每当你获得格挡时，对随机一名敌人造成等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=93,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="double_tap",
+    name="双发",
+    description="本回合接下来若干张攻击牌会额外结算 1 次。",
+    category="buff",
+    display_mode="stack",
+    order=94,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="burst",
+    name="爆发",
+    description="本回合接下来若干张技能牌会额外结算 1 次。",
+    category="buff",
+    display_mode="stack",
+    order=95,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="amplify",
+    name="增幅",
+    description="本回合接下来若干张能力牌会额外结算 1 次。",
+    category="buff",
+    display_mode="stack",
+    order=96,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="duplication_potion_next_card",
+    name="复制药水",
+    description="本回合下一张牌会额外结算 1 次。",
+    category="buff",
+    display_mode="stack",
+    order=97,
     decay_timing="none",
     decay_amount=0,
 ))

@@ -39,20 +39,76 @@ class PlayerState:
     def is_alive(self):
         return self.hp > 0
 
-    def start_turn(self):
+    def start_turn(self, game_state=None):
         """
         玩家回合开始。
-        暂时规则：
-        1. 格挡清零
-        2. 费用恢复到 max_cost
+
+        规则：
+        1. 费用恢复到 max_cost。
+        2. 格挡清理由壁垒 / 外卡钳等机制决定。
         """
-        self.block = 0
+        logs = []
+
+        old_block = int(getattr(self, "block", 0))
         self.cost = self.max_cost
+
+        if game_state is None:
+            self.block = 0
+            return logs
+
+        from game.modifiers import get_status_value
+
+        if get_status_value(self, "barricade") > 0:
+            logs.append("{} 的壁垒生效，回合开始时保留 {} 点格挡。".format(
+                self.name,
+                old_block
+            ))
+            return logs
+
+        block_loss = old_block
+
+        for relic in getattr(self, "relics", []):
+            getter = getattr(relic, "get_turn_start_block_loss", None)
+            if getter is None:
+                continue
+
+            relic_block_loss = int(getter(
+                game_state=game_state,
+                player=self,
+                old_block=old_block
+            ))
+
+            if relic_block_loss < block_loss:
+                block_loss = relic_block_loss
+
+        if block_loss < 0:
+            block_loss = 0
+
+        new_block = old_block - block_loss
+        if new_block < 0:
+            new_block = 0
+
+        self.block = new_block
+
+        if old_block > 0:
+            if new_block > 0:
+                logs.append("{} 回合开始时失去 {} 点格挡，保留 {} 点格挡。".format(
+                    self.name,
+                    old_block - new_block,
+                    new_block
+                ))
+            else:
+                logs.append("{} 回合开始时失去全部 {} 点格挡。".format(
+                    self.name,
+                    old_block
+                ))
+
+        return logs
 
     def is_hand_full(self):
         return len(self.hand) >= self.max_hand_size
 
-    def draw_cards(self, count):
+    def draw_cards(self, count, game_state=None, draw_source="unknown"):
         """
         抽牌。
         抽牌堆空时，把弃牌堆洗回抽牌堆。
@@ -78,10 +134,31 @@ class PlayerState:
             card = self.draw_pile.pop()
             self.hand.append(card)
             logs.append("抽到【{}】。".format(card.name))
+            if game_state is not None:
+                from game.battle_context import BattleContext
+                from game.event_bus import dispatch_event
+                from game.constants import EVENT_DRAW_CARD_AFTER
+
+                context = BattleContext(
+                    game_state=game_state,
+                    player=self,
+                    source=self,
+                    card=card,
+                    extra={
+                        "drawn_card": card,
+                        "draw_source": draw_source
+                    }
+                )
+
+                logs.extend(dispatch_event(
+                    game_state,
+                    EVENT_DRAW_CARD_AFTER,
+                    context
+                ))
 
         return logs
 
-    def draw_to_full(self):
+    def draw_to_full(self, game_state=None, draw_source="unknown"):
         count = self.max_hand_size - len(self.hand)
 
         if count <= 0:
@@ -89,7 +166,11 @@ class PlayerState:
 
         logs = []
         logs.append("尝试抽牌直到手牌达到上限 {}。".format(self.max_hand_size))
-        logs.extend(self.draw_cards(count))
+        logs.extend(self.draw_cards(
+            count,
+            game_state=game_state,
+            draw_source=draw_source
+        ))
         return logs
 
     def discard_hand(self):

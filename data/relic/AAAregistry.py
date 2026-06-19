@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.relic.lumine_relic import CrossEarringRelic
+from data.relic.rare_relics import CalipersRelic
 from data.relic.yoirine_relic import SaturatedFissureRelic
 from data.relic.armored_warrior_relic import (BurningBloodRelic, CharonAshesRelic)
 from data.relic.placeholder_stone_relic import PlaceholderStoneRelic
@@ -17,6 +18,7 @@ RELIC_REGISTRY = {
     "relic.saturated_fissure": SaturatedFissureRelic,
     "relic.cross_earring": CrossEarringRelic,
     "relic.ether_medium": EtherMediumRelic,
+    "relic.calipers": CalipersRelic,
 }
 
 

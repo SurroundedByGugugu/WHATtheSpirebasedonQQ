@@ -11,6 +11,11 @@ from data.card.status_cards import (
     create_dazed
 )
 
+from data.card.colorless_cards import(
+    create_amplify,
+    create_burst,
+)
+
 from data.card.character.test_character_cards import (
     create_gain_status_strength,
     create_exhaust_strength,
@@ -23,7 +28,7 @@ from data.card.character.test_character_cards import (
     create_test_x_drill,
 )
 
-from data.card.character.armored_warrior_card import(
+from data.card.character.armored_warrior_cards import(
     create_hard_blow,
     create_clothesline,
     create_heavy_blade,
@@ -77,17 +82,36 @@ from data.card.character.armored_warrior_card import(
     create_immolate,
     create_fiend_fire,
     create_feed,
+    create_combust,
+    create_dark_embrace,
+    create_feel_no_pain,
+    create_fire_breathing,
+    create_fire_breathing_history,
+    create_inflame,
+    create_metallicize,
+    create_rupture,
+    create_evolve,
+    create_barricade,
+    create_berserk,
+    create_brutality,
+    create_corruption,
+    create_juggernaut,
+    create_impervious,
+    create_double_tap,
+    create_limit_break,
+    create_offering,
+    create_exhume,
     create_fire_strike,
     create_fire_zone,
     create_demon_form,
 )
 
-from data.card.character.yoirine_card import (
+from data.card.character.yoirine_cards import (
     create_crystal_piercing,
     create_crystal_zone
 )
 
-from data.card.character.lumine_card import (
+from data.card.character.lumine_cards import (
     create_mirage_shadows,
     create_god_in_hand,
     create_transfer,
@@ -172,6 +196,27 @@ CARD_REGISTRY = {
     "card.fiend_fire": create_fiend_fire,
     "card.feed": create_feed,
     "card.demon_form":create_demon_form,
+    "card.combust": create_combust,
+    "card.dark_embrace": create_dark_embrace,
+    "card.feel_no_pain": create_feel_no_pain,
+    "card.fire_breathing": create_fire_breathing,
+    "card.fire_breathing_history": create_fire_breathing_history,
+    "card.inflame": create_inflame,
+    "card.metallicize": create_metallicize,
+    "card.rupture": create_rupture,
+    "card.evolve": create_evolve,
+    "card.barricade": create_barricade,
+    "card.berserk": create_berserk,
+    "card.brutality": create_brutality,
+    "card.corruption": create_corruption,
+    "card.juggernaut": create_juggernaut,
+    "card.impervious": create_impervious,
+    "card.double_tap": create_double_tap,
+    "card.burst": create_burst,
+    "card.limit_break": create_limit_break,
+    "card.offering": create_offering,
+    "card.amplify": create_amplify,
+    "card.exhume": create_exhume,
     "card.fire_strike":create_fire_strike,
     "card.fire_zone":create_fire_zone,
 

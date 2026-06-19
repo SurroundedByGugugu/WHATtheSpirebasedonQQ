@@ -1920,9 +1920,290 @@ def create_spot_weakness():
     )
 
 #罕见 能力 uncommon power
-
-
-
+def create_combust():
+    return CardTemplate(
+        card_id="card.combust",
+        name="自燃",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="在你的回合结束时，你失去 1 点生命，对所有敌人造成 5 点伤害。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 5
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "combust",
+                "amount": {
+                    "var": "damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "自燃+",
+            "description": "在你的回合结束时，你失去 1 点生命，对所有敌人造成 7 点伤害。",
+            "card_vars": {
+                "damage": 7
+            },
+        }
+    )
+def create_dark_embrace():
+    return CardTemplate(
+        card_id="card.dark_embrace",
+        name="黑暗之拥",
+        card_type="power",
+        cost=2,
+        target="self",
+        description="每当有一张牌被消耗时，抽 1 张牌。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "draw": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "dark_embrace",
+                "amount": {
+                    "var": "draw"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "黑暗之拥+",
+            "cost": 1,
+            "description": "每当有一张牌被消耗时，抽 1 张牌。",
+        }
+    )
+def create_feel_no_pain():
+    return CardTemplate(
+        card_id="card.feel_no_pain",
+        name="无惧疼痛",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="每当有一张牌被消耗，获得 3 点格挡。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "block": 3
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "feel_no_pain",
+                "amount": {
+                    "var": "block"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "无惧疼痛+",
+            "description": "每当有一张牌被消耗，获得 4 点格挡。",
+            "card_vars": {
+                "block": 4
+            },
+        }
+    )
+def create_fire_breathing():
+    return CardTemplate(
+        card_id="card.fire_breathing",
+        name="火焰吐息",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="每当你抽到一张状态牌或诅咒牌时，对所有敌人造成 6 点伤害。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 6
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "fire_breathing",
+                "amount": {
+                    "var": "damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "火焰吐息+",
+            "description": "每当你抽到一张状态牌或诅咒牌时，对所有敌人造成 10 点伤害。",
+            "card_vars": {
+                "damage": 10
+            },
+        }
+    )
+def create_fire_breathing_history():
+    return CardTemplate(
+        card_id="card.fire_breathing_history",
+        name="火焰吐息·旧",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="在你的回合结束时，你这一回合内每出过一张攻击牌，就对所有敌人造成 1 点伤害。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage_per_attack": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "fire_breathing_history",
+                "amount": {
+                    "var": "damage_per_attack"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "火焰吐息·旧+",
+            "cost": 0,
+            "description": "在你的回合结束时，你这一回合内每出过一张攻击牌，就对所有敌人造成 1 点伤害。",
+        }
+    )
+def create_inflame():
+    return CardTemplate(
+        card_id="card.inflame",
+        name="燃烧",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="获得 2 点力量。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "strength": 2
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "strength",
+                "amount": {
+                    "var": "strength"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "燃烧+",
+            "description": "获得 3 点力量。",
+            "card_vars": {
+                "strength": 3
+            },
+        }
+    )
+def create_metallicize():
+    return CardTemplate(
+        card_id="card.metallicize",
+        name="金属化",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="在你的回合结束时，获得 3 点格挡。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "block": 3
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "metallicize",
+                "amount": {
+                    "var": "block"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "金属化+",
+            "description": "在你的回合结束时，获得 4 点格挡。",
+            "card_vars": {
+                "block": 4
+            },
+        }
+    )
+def create_rupture():
+    return CardTemplate(
+        card_id="card.rupture",
+        name="撕裂",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="每当你从一张牌中失去生命时，获得 1 点力量。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "strength": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "rupture",
+                "amount": {
+                    "var": "strength"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "撕裂+",
+            "description": "每当你从一张牌中失去生命时，获得 2 点力量。",
+            "card_vars": {
+                "strength": 2
+            },
+        }
+    )
+def create_evolve():
+    return CardTemplate(
+        card_id="card.evolve",
+        name="进化",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="每当你抽到一张状态牌时，抽 1 张牌。",
+        quantity="uncommon",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "draw": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "evolve",
+                "amount": {
+                    "var": "draw"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "进化+",
+            "description": "每当你抽到一张状态牌时，抽 2 张牌。",
+            "card_vars": {
+                "draw": 2
+            },
+        }
+    )
 
 #稀有 攻击 rare attack
 def create_bludgeon():
@@ -2108,6 +2389,169 @@ def create_death_reaper():
     )
 
 #稀有 技能 rare skill
+def create_impervious():
+    return CardTemplate(
+        card_id="card.impervious",
+        name="岿然不动",
+        card_type="skill",
+        cost=2,
+        target="self",
+        description="消耗。获得 30 点格挡。",
+        quantity="rare",
+        keywords=[KEYWORD_EXHAUST],
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "block": 30
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "var": "block",
+                    "modifier_profile": "block"
+                }
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "岿然不动+",
+            "description": "消耗。获得 40 点格挡。",
+            "card_vars": {
+                "block": 40
+            },
+        }
+    )
+def create_double_tap():
+    return CardTemplate(
+        card_id="card.double_tap",
+        name="双发",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="本回合内，你打出的下一张攻击牌会打出 2 次。",
+        quantity="rare",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "count": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "double_tap",
+                "amount": {
+                    "var": "count"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "双发+",
+            "description": "本回合内，你打出的下 2 张攻击牌会打出 2 次。",
+            "card_vars": {
+                "count": 2
+            },
+        }
+    )
+def create_exhume():
+    return CardTemplate(
+        card_id="card.exhume",
+        name="发掘",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="消耗。选择 1 张已消耗的牌，将其放入你的手牌。",
+        quantity="rare",
+        keywords=[KEYWORD_EXHAUST],
+        owner_character_id="character.armored_warrior",
+        card_vars={},
+        effects=[
+            {
+                "op": "request_exhume_card"
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "发掘+",
+            "cost": 0,
+            "description": "消耗。选择 1 张已消耗的牌，将其放入你的手牌。",
+        }
+    )
+def create_limit_break():
+    return CardTemplate(
+        card_id="card.limit_break",
+        name="突破极限",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="消耗。将你的力量翻倍。",
+        quantity="rare",
+        keywords=[KEYWORD_EXHAUST],
+        owner_character_id="character.armored_warrior",
+        card_vars={},
+        effects=[
+            {
+                "op": "double_status",
+                "target": "self",
+                "status": "strength"
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "突破极限+",
+            "description": "将你的力量翻倍。",
+            "remove_keywords": [
+                KEYWORD_EXHAUST
+            ],
+        }
+    )
+def create_offering():
+    return CardTemplate(
+        card_id="card.offering",
+        name="祭品",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="消耗。失去 6 点生命。获得 2 点能量。抽 3 张牌。",
+        quantity="rare",
+        keywords=[KEYWORD_EXHAUST],
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "hp_loss": 6,
+            "energy": 2,
+            "draw": 3
+        },
+        effects=[
+            {
+                "op": "lose_hp",
+                "target": "self",
+                "amount": {
+                    "var": "hp_loss"
+                }
+            },
+            {
+                "op": "gain_energy",
+                "amount": {
+                    "var": "energy"
+                }
+            },
+            {
+                "op": "draw_cards",
+                "amount": {
+                    "var": "draw"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "祭品+",
+            "description": "消耗。失去 6 点生命。获得 2 点能量。抽 5 张牌。",
+            "card_vars": {
+                "draw": 5
+            },
+        }
+    )
 
 #稀有 能力 rare power
 def create_demon_form():
@@ -2139,6 +2583,171 @@ def create_demon_form():
             "description": "每回合开始时获得 3 点力量。",
             "card_vars": {
                 "strength_per_turn": 3
+            },
+        }
+    )
+def create_barricade():
+    return CardTemplate(
+        card_id="card.barricade",
+        name="壁垒",
+        card_type="power",
+        cost=3,
+        target="self",
+        description="格挡不再在你的回合开始时消失。",
+        quantity="rare",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "barricade": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "barricade",
+                "amount": {
+                    "var": "barricade"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "壁垒+",
+            "cost": 2,
+            "description": "格挡不再在你的回合开始时消失。",
+        }
+    )
+def create_berserk():
+    return CardTemplate(
+        card_id="card.berserk",
+        name="狂暴",
+        card_type="power",
+        cost=0,
+        target="self",
+        description="获得 2 层易伤。每回合开始时，费用上限增加 1。",
+        quantity="rare",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "vulnerable": 2,
+            "berserk": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "vulnerable",
+                "amount": {
+                    "var": "vulnerable"
+                }
+            },
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "berserk",
+                "amount": {
+                    "var": "berserk"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "狂暴+",
+            "description": "获得 1 层易伤。每回合开始时，费用上限增加 1。",
+            "card_vars": {
+                "vulnerable": 1
+            },
+        }
+    )
+def create_brutality():
+    return CardTemplate(
+        card_id="card.brutality",
+        name="残暴",
+        card_type="power",
+        cost=0,
+        target="self",
+        description="在你的回合开始时，你失去 1 点生命，抽 1 张牌。",
+        quantity="rare",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "brutality": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "brutality",
+                "amount": {
+                    "var": "brutality"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "残暴+",
+            "description": "固有。在你的回合开始时，你失去 1 点生命，抽 1 张牌。",
+            "add_keywords": [
+                KEYWORD_INNATE
+            ],
+        }
+    )
+def create_corruption():
+    return CardTemplate(
+        card_id="card.corruption",
+        name="腐化",
+        card_type="power",
+        cost=3,
+        target="self",
+        description="所有技能牌耗能变为 0。所有技能牌在被打出时消耗。",
+        quantity="rare",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "corruption": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "corruption",
+                "amount": {
+                    "var": "corruption"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "腐化+",
+            "cost": 2,
+            "description": "所有技能牌耗能变为 0。所有技能牌在被打出时消耗。",
+        }
+    )
+def create_juggernaut():
+    return CardTemplate(
+        card_id="card.juggernaut",
+        name="势不可当",
+        card_type="power",
+        cost=2,
+        target="self",
+        description="每当你获得格挡时，对随机一名敌人造成 5 点伤害。",
+        quantity="rare",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 5
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "juggernaut",
+                "amount": {
+                    "var": "damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "势不可当+",
+            "description": "每当你获得格挡时，对随机一名敌人造成 7 点伤害。",
+            "card_vars": {
+                "damage": 7
             },
         }
     )

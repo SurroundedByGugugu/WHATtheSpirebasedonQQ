@@ -20,6 +20,7 @@ from game.engine import (
     get_zone_field_view,
     choose_pending_upgrade_hand_card,
     choose_pending_duplicate_hand_card,
+    choose_pending_exhume_card,
 )
 
 from game.run_engine import (
@@ -452,7 +453,19 @@ class GameService(object):
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if game_state.pending_duplicate_hand_selection:
             return "当前需要先处理复制手牌选择。使用 /card duplicate_hand 0。"     
-                   
+
+        if command in ("exhume", "发掘", "选择发掘"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not game_state.pending_exhume_selection:
+                return "当前没有需要处理的发掘选择。"
+            reply = self.handle_exhume(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
+        if game_state.pending_exhume_selection:
+            return "当前需要先处理发掘选择。使用 /card exhume 0。"
+
         if command in ("potion", "use_potion", "useitem", "item", "使用药水", "使用道具"):
             game_state = run_state.current_battle
             if game_state is None:
@@ -836,10 +849,28 @@ class GameService(object):
 
         return choose_pending_duplicate_hand_card(game_state, choice_index)
     
+    def handle_exhume(self, game_state, parts):
+        """
+        /card exhume 0
+        用于发掘：选择一张消耗堆中的牌加入手牌。
+        """
+        if not game_state.pending_exhume_selection:
+            return "当前没有需要处理的发掘选择。"
+
+        if len(parts) < 3:
+            return "用法：/card exhume 0。"
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "选择编号必须是数字。"
+
+        return choose_pending_exhume_card(game_state, choice_index)
+
     def help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.18（更新至战士哥在塔1的技能蓝卡",
+            "当前版本：v26.06.19（喜报，战士哥在塔1的卡搬运完了",
             "/card characters 查看可选角色",
             "/card new 0      选择 0 号测试角色并开始测试战斗",
             "/card view       查看战斗状态和手牌",
