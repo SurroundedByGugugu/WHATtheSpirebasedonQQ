@@ -17,7 +17,7 @@ ENCOUNTER_TABLE = {
     "encounter.slimes_ms2":{"enemy_ids":["enemy.acid_slime_middle","enemy.spike_slime_small"]},
     "encounter.slimes_l1":{"enemy_ids":["enemy.acid_slime_large"]},
     "encounter.slimes_l2":{"enemy_ids":["enemy.spike_slime_large"]},
-    "encounter.slimes_cluster":{"enemy_ids":["enemy.spike_slime_small","enemy.spike_slime_small","enemy.spike_slime_small""enemy.acid_slime_small","enemy.acid_slime_small"]},
+    "encounter.slimes_cluster":{"enemy_ids":["enemy.spike_slime_small","enemy.spike_slime_small","enemy.spike_slime_small","enemy.acid_slime_small","enemy.acid_slime_small"]},
     "encounter.jaw_worm_starting":{"enemy_ids":["enemy.jaw_worm_g1"]},
     "encounter.louses_2":{"enemy_ids":["enemy.random_louse","enemy.random_louse"]},
     "encounter.louses_3":{"enemy_ids":["enemy.random_louse","enemy.random_louse","enemy.random_louse"]},

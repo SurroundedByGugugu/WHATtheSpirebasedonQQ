@@ -131,7 +131,8 @@ ACT1_TEST_ROUTE = [
         "node_id": "act1.boss",
         "node_type": "boss",
         "name": "一层 Boss",
-        "next_node_ids": ["act2.ancient.start"]
+        "next_node_ids": []
+        # "next_node_ids": ["act2.ancient.start"]
     },
     # {
     #     "node_id": "act2.ancient.start",

@@ -221,7 +221,7 @@ def enter_current_node(run_state, seed=DEBUG_SEED):
         return "路线节点不存在，Run 结束。"
 
     run_state.clear_pending_nodes()
-    if node.node_type in ("normal_enemy", "elite", "boss"):
+    if node.node_type in ("starting", "normal_enemy", "elite", "boss"):
         return enter_battle_node(
             run_state,
             node,
@@ -490,10 +490,11 @@ def make_encounter_seed(run_state, node, seed=DEBUG_SEED):
 def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_SEED):
     """
     根据实际战斗类型选择 encounter。
-    关键点：
-    1. normal_enemy：优先用路线节点显式 encounter_id，没有则从普通池抽。
-    2. elite：无论普通 elite 节点，还是 mystery 随机出的 elite，都从精英池抽。
-    3. boss：优先用路线节点显式 encounter_id，没有则从 boss 池抽。
+
+    starting：开局普通战斗，走 STARTING_ENCOUNTER_POOL。
+    normal_enemy：普通战斗，优先使用节点显式 encounter_id，否则走普通池。
+    elite：无论普通 elite 节点，还是 mystery 随机出的 elite，都走精英池。
+    boss：优先使用节点显式 encounter_id，否则走 boss 池。
     """
     rng = random.Random(make_encounter_seed(
         run_state,
@@ -501,28 +502,32 @@ def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_S
         effective_node_type,
         seed=seed
     ))
-    # 精英统一走精英池。
-    # 这样普通 elite 节点和 ? -> elite 都能抽到混沌群友。
+
+    fixed_encounter_id = getattr(node, "fixed_encounter_id", "")
+    if fixed_encounter_id:
+        return fixed_encounter_id
+
+    if effective_node_type == "starting":
+        if node.node_type != "mystery" and getattr(node, "encounter_id", ""):
+            return node.encounter_id
+        return pick_encounter_id_by_node_type("starting", rng)
+
     if effective_node_type == "elite":
         return pick_encounter_id_by_node_type("elite", rng)
-    # Boss 可以先允许路线显式指定。
-    # 现在你的 boss 可能还在用 encounter.boss_dummy。
+
     if effective_node_type == "boss":
         if getattr(node, "encounter_id", ""):
             return node.encounter_id
         return pick_encounter_id_by_node_type("boss", rng)
-    # 普通战斗：正常节点可以显式指定 encounter。
-    # mystery 随机出的 normal_enemy 一般没有 encounter_id，会走普通池。
+
     if effective_node_type == "normal_enemy":
         if node.node_type != "mystery" and getattr(node, "encounter_id", ""):
             return node.encounter_id
-
         return pick_encounter_id_by_node_type("normal_enemy", rng)
-    # 兜底。
+
     if getattr(node, "encounter_id", ""):
         return node.encounter_id
     return pick_encounter_id_by_node_type("normal_enemy", rng)
-
 
 def make_encounter_seed(run_state, node, effective_node_type, seed=DEBUG_SEED):
     base_seed = seed
@@ -530,15 +535,19 @@ def make_encounter_seed(run_state, node, effective_node_type, seed=DEBUG_SEED):
         base_seed = getattr(run_state, "run_seed", None)
     if base_seed is None:
         base_seed = random.randint(1, 999999999)
+
     node_seed = sum([
         ord(ch)
         for ch in getattr(node, "node_id", "")
     ])
+
     type_offset_map = {
+        "starting": 500,
         "normal_enemy": 1000,
         "elite": 2000,
         "boss": 3000,
     }
+
     type_offset = type_offset_map.get(effective_node_type, 0)
     return int(base_seed) + node_seed + type_offset
 
