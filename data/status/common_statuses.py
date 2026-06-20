@@ -35,6 +35,44 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="anger",
+    name="生气",
+    description="每当受到攻击伤害时，获得等同于层数的力量。",
+    category="buff",
+    display_mode="stack",
+))
+register_status_def(StatusDef(
+    key="enrage",
+    name="激怒",
+    description="每当玩家打出一张技能牌时，获得等同于层数的力量。",
+    category="buff",
+    display_mode="stack",
+    order=12,
+    decay_timing="none",
+    decay_amount=0,
+))
+register_status_def(StatusDef(
+    key="shape_shift",
+    name="形态转换",
+    description="受到等同于层数的伤害后，切换为防御形态。",
+    category="buff",
+    display_mode="stack",
+    order=13,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="sharp_hide",
+    name="锋利外甲",
+    description="每当玩家打出一张攻击牌时，玩家受到等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=14,
+    decay_timing="none",
+    decay_amount=0,
+))
+register_status_def(StatusDef(
     key="vulnerable",
     name="易伤",
     description="受到攻击伤害增加。",
@@ -54,6 +92,17 @@ register_status_def(StatusDef(
     order=40,
     decay_timing="turn_end",
     decay_amount=1,
+))
+
+register_status_def(StatusDef(
+    key="entangled",
+    name="缠身",
+    description="本回合不能打出攻击牌。",
+    category="debuff",
+    display_mode="turns",
+    order=43,
+    decay_timing="none",
+    decay_amount=0,
 ))
 
 register_status_def(StatusDef(

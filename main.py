@@ -29,6 +29,38 @@ BOT_CONFIG = {
 }
 
 
+def split_reply_text(text, limit=1500):
+    """
+    按段落优先拆分回复，避免 QQ / OneBot 单条消息过长。
+    """
+    if not text:
+        return []
+
+    chunks = []
+    current = ""
+
+    for block in text.split("\n"):
+        candidate = block if not current else current + "\n" + block
+
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+
+        if current:
+            chunks.append(current)
+            current = ""
+
+        while len(block) > limit:
+            chunks.append(block[:limit])
+            block = block[limit:]
+
+        current = block
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
 def split_id_list(text):
     """
     把 ini 中的 ID 字符串拆成 set。
@@ -338,9 +370,9 @@ async def dispatch_to_plugins(ws, event):
         return
 
     reply = game_service.handle_message(session_id, user_id, raw_message)
-
-    if reply is not None:
-        await send_reply(ws, event, reply)
+    if reply:
+        for part in split_reply_text(reply, limit=1500):
+            await send_reply(ws, event, part)
 
 
 async def handle_connection(ws):

@@ -21,6 +21,7 @@ from game.engine import (
     choose_pending_upgrade_hand_card,
     choose_pending_duplicate_hand_card,
     choose_pending_exhume_card,
+    get_pending_player_choice_hint,
 )
 
 from game.run_engine import (
@@ -44,9 +45,11 @@ from game.run_engine import (
     handle_event_option,
     handle_ancient_option,
     handle_shop_item_detail,
+    reset_current_node_from_snapshot,
     
 )
 from game.route import format_route_text
+from game.reward import format_card_reward_choice
 
 
 CHARACTER_CHOICES = [
@@ -93,6 +96,7 @@ class GameService(object):
     def __init__(self):
         self.sessions = {}
         self.session_owners = {}
+        self.pending_confirmations = {}
 
     def get_run(self, session_id):
         return self.sessions.get(session_id)
@@ -107,6 +111,9 @@ class GameService(object):
 
         if session_id in self.session_owners:
             del self.session_owners[session_id]
+
+        if session_id in self.pending_confirmations:
+            del self.pending_confirmations[session_id]
 
     def get_owner(self, session_id):
         return self.session_owners.get(session_id)
@@ -155,6 +162,9 @@ class GameService(object):
         if command in ("characters", "character", "chars", "角色", "角色选择", "查看角色"):
             return self.character_choices_text()
 
+        if command in ("info", "说明", "查看说明", "buffinfo", "状态说明"):
+            return self.get_general_info(parts)
+
         if command == "new":
             if self.get_run(session_id) is not None and self.is_owned_by_other_user(session_id, user_id):
                 return self.SAME_GROUP_SINGLE_GAME_MESSAGE
@@ -167,6 +177,7 @@ class GameService(object):
                 seed=DEBUG_SEED
             )
             self.set_run(session_id, run_state, user_id)
+            self.pending_confirmations.pop(session_id, None)
             return reply
 
         run_state = self.get_run(session_id)
@@ -177,6 +188,21 @@ class GameService(object):
         # 只要 run 存在，就要检查 owner，不再依赖 current_battle
         if self.is_owned_by_other_user(session_id, user_id):
             return self.SAME_GROUP_SINGLE_GAME_MESSAGE
+
+        if command in ("yes", "y", "确认", "是"):
+            return self.handle_yes(session_id, run_state)
+
+        if command in ("no", "cancel", "取消", "否"):
+            if session_id in self.pending_confirmations:
+                del self.pending_confirmations[session_id]
+                return "已取消确认操作。"
+            return "当前没有需要取消的确认操作。"
+
+        if command in ("exit", "退出", "下一把"):
+            return self.request_exit_battle(session_id, run_state)
+
+        if command in ("sl", "读档", "回档", "回退"):
+            return self.request_sl(session_id, run_state)
 
         # 这些命令是 Run 层命令，允许当前没有战斗
         if command in ("hand", "view", "查看", "手牌", "查看战斗状态", "查看手牌"):
@@ -214,6 +240,12 @@ class GameService(object):
             return self.get_run_potions(run_state)
         
         if command in ("deck", "master_deck", "牌库", "查看牌库", "卡组", "查看卡组"):
+            if len(parts) >= 3:
+                try:
+                    card_index = int(parts[2])
+                except ValueError:
+                    return "牌库编号必须是数字。"
+                return self.get_run_deck_detail(run_state, card_index)
             return self.get_run_deck(run_state)
         
         if command in ("pick", "choose", "选择奖励", "选牌"):
@@ -395,7 +427,7 @@ class GameService(object):
             reply = self.handle_drop(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if game_state.pending_discard_selection:
-            return "当前需要先处理丢弃选择。使用 /card drop 0 2 3，或 /card drop none。"
+            return get_pending_player_choice_hint(game_state)
 
         if command in ("top", "headbutt", "置顶", "选择弃牌置顶"):
             game_state = run_state.current_battle
@@ -406,7 +438,7 @@ class GameService(object):
             reply = self.handle_discard_to_draw_top(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if game_state.pending_discard_to_draw_selection:
-            return "当前需要先处理弃牌堆置顶选择。使用 /card top 0。"
+            return get_pending_player_choice_hint(game_state)
         
         if command in ("exhaust_hand", "burn", "consume", "选择消耗", "消耗手牌") or (
             command == "exhaust" and game_state.pending_exhaust_hand_selection
@@ -419,7 +451,7 @@ class GameService(object):
             reply = self.handle_exhaust_hand(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if game_state.pending_exhaust_hand_selection:
-            return "当前需要先处理手牌消耗选择。使用 /card exhaust_hand 0。"
+            return get_pending_player_choice_hint(game_state)
 
         if command in ("handtop", "hand_top", "warcry", "置顶手牌", "手牌置顶"):
             game_state = run_state.current_battle
@@ -430,7 +462,7 @@ class GameService(object):
             reply = self.handle_hand_to_draw_top(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if game_state.pending_hand_to_draw_top_selection:
-            return "当前需要先处理手牌置顶选择。使用 /card handtop 0。"
+            return get_pending_player_choice_hint(game_state)
         
         if command in ("upgrade_hand", "upgradehand", "armaments", "选择升级", "升级手牌"):
             game_state = run_state.current_battle
@@ -441,7 +473,7 @@ class GameService(object):
             reply = self.handle_upgrade_hand(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if game_state.pending_upgrade_hand_selection:
-            return "当前需要先处理手牌升级选择。使用 /card upgrade_hand 0。"
+            return get_pending_player_choice_hint(game_state)
         
         if command in ("duplicate_hand", "dual_wield", "复制手牌", "双持"):
             game_state = run_state.current_battle
@@ -452,7 +484,7 @@ class GameService(object):
             reply = self.handle_duplicate_hand(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if game_state.pending_duplicate_hand_selection:
-            return "当前需要先处理复制手牌选择。使用 /card duplicate_hand 0。"     
+            return get_pending_player_choice_hint(game_state)
 
         if command in ("exhume", "发掘", "选择发掘"):
             game_state = run_state.current_battle
@@ -464,7 +496,7 @@ class GameService(object):
             return self.append_run_progress_after_battle(session_id, run_state, reply)
 
         if game_state.pending_exhume_selection:
-            return "当前需要先处理发掘选择。使用 /card exhume 0。"
+            return get_pending_player_choice_hint(game_state)
 
         if command in ("potion", "use_potion", "useitem", "item", "使用药水", "使用道具"):
             game_state = run_state.current_battle
@@ -501,6 +533,134 @@ class GameService(object):
             return self.append_run_progress_after_battle(session_id, run_state, reply)
 
         return "未知命令：{}。\n{}".format(command, self.help_text())
+
+    def request_exit_battle(self, session_id, run_state):
+        game_state = run_state.current_battle
+        if game_state is None or game_state.battle_over:
+            return "当前不在进行中的战斗里。"
+        self.pending_confirmations[session_id] = {"action": "exit_battle"}
+        return "确认退出当前战斗并按战斗失败处理？使用 /card yes 确认，/card no 取消。"
+
+    def request_sl(self, session_id, run_state):
+        if getattr(run_state, "node_entry_snapshot", None) is None:
+            return "当前节点没有可读取的节点入口快照。"
+        self.pending_confirmations[session_id] = {"action": "sl"}
+        return "确认读取存档并回到进入当前节点时？使用 /card yes 确认，/card no 取消。"
+
+    def handle_yes(self, session_id, run_state):
+        pending = self.pending_confirmations.pop(session_id, None)
+        if pending is None:
+            return "当前没有需要确认的操作。"
+
+        action = pending.get("action")
+
+        if action == "exit_battle":
+            game_state = run_state.current_battle
+            if game_state is None or game_state.battle_over:
+                return "当前没有可退出的进行中战斗。"
+            game_state.battle_over = True
+            game_state.victory = False
+            reply = "已退出当前战斗，按战斗失败处理。"
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
+        if action == "sl":
+            new_run_state, reply = reset_current_node_from_snapshot(run_state, seed=DEBUG_SEED)
+            self.sessions[session_id] = new_run_state
+            if new_run_state.run_over:
+                self.clear_run(session_id)
+            return reply
+
+        return "未知确认操作：{}。".format(action)
+
+    def get_general_info(self, parts):
+        if len(parts) < 3:
+            return "用法：/card info weak。也可查询：虚弱、易伤、脆弱、力量、仪式、火Zone、极晶Zone 等。"
+        raw_key = " ".join(parts[2:]).strip().lower()
+        return self.format_status_or_zone_info(raw_key)
+
+    def format_status_or_zone_info(self, raw_key):
+        status_aliases = {
+            "weak": "weak", "虚弱": "weak",
+            "vulnerable": "vulnerable", "易伤": "vulnerable",
+            "frail": "frail", "脆弱": "frail",
+            "strength": "strength", "力量": "strength",
+            "dexterity": "dexterity", "敏捷": "dexterity",
+            "ritual": "ritual", "仪式": "ritual",
+            "artifact": "artifact", "人工制品": "artifact",
+            "stun": "stun", "眩晕": "stun",
+            "poison": "poison", "中毒": "poison",
+            "burn": "burn", "烧伤": "burn",
+            "regen": "regeneration", "regeneration": "regeneration", "再生": "regeneration",
+            "barricade": "barricade", "壁垒": "barricade",
+        }
+
+        key = raw_key.replace(" ", "")
+        if key in status_aliases:
+            return self.format_status_info(status_aliases[key])
+
+        # 支持 /card info weak 这类原始 key。
+        from game.status.status_defs import has_status_def
+        if has_status_def(raw_key):
+            return self.format_status_info(raw_key)
+
+        zone_key = key.replace("zone", "")
+        is_extreme = False
+        if zone_key.startswith("极"):
+            is_extreme = True
+            zone_key = zone_key[1:]
+        element_aliases = {
+            "fire": "fire", "火": "fire",
+            "earth": "earth", "地": "earth",
+            "wind": "wind", "风": "wind",
+            "water": "water", "水": "water",
+            "thunder": "thunder", "雷": "thunder",
+            "shade": "shade", "阴": "shade",
+            "crystal": "crystal", "晶": "crystal", "极晶": "crystal",
+        }
+        if zone_key in element_aliases:
+            return self.format_zone_info(element_aliases[zone_key], is_extreme=is_extreme)
+
+        return "没有找到【{}】的说明。可用示例：/card info weak，/card info 虚弱，/card info 火Zone。".format(raw_key)
+
+    def format_status_info(self, status_key):
+        from game.status.status_defs import get_status_def, get_status_name
+
+        detail_overrides = {
+            "weak": "造成的攻击伤害减少 25%。",
+            "vulnerable": "受到的攻击伤害增加 50%。",
+            "frail": "获得的格挡减少 25%。",
+            "strength": "攻击伤害按层数增加。层数可以为负。",
+            "dexterity": "技能牌获得格挡按层数增加。层数可以为负。",
+            "ritual": "玩家：回合开始时获得等同于层数的力量；敌人：敌方回合结束时获得等同于层数的力量，刚获得的同一回合不触发。",
+            "artifact": "抵消下一次负面状态。",
+            "stun": "跳过行动。",
+        }
+        status_def = get_status_def(status_key)
+        if status_def is None:
+            return "没有找到状态【{}】。".format(status_key)
+        description = detail_overrides.get(status_key, getattr(status_def, "description", ""))
+        if not description:
+            description = "暂无详细说明。"
+        lines = []
+        lines.append("=== 状态说明 ===")
+        lines.append("名称：{}（{}）".format(get_status_name(status_key), status_key))
+        lines.append("类型：{}".format(getattr(status_def, "category", "neutral")))
+        lines.append("显示：{}".format(getattr(status_def, "display_mode", "value")))
+        lines.append("衰减：{} / {}".format(
+            getattr(status_def, "decay_timing", "none"),
+            getattr(status_def, "decay_amount", 0)
+        ))
+        lines.append("效果：{}".format(description))
+        return "\n".join(lines)
+
+    def format_zone_info(self, element, is_extreme=False):
+        from data.zones.element_zones import get_element_display_name, get_zone_ability_text
+        lines = []
+        lines.append("=== Zone 说明 ===")
+        lines.append("名称：{}{}Zone".format("极" if is_extreme else "", get_element_display_name(element)))
+        lines.append("属性：{}（{}）".format(get_element_display_name(element), element))
+        lines.append("效果：{}".format(get_zone_ability_text(element, is_extreme=is_extreme)))
+        return "\n".join(lines)
 
     def get_run_relics(self, run_state):
         relics = getattr(run_state, "relics", [])
@@ -591,7 +751,22 @@ class GameService(object):
                 card.summary_text()
             ))
 
+        lines.append("")
+        lines.append("使用 /card deck 0 查看某张牌的完整说明。")
+
         return "\n".join(lines)
+
+    def get_run_deck_detail(self, run_state, card_index):
+        deck = getattr(run_state, "master_deck", [])
+        if not deck:
+            return "当前牌库为空。"
+        if card_index < 0 or card_index >= len(deck):
+            return "牌库编号无效。"
+        card = deck[card_index]
+        return "=== 牌库卡牌详情 ===\n[{}] {}".format(
+            card_index,
+            format_card_reward_choice(card)
+        )
 
     def resolve_character_id(self, parts):
         """
@@ -651,7 +826,7 @@ class GameService(object):
         if hand_indices is None:
             return "手牌编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card play 0,1,2。"
 
-        target_index = 0
+        target_index = None
 
         if len(parts) >= 4:
             try:
@@ -716,7 +891,7 @@ class GameService(object):
         except ValueError:
             return "药水编号必须是数字。"
 
-        target_index = 0
+        target_index = None
 
         if len(parts) >= 4:
             try:
@@ -735,7 +910,7 @@ class GameService(object):
             return "当前没有需要处理的弃牌选择。"
 
         if len(parts) < 3:
-            return "用法：/card drop 0 2 3。若不丢弃，使用 /card drop none。"
+            return "用法：/card drop 0 2 3。若不丢弃，使用 /card drop none。\ndrop 等效 drop_hand，丢弃手牌，选择丢弃。"
 
         raw_values = []
 
@@ -870,13 +1045,25 @@ class GameService(object):
     def help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.19（喜报，战士哥在塔1的卡搬运完了",
+            "当前版本：v26.06.20-2",
+            "- 首先特别鸣谢初次测试！",
+            "- 重点修改了指令内容，新增右上角下一把和sl",
+            "- 中文等效指令会同时在流程提示中说明",
+            "- 添加查看状态等内容的说明指令card info",
+            "- 修正超雄史莱姆和咔咔（我说不影响运行的那就是特性而非bug",
+            "- 新增牌太多 / 消息太长分条发出",
+            "- 新增target=enemy的牌未指定目标时自动选最前存活敌人（智能顺位",
+            "- 更新完了塔1一层怪物（我说守护者你的逻辑怎么这么难写！",
+            "- 现在开局能看见本层boss是谁了",
+            "",
             "/card characters 查看可选角色",
             "/card new 0      选择 0 号测试角色并开始测试战斗",
             "/card view       查看战斗状态和手牌",
             "/card help       查看帮助",
             "*目前全部指令过多，请使用(.help我超，塔)查看相关内容。",
-            "**可使用(.help塔指令等效)查看指令的其他等效写法，部分支持中文。"
+            "**可使用(.help塔指令等效)查看指令的其他等效写法，部分支持中文。",
+            "***目前该项目已扩展至制作人看不见的地方运行，首先感谢我们的数值策划推广；",
+            "然后制作人叠甲这玩意真的是为了进行自建扩展而搭建的框架，所以私货内容真的很多，原作内容更像是为了【可玩性填充】而进行的。"
         ])
             # "",
             # "兼容旧命令：/card status 和 /card hand 现在都会显示战斗状态 + 手牌。"

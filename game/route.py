@@ -2,7 +2,7 @@
 # 路线节点：普通敌人、精英、事件、商店、休息点、Boss
 
 from dataclasses import dataclass, field
-
+from data.route.encounters import get_encounter_display_name
 
 @dataclass
 class RouteNode:
@@ -67,6 +67,13 @@ def format_route_text(run_state):
         current_node.node_type
     ))
 
+    boss_name = getattr(run_state, "boss_name", "")
+    boss_encounter_id = getattr(run_state, "boss_encounter_id", "")
+    if boss_name or boss_encounter_id:
+        lines.append("本轮 Boss：{}".format(
+            boss_name or get_encounter_display_name(boss_encounter_id)
+        ))
+
     if run_state.completed_node_ids:
         lines.append("已完成节点：{}".format(", ".join(run_state.completed_node_ids)))
     else:
@@ -81,10 +88,19 @@ def format_route_text(run_state):
         lines.append("无。")
     else:
         for index, node in enumerate(next_nodes):
+            node_type_text = node.node_type
+
+            if node.node_type == "boss":
+                encounter_id = getattr(node, "encounter_id", "")
+                if encounter_id:
+                    node_type_text = "boss：{}".format(
+                        get_encounter_display_name(encounter_id)
+                    )
+
             lines.append("[{}] {} ({})".format(
                 index,
                 node.name,
-                node.node_type
+                node_type_text
             ))
 
     return "\n".join(lines)

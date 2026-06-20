@@ -40,6 +40,11 @@ class RunState:
     current_node_id: str = ""
     completed_node_ids: List[str] = field(default_factory=list)
 
+    # 开局即确定并公开的本层 Boss。
+    # 同时会写入 boss RouteNode.encounter_id，保证显示结果和实际战斗一致。
+    boss_encounter_id: str = ""
+    boss_name: str = ""
+
     current_battle: Any = None
 
     # 实际战斗节点类型。
@@ -47,6 +52,13 @@ class RunState:
     current_battle_node_type: str = ""
 
     pending_reward: Any = None
+
+    # 上一场战斗中，击败盗贼后返还的金币奖励。
+    pending_stolen_gold_rewards: List[Any] = field(default_factory=list)
+
+    # 进入当前节点前的快照，用于 /card sl 回退到本节点入口。
+    # 保存的是“进入节点前”的 RunState 深拷贝，不包含自身，避免递归膨胀。
+    node_entry_snapshot: Any = None
 
     pending_shop: Any = None
     pending_event: Any = None

@@ -1,24 +1,30 @@
 # -*- coding: utf-8 -*-
 
 from data.relic.lumine_relic import CrossEarringRelic
-from data.relic.rare_relics import CalipersRelic
 from data.relic.yoirine_relic import SaturatedFissureRelic
 from data.relic.armored_warrior_relic import (BurningBloodRelic, CharonAshesRelic)
+
 from data.relic.placeholder_stone_relic import PlaceholderStoneRelic
 from data.relic.Homunculus import HomunculusPrototypeRelic
+
 from data.relic.shop_relics import XPotionRelic
+
 from data.relic.uncommon_relics import EtherMediumRelic
+from data.relic.rare_relics import CalipersRelic, KeystoneOfTheTombRelic
 
 RELIC_REGISTRY = {
-    "relic.placeholder_stone": PlaceholderStoneRelic,
-    "relic.burning_blood":BurningBloodRelic,
-    "relic.charon_ashes":CharonAshesRelic,
     "relic.homunculus_prototype":HomunculusPrototypeRelic,
-    "relic.x_potion": XPotionRelic,
+    
+    "relic.burning_blood":BurningBloodRelic,
     "relic.saturated_fissure": SaturatedFissureRelic,
     "relic.cross_earring": CrossEarringRelic,
+
+    "relic.placeholder_stone": PlaceholderStoneRelic,
+    "relic.charon_ashes":CharonAshesRelic,
+    "relic.x_potion": XPotionRelic,
     "relic.ether_medium": EtherMediumRelic,
     "relic.calipers": CalipersRelic,
+    "relic.keystone_of_the_tomb": KeystoneOfTheTombRelic,
 }
 
 

@@ -55,6 +55,7 @@ def add_status_with_artifact(owner, key, amount):
 
 def format_status_gain_log(entity, key, amount, result):
     status_name = result.get("status_name", get_status_name(key))
+    amount = int(amount)
 
     if result.get("blocked"):
         return "{} 的人工制品抵挡了 {}。剩余人工制品：{}。".format(
@@ -63,9 +64,18 @@ def format_status_gain_log(entity, key, amount, result):
             result.get("artifact_left", 0)
         )
 
+    if amount < 0:
+        return "{} 失去 {} 点{}。当前{}：{}。".format(
+            entity.name,
+            abs(amount),
+            status_name,
+            status_name,
+            result.get("current", 0)
+        )
+
     return "{} 获得 {} 点{}。当前{}：{}。".format(
         entity.name,
-        int(amount),
+        amount,
         status_name,
         status_name,
         result.get("current", 0)

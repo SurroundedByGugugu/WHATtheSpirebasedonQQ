@@ -191,12 +191,25 @@ def can_play_card(game_state, card, play_reason="normal"):
     if not allowed:
         return allowed, message
 
+    player = getattr(game_state, "player", None)
+
+    if player is not None:
+        from game.modifiers import get_status_value
+
+        if (
+            get_status_value(player, "entangled") > 0
+            and getattr(card, "card_type", "") == "attack"
+        ):
+            return False, "你受到缠身影响，本回合不能打出攻击牌。"
+
     # 兼容之前给“伤口”预留的不可打出关键词。
     # 如果你已经定义了 KEYWORD_UNPLAYABLE，也可以替换成常量。
     if card.has_keyword("unplayable"):
         return False, "【{}】不能被打出。".format(card.name)
 
     return True, ""
+
+
 
 '''
 事已至此先占位符吧，想做某某zone下，抽到就中自动打出的词条：X之祈祷 pary_of_[element]

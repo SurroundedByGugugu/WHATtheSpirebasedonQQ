@@ -1286,6 +1286,95 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         return logs
     
+    if op == "gain_status_by_target_status":
+        gain_status_key = effect.get("status", "strength")
+        gain_target_key = effect.get("target", "self")
+        count_target_key = effect.get("count_target", "selected_enemy")
+        count_status_key = effect.get("count_status", "vulnerable")
+
+        gain_target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=gain_target_key,
+            target_index=target_index
+        )
+        count_target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=count_target_key,
+            target_index=target_index
+        )
+
+        if gain_target_entity is None:
+            logs.append("获得状态目标无效。")
+            return logs
+
+        if count_target_entity is None:
+            logs.append("计数状态目标无效。")
+            return logs
+
+        if not gain_status_key:
+            logs.append("gain_status_by_target_status 缺少 status。")
+            return logs
+
+        if not count_status_key:
+            logs.append("gain_status_by_target_status 缺少 count_status。")
+            return logs
+
+        stack_count = int(get_status_value(count_target_entity, count_status_key))
+        if stack_count < 0:
+            stack_count = 0
+
+        per_stack = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount", 1),
+            source=game_state.player,
+            target=count_target_entity,
+            effect_context=effect_context
+        )
+        per_stack = int(per_stack)
+
+        amount = stack_count * per_stack
+
+        if amount == 0:
+            logs.append("{} 身上没有可结算的{}，【{}】没有获得{}。".format(
+                count_target_entity.name,
+                get_status_name(count_status_key),
+                card.name,
+                get_status_name(gain_status_key)
+            ))
+            return logs
+
+        if hasattr(gain_target_entity, "gain_status_with_result"):
+            result = gain_target_entity.gain_status_with_result(gain_status_key, amount)
+
+            from game.status.status_gain import format_status_gain_log
+
+            logs.append("{} 身上有 {} 层{}。".format(
+                count_target_entity.name,
+                stack_count,
+                get_status_name(count_status_key)
+            ))
+            logs.append(format_status_gain_log(
+                gain_target_entity,
+                gain_status_key,
+                amount,
+                result
+            ))
+        else:
+            current = gain_target_entity.gain_status(gain_status_key, amount)
+            logs.append("{} 身上有 {} 层{}，{} 获得 {} 点{}。当前{}：{}。".format(
+                count_target_entity.name,
+                stack_count,
+                get_status_name(count_status_key),
+                gain_target_entity.name,
+                amount,
+                get_status_name(gain_status_key),
+                get_status_name(gain_status_key),
+                current
+            ))
+
+        return logs
+
     if op == "gain_status_if_enemy_intent_attack":
         target_key = effect.get("target", "selected_enemy")
         target_entity = get_effect_target_entity(

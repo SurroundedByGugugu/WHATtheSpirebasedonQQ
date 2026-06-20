@@ -27,7 +27,6 @@ CARD_REWARD_POOL = [
     "card.innate_thorns",
     "card.draw_discard_test",
     "card.test_heavy_strike",
-    "card.hard_blow",
     "card.test_x_drill",
 
     "card.whirlwind",
@@ -83,8 +82,13 @@ CARD_REWARD_POOL = [
     "card.fiend_fire",
     "card.feed",
     "card.demon_form",
-    "card.fire_strike",
-    "card.fire_zone",
+    "card.molten_fist",
+    "card.dominate",
+    "card.breakthrough",
+    "card.setup_strike",
+    "card.cinder",
+    "card.tremble",
+    "card.blood_wall",
     "card.combust",
     "card.dark_embrace",
     "card.feel_no_pain",
@@ -106,6 +110,8 @@ CARD_REWARD_POOL = [
     "card.offering",
     "card.amplify",
     "card.exhume",
+    "card.fire_strike",
+    "card.fire_zone",
 
     "card.crystal_piercing",
     "card.crystal_zone",
@@ -130,13 +136,15 @@ POTION_REWARD_POOL = [
 
 # 当前只有占位符石头。
 # 如果不希望重复获得已有遗物，可以在 roll_relic_reward() 里过滤。
+
 RELIC_REWARD_POOL = [
+    "relic.homunculus_prototype",
     "relic.placeholder_stone",
     "relic.ether_medium",
     "relic.charon_ashes",
-    "relic.homunculus_prototype",
+    "relic.calipers",
+    "relic.keystone_of_the_tomb"
 ]
-
 SHOP_RELIC_POOL = [
     "relic.x_potion",
 ]
@@ -145,9 +153,14 @@ COMMON_RELIC_POOL = [
 ]
 
 UNCOMMON_RELIC_POOL = [
+    "relic.ether_medium",
 ]
 
 RARE_RELIC_POOL = [
+    "relic.charon_ashes",
+    "relic.placeholder_stone",
+    "relic.calipers",
+    "relic.keystone_of_the_tomb"
 ]
 
 EVENT_RELIC_POOL = [
@@ -278,6 +291,25 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
             "amount": gold
         }
     ))
+
+    # 1.5 被盗金币返还奖励
+    stolen_gold_rewards = list(getattr(run_state, "pending_stolen_gold_rewards", []))
+
+    for stolen_reward in stolen_gold_rewards:
+        amount = int(stolen_reward.get("amount", 0))
+        if amount <= 0:
+            continue
+        source = stolen_reward.get("source", "盗贼")
+        reward_state.options.append(RewardOption(
+            option_type="gold",
+            title="（被偷的）{}金币".format(amount),
+            payload={
+                "amount": amount,
+                "source": source,
+                "reward_source": "stolen_gold"
+            }
+        ))
+    run_state.pending_stolen_gold_rewards = []
 
     # 2. 遗物奖励
     relic = roll_relic_reward(run_state, node_type, rng)
@@ -520,35 +552,136 @@ def take_card_reward(reward_state, index):
     return card, "获得卡牌：【{}】。".format(card.name)
 
 
+def format_card_quantity_name(quantity):
+    mapping = {
+        "starting": "初始",
+        "common": "普通",
+        "uncommon": "罕见",
+        "rare": "稀有",
+        "myth": "神话",
+        "special": "特殊",
+        "status": "状态",
+        "curse": "诅咒",
+    }
+    return mapping.get(str(quantity), str(quantity))
+
+
+def format_card_type_name(card_type):
+    mapping = {
+        "attack": "攻击",
+        "skill": "技能",
+        "power": "能力",
+        "status": "状态",
+        "curse": "诅咒",
+    }
+    return mapping.get(str(card_type), str(card_type))
+
+
+def collect_effect_refs_from_value(value, status_keys, card_ids):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in ("status", "status_key") and isinstance(child, str):
+                status_keys.add(child)
+            if key in ("card_id", "add_card_id", "generated_card_id") and isinstance(child, str):
+                card_ids.add(child)
+            collect_effect_refs_from_value(child, status_keys, card_ids)
+        return
+
+    if isinstance(value, (list, tuple)):
+        for child in value:
+            collect_effect_refs_from_value(child, status_keys, card_ids)
+
+
+def collect_card_related_refs(card):
+    status_keys = set()
+    card_ids = set()
+    collect_effect_refs_from_value(getattr(card, "effects", []), status_keys, card_ids)
+    collect_effect_refs_from_value(getattr(card, "exhaust_effects", []), status_keys, card_ids)
+    collect_effect_refs_from_value(getattr(card, "upgrade_patch", {}), status_keys, card_ids)
+    if getattr(card, "card_id", "") in card_ids:
+        card_ids.remove(getattr(card, "card_id", ""))
+    return sorted(status_keys), sorted(card_ids)
+
+
+def format_status_detail_line(status_key):
+    from game.status.status_defs import get_status_def, get_status_name
+
+    override_descriptions = {
+        "weak": "造成的攻击伤害减少 25%。",
+        "vulnerable": "受到的攻击伤害增加 50%。",
+        "frail": "获得的格挡减少 25%。",
+        "strength": "攻击伤害按层数增加。层数可以为负。",
+        "dexterity": "技能牌获得格挡按层数增加。层数可以为负。",
+        "ritual": "敌人在敌方回合结束时获得等量力量；玩家逻辑等效恶魔形态。",
+        "artifact": "抵消下一次负面状态。",
+        "stun": "跳过行动。",
+    }
+
+    status_def = get_status_def(status_key)
+    name = get_status_name(status_key)
+    description = override_descriptions.get(status_key)
+    if description is None and status_def is not None:
+        description = getattr(status_def, "description", "")
+    if not description:
+        description = "暂无详细说明。"
+    return "- 状态【{}】（{}）：{}".format(name, status_key, description)
+
+
+def format_related_card_line(card_id):
+    try:
+        related_card = create_card(card_id)
+    except Exception:
+        return "- 相关卡牌（{}）：无法创建。".format(card_id)
+    return "- 相关卡牌【{}】（{} / {}）：{}".format(
+        related_card.name,
+        format_card_quantity_name(getattr(related_card, "quantity", "")),
+        format_card_type_name(getattr(related_card, "card_type", "")),
+        related_card.description
+    )
+
+
+def format_card_related_details(card):
+    status_keys, card_ids = collect_card_related_refs(card)
+    lines = []
+    for status_key in status_keys:
+        lines.append(format_status_detail_line(status_key))
+    for card_id in card_ids:
+        lines.append(format_related_card_line(card_id))
+    if not lines:
+        return ""
+    return "相关说明：\n" + "\n".join(lines)
+
+
 def format_card_reward_choice(card):
     """
-    奖励卡显示。
-
-    如果奖励本身已经升级：
-    【打击+】
-    获得：1费 attack，造成 9 点伤害。
-    状态：已升级
-
-    如果奖励未升级：
-    【打击】
-    当前：1费 attack，造成 6 点伤害。
-    升级：1费 attack，造成 9 点伤害。
+    奖励、商店、牌库详情共用的卡牌说明。
     """
     lines = []
-    lines.append("【{}】".format(card.name))
+    lines.append("【{}】（{} / {}）".format(
+        card.name,
+        format_card_quantity_name(getattr(card, "quantity", "")),
+        format_card_type_name(getattr(card, "card_type", ""))
+    ))
 
     if getattr(card, "upgraded", False):
-        lines.append("获得：{}".format(format_card_full_effect(card)))
+        lines.append("效果：{}".format(format_card_full_effect(card)))
         lines.append("状态：已升级")
+        detail = format_card_related_details(card)
+        if detail:
+            lines.append(detail)
         return "\n".join(lines)
 
-    lines.append("当前：{}".format(format_card_full_effect(card)))
+    lines.append("效果：{}".format(format_card_full_effect(card)))
 
     if has_upgrade(card):
         upgraded_card = upgrade_card(card)
-        lines.append("升级：{}".format(format_card_full_effect(upgraded_card)))
+        lines.append("升级后：{}".format(format_card_full_effect(upgraded_card)))
     else:
-        lines.append("升级：暂时没有可用的升级。")
+        lines.append("升级后：暂时没有可用的升级。")
+
+    detail = format_card_related_details(card)
+    if detail:
+        lines.append(detail)
 
     return "\n".join(lines)
 

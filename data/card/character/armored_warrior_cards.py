@@ -596,6 +596,175 @@ def create_clash():
             },
         }
     )
+# 塔2 包
+def create_breakthrough():
+    return CardTemplate(
+        card_id="card.breakthrough",
+        name="突破",
+        card_type="attack",
+        cost=1,
+        target="all_enemies",
+        description="失去 1 点生命。对所有敌人造成 9 点伤害。",
+        quantity="common",
+        attack_type="blunt",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "hp_loss": 1,
+            "damage": 9
+        },
+        effects=[
+            {
+                "op": "lose_hp",
+                "target": "self",
+                "amount": {
+                    "var": "hp_loss"
+                }
+            },
+            {
+                "op": "deal_damage_all_enemies",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "突破+",
+            "description": "失去 1 点生命。对所有敌人造成 13 点伤害。",
+            "card_vars": {
+                "damage": 13
+            },
+        }
+    )
+def create_setup_strike():
+    return CardTemplate(
+        card_id="card.setup_strike",
+        name="预备打击",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 7 点伤害。在本回合内获得 2 点力量。",
+        quantity="common",
+        attack_type="blunt",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 7,
+            "temporary_strength": 2
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "strength",
+                "amount": {
+                    "var": "temporary_strength"
+                }
+            },
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "flex",
+                "amount": {
+                    "var": "temporary_strength"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "预备打击+",
+            "description": "造成 9 点伤害。在本回合内获得 3 点力量。",
+            "card_vars": {
+                "damage": 9,
+                "temporary_strength": 3
+            },
+        }
+    )
+def create_cinder():
+    return CardTemplate(
+        card_id="card.cinder",
+        name="余烬",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="造成 18 点伤害。随机消耗 1 张手牌。",
+        quantity="common",
+        attack_type="magic",
+        attack_element="fire",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 18
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "exhaust_random_hand_card"
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "余烬+",
+            "description": "造成 24 点伤害。随机消耗 1 张手牌。",
+            "card_vars": {
+                "damage": 24
+            },
+        }
+    )
+def create_molten_fist():
+    return CardTemplate(
+        card_id="card.molten_fist",
+        name="熔融之拳",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 10 点伤害。将该敌人身上的易伤层数翻倍。消耗。",
+        quantity="common",
+        keywords=[KEYWORD_EXHAUST],
+        attack_type="blunt",
+        attack_element="fire",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 10
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "double_status",
+                "target": "selected_enemy",
+                "status": "vulnerable"
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "熔融之拳+",
+            "description": "造成 14 点伤害。将该敌人身上的易伤层数翻倍。消耗。",
+            "card_vars": {
+                "damage": 14
+            },
+        }
+    )
 
 #普通 技能 common skill
 def create_havoc():
@@ -830,6 +999,81 @@ def create_flex():
             },
         }
     )
+# 塔2 包
+def create_tremble():
+    return CardTemplate(
+        card_id="card.tremble",
+        name="战栗",
+        card_type="skill",
+        cost=1,
+        target="enemy",
+        description="给予 3 层易伤。消耗。",
+        quantity="common",
+        keywords=[KEYWORD_EXHAUST],
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "vulnerable": 3
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "selected_enemy",
+                "status": "vulnerable",
+                "amount": {
+                    "var": "vulnerable"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "战栗+",
+            "description": "给予 4 层易伤。消耗。",
+            "card_vars": {
+                "vulnerable": 4
+            },
+        }
+    )
+def create_blood_wall():
+    return CardTemplate(
+        card_id="card.blood_wall",
+        name="血墙",
+        card_type="skill",
+        cost=2,
+        target="self",
+        description="失去 2 点生命。获得 16 点格挡。",
+        quantity="common",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "hp_loss": 2,
+            "block": 16
+        },
+        effects=[
+            {
+                "op": "lose_hp",
+                "target": "self",
+                "amount": {
+                    "var": "hp_loss"
+                }
+            },
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "血墙+",
+            "description": "失去 2 点生命。获得 20 点格挡。",
+            "card_vars": {
+                "block": 20
+            },
+        }
+    )
+
 
 #罕见 攻击 uncommon attack
 def create_whirlwind():
@@ -1918,6 +2162,53 @@ def create_spot_weakness():
             },
         }
     )
+# 塔2 包
+def create_dominate():
+    return CardTemplate(
+        card_id="card.dominate",
+        name="主宰",
+        card_type="skill",
+        cost=1,
+        target="enemy",
+        description="给予 1 层易伤。敌人身上每有 1 层易伤，就获得 1 点力量。消耗。",
+        quantity="uncommon",
+        keywords=[KEYWORD_EXHAUST],
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "vulnerable": 1,
+            "strength_per_vulnerable": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "selected_enemy",
+                "status": "vulnerable",
+                "amount": {
+                    "var": "vulnerable"
+                }
+            },
+            {
+                "op": "gain_status_by_target_status",
+                "target": "self",
+                "status": "strength",
+                "count_target": "selected_enemy",
+                "count_status": "vulnerable",
+                "amount": {
+                    "var": "strength_per_vulnerable"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "主宰+",
+            "description": "给予 2 层易伤。敌人身上每有 1 层易伤，就获得 1 点力量。消耗。",
+            "card_vars": {
+                "vulnerable": 2
+            },
+        }
+    )
+
+
 
 #罕见 能力 uncommon power
 def create_combust():

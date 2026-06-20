@@ -152,6 +152,8 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
         game_state=game_state,
         draw_source="opening_hand"
     ))
+    logs.append("")
+    logs.append(player.hand_text(game_state))
     return game_state, "\n".join(logs)
 
 def start_battle_with_player(session_id, character_id, player, enemy_ids=None, seed=DEBUG_SEED):
@@ -203,6 +205,8 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
         game_state=game_state,
         draw_source="opening_hand"
     ))
+    logs.append("")
+    logs.append(player.hand_text(game_state))
     return game_state, "\n".join(logs)
 
 def get_default_target_index(game_state):
@@ -210,6 +214,49 @@ def get_default_target_index(game_state):
         if enemy.is_alive():
             return index
     return 0
+
+
+def resolve_auto_target_index(game_state, card_or_item, target_index):
+    """
+    target=enemy 的牌 / 药水在未指定目标时，自动选最前的存活敌人。
+    target_index=None 表示命令层没有指定目标。
+    """
+    target = getattr(card_or_item, "target", None)
+    if target == "enemy" and target_index is None:
+        return get_default_target_index(game_state)
+    if target_index is None:
+        return 0
+    return target_index
+
+
+def has_pending_player_choice(game_state):
+    return any([
+        getattr(game_state, "pending_discard_selection", False),
+        getattr(game_state, "pending_discard_to_draw_selection", False),
+        getattr(game_state, "pending_exhaust_hand_selection", False),
+        getattr(game_state, "pending_hand_to_draw_top_selection", False),
+        getattr(game_state, "pending_upgrade_hand_selection", False),
+        getattr(game_state, "pending_duplicate_hand_selection", False),
+        getattr(game_state, "pending_exhume_selection", False),
+    ])
+
+
+def get_pending_player_choice_hint(game_state):
+    if getattr(game_state, "pending_discard_selection", False):
+        return "当前需要先处理丢弃选择。用法：/card drop 0 2 3。若不丢弃，使用 /card drop none。\ndrop 等效 drop_hand，丢弃手牌，选择丢弃。"
+    if getattr(game_state, "pending_discard_to_draw_selection", False):
+        return "当前需要先处理弃牌堆置顶选择。用法：/card top 0。\ntop 等效 headbutt，置顶，选择弃牌置顶。"
+    if getattr(game_state, "pending_exhaust_hand_selection", False):
+        return "当前需要先处理手牌消耗选择。用法：/card exhaust_hand 0。\nexhaust_hand 等效 burn，consume，选择消耗，消耗手牌。"
+    if getattr(game_state, "pending_hand_to_draw_top_selection", False):
+        return "当前需要先处理手牌置顶选择。用法：/card handtop 0。\nhandtop 等效 hand_top，warcry，置顶手牌，手牌置顶。"
+    if getattr(game_state, "pending_upgrade_hand_selection", False):
+        return "当前需要先处理手牌升级选择。用法：/card upgrade_hand 0。\nupgrade_hand 等效 upgradehand，armaments，选择升级，升级手牌。"
+    if getattr(game_state, "pending_duplicate_hand_selection", False):
+        return "当前需要先处理复制手牌选择。用法：/card duplicate_hand 0。\nduplicate_hand 等效 dual_wield，复制手牌，双持。"
+    if getattr(game_state, "pending_exhume_selection", False):
+        return "当前需要先处理发掘选择。用法：/card exhume 0。\nexhume 等效 发掘，选择发掘。"
+    return ""
 
 def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
     """
@@ -344,6 +391,39 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
     logs.append("【{}】被{}，进入弃牌堆。".format(card.name, reason))
     return logs
 
+def resolve_status_card_turn_end(game_state, card):
+    """
+    处理回合结束时仍在手牌中的状态牌效果。
+    当前用于灼伤 I / II。
+    """
+    logs = []
+    card_id = getattr(card, "card_id", "")
+    burn_damage_map = {
+        "card.status.burn_i": 2,
+        "card.status.burn_ii": 4,
+    }
+    damage = burn_damage_map.get(card_id, 0)
+    if damage <= 0:
+        return logs
+    player = game_state.player
+    if player is None or not player.is_alive():
+        return logs
+    logs.append("【{}】在回合结束时灼伤你，造成 {} 点伤害。".format(
+        card.name,
+        damage
+    ))
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=player,
+        target=player,
+        amount=damage,
+        damage_kind="status_card",
+        card=card,
+        is_reaction_damage=False,
+        ignore_block=False
+    ))
+    return logs
+
 def end_player_turn_hand_cleanup(game_state):
     player = game_state.player
     old_hand = player.hand
@@ -353,6 +433,9 @@ def end_player_turn_hand_cleanup(game_state):
     retained_cards = []
 
     for card in old_hand:
+        logs.extend(resolve_status_card_turn_end(game_state, card))
+        if game_state.battle_over:
+            break
         # 虚无优先级最高：回合结束仍在手牌时，直接进入消耗堆。
         if should_exhaust_at_turn_end(card):
             logs.extend(move_card_to_exhaust_pile(
@@ -809,17 +892,18 @@ def discard_selected_hand_cards(game_state, hand_indices):
 def check_battle_result(game_state):
     """
     检查战斗是否结束。
+    玩家优先：
+    用于处理“攻击牌击杀敌人，但敌人的反应伤害同时击杀玩家”的情况。
+    这种情况下按失败处理。
     """
-    if game_state.is_all_enemies_dead():
-        game_state.battle_over = True
-        game_state.victory = True
-        return "所有敌人已被击败，战斗胜利。"
-
     if not game_state.player.is_alive():
         game_state.battle_over = True
         game_state.victory = False
         return "{} 已倒下，战斗失败。".format(game_state.player.name)
-
+    if game_state.is_all_enemies_dead():
+        game_state.battle_over = True
+        game_state.victory = True
+        return "所有敌人已被击败，战斗胜利。"
     return None
 
 def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
@@ -864,7 +948,7 @@ def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
 
     return effect_context
 
-def play_card(game_state, hand_index, target_index=0):
+def play_card(game_state, hand_index, target_index=None):
     """
     打出一张手牌。
     """
@@ -908,6 +992,7 @@ def play_card(game_state, hand_index, target_index=0):
                 current_cost
             )
 
+    target_index = resolve_auto_target_index(game_state, card, target_index)
     target_error = validate_card_target(game_state, card, target_index)
     if target_error:
         return target_error
@@ -984,7 +1069,7 @@ def play_card(game_state, hand_index, target_index=0):
 
     return "\n".join(logs)
 
-def play_cards_by_original_indices(game_state, hand_indices, target_index=0):
+def play_cards_by_original_indices(game_state, hand_indices, target_index=None):
     """
     按命令输入时的原始手牌编号依次打出多张牌。
 
@@ -1061,11 +1146,12 @@ def play_cards_by_original_indices(game_state, hand_indices, target_index=0):
                 ))
                 break
         card_target = getattr(card, "target", None)
+        effective_target_index = resolve_auto_target_index(game_state, card, target_index)
         if card_target == "enemy":
-            if target_index < 0 or target_index >= len(game_state.enemies):
-                logs.append("目标敌人编号无效，批量出牌中止：{}。".format(target_index))
+            if effective_target_index < 0 or effective_target_index >= len(game_state.enemies):
+                logs.append("目标敌人编号无效，批量出牌中止：{}。".format(effective_target_index))
                 break
-            if not game_state.enemies[target_index].is_alive():
+            if not game_state.enemies[effective_target_index].is_alive():
                 logs.append("目标敌人已经死亡，批量出牌中止。")
                 break
         elif card_target in ("all_enemies", "random_enemy"):
@@ -1089,9 +1175,17 @@ def play_cards_by_original_indices(game_state, hand_indices, target_index=0):
                 card.name
             ))
         logs.append(play_card(game_state, current_index, target_index))
+
+        if has_pending_player_choice(game_state):
+            logs.append("")
+            logs.append("出现待处理事务，连续出牌已中断。")
+            hint = get_pending_player_choice_hint(game_state)
+            if hint:
+                logs.append(hint)
+            break
     return "\n".join(logs)
 
-def use_potion(game_state, potion_index, target_index=0):
+def use_potion(game_state, potion_index, target_index=None):
     """
     使用药水。
     """
@@ -1106,6 +1200,7 @@ def use_potion(game_state, potion_index, target_index=0):
         return "药水编号无效。"
 
     potion = player.potions[potion_index]
+    target_index = resolve_auto_target_index(game_state, potion, target_index)
 
     if potion.target == "enemy":
         if target_index < 0 or target_index >= len(game_state.enemies):
@@ -1229,6 +1324,10 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
     op = action.get("op")
     attack_type = action.get("attack_type", "")
     attack_element = action.get("attack_element", "")
+
+    message = action.get("message", "")
+    if message:
+        logs.append("{}：「{}」".format(enemy.name, message))
 
     from game.zone_utils import (
         get_effective_zone_element_for_enemy_action,
@@ -1370,6 +1469,49 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         )
         return
     
+    if op == "enemy_smart_ally_block_or_attack":
+        allies = [
+            e for e in game_state.enemies
+            if e is not enemy and e.is_alive()
+        ]
+
+        if allies:
+            target = random.choice(allies)
+            block = int(action.get("block", 0))
+            logs.extend(gain_block_without_modifiers(
+                game_state=game_state,
+                source=enemy,
+                target=target,
+                amount=block,
+                block_source=BLOCK_SOURCE_ENEMY_ACTION,
+                card=None
+            ))
+            return
+
+        damage = int(action.get("damage", 0))
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=enemy,
+            target=game_state.player,
+            amount=damage,
+            damage_kind="attack",
+            attack_type=action.get("attack_type", ""),
+            attack_element=action.get("attack_element", ""),
+            card=None,
+        ))
+        return
+    
+    if op == "enemy_split":
+        resolver = getattr(enemy, "resolve_split", None)
+        if resolver is None:
+            logs.append("{} 想要分裂，但没有实现分裂逻辑。".format(enemy.name))
+            return
+        logs.extend(resolver(game_state))
+        return
+    
+    if op == "enemy_wait":
+        return
+
     if op == "enemy_add_card_to_discard":
         card_id = action.get("card_id", "")
         count = int(action.get("count", 1))
@@ -1393,6 +1535,50 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         ))
         return
     
+    if op == "enemy_steal_gold":
+        amount = int(action.get("amount", 0))
+
+        if amount <= 0:
+            logs.append("{} 试图偷金币，但数量无效。".format(enemy.name))
+            return
+        run_state = getattr(game_state, "run_state", None)
+        if run_state is None:
+            logs.append("{} 试图偷金币，但当前战斗没有绑定 RunState。".format(enemy.name))
+            return
+        current_gold = int(getattr(run_state, "gold", 0))
+        stolen = min(amount, current_gold)
+        if stolen < 0:
+            stolen = 0
+        run_state.gold -= stolen
+        old_stolen = int(getattr(enemy, "_stolen_gold", 0))
+        enemy._stolen_gold = old_stolen + stolen
+        if stolen > 0:
+            logs.append("{} 偷走了 {} 金币。当前金币：{}。".format(
+                enemy.name,
+                stolen,
+                run_state.gold
+            ))
+        else:
+            logs.append("{} 想偷金币，但你已经没有金币了。".format(enemy.name))
+        return
+
+    if op == "enemy_escape":
+        stolen = int(getattr(enemy, "_stolen_gold", 0))
+
+        setattr(enemy, "_escaped", True)
+
+        enemy.hp = 0
+        enemy.block = 0
+
+        if stolen > 0:
+            logs.append("{} 带着偷走的 {} 金币逃离了战斗。".format(
+                enemy.name,
+                stolen
+            ))
+        else:
+            logs.append("{} 逃离了战斗。".format(enemy.name))
+
+        return
     if op == "enemy_gain_status":
         target_key = action.get("target", "player")
         status_key = action.get("status", "")
@@ -1409,6 +1595,9 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         if not target.is_alive():
             logs.append("{} 的状态行动目标已经死亡。".format(enemy.name))
             return
+        before_status_value = 0
+        if hasattr(target, "get_status_value"):
+            before_status_value = int(target.get_status_value(status_key))
         if hasattr(target, "gain_status_with_result"):
             result = target.gain_status_with_result(status_key, amount)
             from game.status.status_gain import format_status_gain_log
@@ -1423,6 +1612,13 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 status_name,
                 current
             ))
+        if (
+            status_key == "ritual"
+            and target is not game_state.player
+            and before_status_value <= 0
+            and amount > 0
+        ):
+            setattr(target, "_ritual_skip_turn_end_once", True)
         apply_zone_source_hp_loss_if_needed(
             game_state=game_state,
             source=enemy,
@@ -1453,12 +1649,24 @@ def process_enemy_action(game_state, enemy):
     result = enemy.act()
     for log in result.logs:
         logs.append(log)
+
+    before_enemy_action = getattr(enemy, "before_enemy_action", None)
+    if before_enemy_action is not None:
+        before_logs = before_enemy_action(game_state)
+        if before_logs:
+            logs.extend(before_logs)
     process_enemy_action_payload(
         game_state=game_state,
         enemy=enemy,
         action=result.action,
         logs=logs
     )
+    after_enemy_action = getattr(enemy, "after_enemy_action", None)
+    if after_enemy_action is not None:
+        after_logs = after_enemy_action(game_state)
+        if after_logs:
+            logs.extend(after_logs)
+
     return logs
 
 def format_enemy_current_status(game_state):
@@ -1532,7 +1740,10 @@ def end_turn(game_state):
     logs.append("")
     logs.append("敌人行动：")
 
-    for enemy in game_state.enemies:
+    # 使用快照遍历，避免史莱姆分裂后新生成的小史莱姆在同一轮立刻行动。
+    for enemy in list(game_state.enemies):
+        if enemy not in game_state.enemies:
+            continue
         if not enemy.is_alive():
             continue
         logs.extend(process_enemy_action(game_state, enemy))
@@ -1604,6 +1815,8 @@ def end_turn(game_state):
         game_state=game_state,
         draw_source="turn_start"
     ))
+    logs.append("")
+    logs.append(player.hand_text(game_state))
 
     return "\n".join(logs)
 

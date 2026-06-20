@@ -85,7 +85,8 @@ class PatternEnemy(Enemy):
                 "damage": intent.value,
                 "target": intent.target,
                 "attack_type": intent.attack_type,
-                "attack_element": intent.attack_element
+                "attack_element": intent.attack_element,
+                "message": intent.message,
             }
 
             repeat = int(getattr(intent, "repeat", 1))
@@ -109,7 +110,16 @@ class PatternEnemy(Enemy):
                 "source_enemy_name": self.name,
                 "block": intent.value,
                 "attack_type": intent.attack_type,
-                "attack_element": intent.attack_element
+                "attack_element": intent.attack_element,
+                "message": intent.message,
+            }
+        
+        if intent.kind == "split":
+            return {
+                "op": "enemy_split",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "message": intent.message,
             }
 
         if intent.kind == "status":
@@ -121,7 +131,8 @@ class PatternEnemy(Enemy):
                 "status": intent.status,
                 "amount": intent.value,
                 "attack_type": intent.attack_type,
-                "attack_element": intent.attack_element
+                "attack_element": intent.attack_element,
+                "message": intent.message,
             }
 
         if intent.kind == "multi":
@@ -132,7 +143,8 @@ class PatternEnemy(Enemy):
                 "actions": [
                     self._intent_to_action(child)
                     for child in getattr(intent, "actions", [])
-                ]
+                ],
+                "message": intent.message,
             }
         
         if intent.kind == "add_card_to_discard":
@@ -142,12 +154,49 @@ class PatternEnemy(Enemy):
                 "source_enemy_name": self.name,
                 "card_id": intent.card_id,
                 "count": intent.count,
+                "message": intent.message,
+            }
+        
+        if intent.kind == "steal_gold":
+            return {
+                "op": "enemy_steal_gold",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "amount": intent.value,
+                "message": intent.message,
+            }
+
+        if intent.kind == "escape":
+            return {
+                "op": "enemy_escape",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "message": intent.message,
+            }
+        
+        if intent.kind == "wait":
+            return {
+                "op": "enemy_wait",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "message": intent.message,
+            }
+        
+        if intent.kind == "smart_ally_block_or_attack":
+            return {
+                "op": "enemy_smart_ally_block_or_attack",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "block": intent.value,
+                "damage": intent.count,
+                "message": intent.message,
             }
         
         return {
             "op": "enemy_unknown_action",
             "source_enemy_id": self.enemy_id,
-            "source_enemy_name": self.name
+            "source_enemy_name": self.name,
+            "message": intent.message,
         }
 
     def act(self):

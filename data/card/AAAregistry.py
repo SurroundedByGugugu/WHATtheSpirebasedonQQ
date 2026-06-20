@@ -8,12 +8,15 @@ from data.card.basic_cards import (
 from data.card.status_cards import (
     create_slime_i,
     create_wound,
-    create_dazed
+    create_dazed,
+    create_burn_i,
+    create_burn_ii
 )
 
 from data.card.colorless_cards import(
     create_amplify,
     create_burst,
+    create_soul,
 )
 
 from data.card.character.test_character_cards import (
@@ -101,9 +104,16 @@ from data.card.character.armored_warrior_cards import(
     create_limit_break,
     create_offering,
     create_exhume,
+    create_demon_form,
+    create_molten_fist,
+    create_dominate,
+    create_breakthrough,
+    create_setup_strike,
+    create_cinder,
+    create_tremble,
+    create_blood_wall,
     create_fire_strike,
     create_fire_zone,
-    create_demon_form,
 )
 
 from data.card.character.yoirine_cards import (
@@ -131,6 +141,12 @@ CARD_REGISTRY = {
     "card.status.slime_i": create_slime_i,
     "card.status.wound":create_wound,
     "card.status.dazed":create_dazed,
+    "card.status.burn_i": create_burn_i,
+    "card.status.burn_ii": create_burn_ii,
+
+    "card.soul": create_soul,
+    "card.burst": create_burst,
+    "card.amplify": create_amplify,
 
     "card.gain_status_strength": create_gain_status_strength,
     "card.exhaust_strength": create_exhaust_strength,
@@ -212,11 +228,16 @@ CARD_REGISTRY = {
     "card.juggernaut": create_juggernaut,
     "card.impervious": create_impervious,
     "card.double_tap": create_double_tap,
-    "card.burst": create_burst,
     "card.limit_break": create_limit_break,
     "card.offering": create_offering,
-    "card.amplify": create_amplify,
     "card.exhume": create_exhume,
+    "card.molten_fist": create_molten_fist,
+    "card.dominate": create_dominate,
+    "card.breakthrough": create_breakthrough,
+    "card.setup_strike": create_setup_strike,
+    "card.cinder": create_cinder,
+    "card.tremble": create_tremble,
+    "card.blood_wall": create_blood_wall,
     "card.fire_strike":create_fire_strike,
     "card.fire_zone":create_fire_zone,
 

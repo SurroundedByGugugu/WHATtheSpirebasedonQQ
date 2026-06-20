@@ -112,15 +112,11 @@ class PlayerState:
         """
         抽牌。
         抽牌堆空时，把弃牌堆洗回抽牌堆。
-        手牌达到上限时停止抽牌。
+        手牌达到上限时仍会把牌从抽牌堆抽出，但该牌进入弃牌堆，避免“抽牌效果被手牌满直接中止”。
         """
         logs = []
 
         for _ in range(count):
-            if self.is_hand_full():
-                logs.append("手牌已满，停止抽牌。")
-                break
-
             if not self.draw_pile:
                 if self.discard_pile:
                     self.draw_pile = self.discard_pile
@@ -132,6 +128,12 @@ class PlayerState:
                     break
 
             card = self.draw_pile.pop()
+
+            if self.is_hand_full():
+                self.discard_pile.append(card)
+                logs.append("抽到【{}】，但手牌已满，进入弃牌堆。".format(card.name))
+                continue
+
             self.hand.append(card)
             logs.append("抽到【{}】。".format(card.name))
             if game_state is not None:

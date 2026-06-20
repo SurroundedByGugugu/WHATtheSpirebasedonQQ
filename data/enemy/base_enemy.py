@@ -26,6 +26,7 @@ class EnemyIntent:
     repeat: int = 1
     card_id: str = ""
     count: int = 1
+    message: str = ""
     actions: List[Any] = field(default_factory=list)
 
     def to_text(self):
@@ -57,10 +58,22 @@ class EnemyIntent:
 
         if self.kind == "block":
             return "获得 {} 点格挡".format(self.value)
+
+        if self.kind == "smart_ally_block_or_attack":
+            return "给予随机队友 {} 点格挡；若无队友则攻击 {}".format(
+                self.value,
+                self.count
+            )
+        if self.kind == "split":
+            return "分裂"
         
         if self.kind == "add_card_to_discard":
             card_name_map = {
                 "card.status.slime_i": "黏液I",
+                "card.status.dazed": "眩晕",
+                "card.status.wound": "伤口",
+                "card.status.burn_i": "灼伤I",
+                "card.status.burn_ii": "灼伤II",
             }
             card_name = card_name_map.get(self.card_id, self.card_id)
             return "向你的弃牌堆加入 {} 张【{}】".format(
@@ -83,12 +96,36 @@ class EnemyIntent:
                 "ritual": "仪式",
                 "curl_up": "蜷缩",
                 "spore_cloud": "孢子云",
+                "entangled": "缠身",
+                "enrage": "激怒",
+                "metallicize": "金属化",
+                "burn": "烧伤",
+                "shape_shift": "形态转换",
+                "sharp_hide": "锋利外甲",
             }
             status_name = status_name_map.get(self.status, self.status)
-            if self.target == "self":
-                return "自身获得 {} 点{}".format(self.value, status_name)
-            return "给予玩家 {} 点{}".format(self.value, status_name)
 
+            value = int(self.value)
+            if value < 0:
+                if self.target == "self":
+                    return "自身失去 {} 点{}".format(abs(value), status_name)
+                return "使玩家失去 {} 点{}".format(abs(value), status_name)
+
+            if self.target == "self":
+                return "自身获得 {} 点{}".format(value, status_name)
+            return "给予玩家 {} 点{}".format(value, status_name)
+        
+        if self.kind == "steal_gold":
+            return "偷取 {} 金币".format(int(self.value))
+
+        if self.kind == "escape":
+            return "逃离战斗"
+        
+        if self.kind == "wait":
+            if self.message:
+                return self.message
+            return "蓄力"
+        
         return "未知意图"
     
 @dataclass
@@ -130,7 +167,7 @@ class Enemy(object):
 
     def get_intent_text(self, game_state=None):
         if not self.is_alive():
-            return "已经走了有一会了。"
+            return "已经走了有一会了"
         if game_state is not None:
             from game.intent_preview import format_enemy_intent_text
             return format_enemy_intent_text(game_state, self)

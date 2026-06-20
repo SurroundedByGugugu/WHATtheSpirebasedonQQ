@@ -17,6 +17,23 @@ from data.enemy.enemy_origin_1_1 import (
     create_red_louse,
     create_random_louse,
     create_fungi_beast,
+    create_red_slaver,
+    create_blue_slaver,
+    create_looter,
+    create_mugger,
+    create_fat_gremlin,
+    create_mad_gremlin,
+    create_shield_gremlin,
+    create_sneaky_gremlin,
+    create_gremlin_wizard,
+    create_gremlin_nob,
+    create_lagavulin,
+    create_lagavulin_awake,
+    create_sentry_a,
+    create_sentry_b,
+    create_hexaghost,
+    create_guardian,
+    create_slime_boss,
 )
 
 ENEMY_REGISTRY = {
@@ -38,6 +55,24 @@ ENEMY_REGISTRY = {
     "enemy.green_louse": create_green_louse,
     "enemy.random_louse": create_random_louse,
     "enemy.fungi_beast": create_fungi_beast,
+    "enemy.red_slaver": create_red_slaver,
+    "enemy.blue_slaver": create_blue_slaver,
+    "enemy.looter": create_looter,
+    "enemy.mugger": create_mugger,
+    "enemy.fat_gremlin": create_fat_gremlin,
+    "enemy.mad_gremlin": create_mad_gremlin,
+    "enemy.shield_gremlin": create_shield_gremlin,
+    "enemy.sneaky_gremlin": create_sneaky_gremlin,
+    "enemy.gremlin_wizard": create_gremlin_wizard,
+    "enemy.gremlin_nob": create_gremlin_nob,
+    "enemy.lagavulin": create_lagavulin,
+    "enemy.lagavulin_awake": create_lagavulin_awake,
+    "enemy.sentry_a": create_sentry_a,
+    "enemy.sentry_b": create_sentry_b,
+    "enemy.hexaghost": create_hexaghost,
+    "enemy.guardian": create_guardian,
+    "enemy.slime_boss": create_slime_boss,
+    
 }
 
 

@@ -35,9 +35,13 @@ STATUS_EVENT_PRIORITY = {
     "poison": 20,
     "burn": 19,
     "regeneration": 18,
+    "entangled": 13,
+    "rage": 12,
+    "anger": 12,
+    "enrage": 12,
+    "sharp_hide": 12,
     "flex": 11,
     "temporary_dexterity_loss": 10,
-    "rage": 12,
     "no_draw": 9,
 }
 
@@ -696,18 +700,26 @@ def handle_fire_breathing_history(event_name, context, owner, value):
 def handle_metallicize(event_name, context, owner, value):
     logs = []
 
-    if event_name != EVENT_PLAYER_TURN_END:
-        return logs
-
     if owner is None or not owner.is_alive():
         return logs
+
+    game_state = context.game_state
+
+    # 玩家金属化：玩家回合结束结算。
+    # 敌人金属化：整轮结束后结算，避免刚获得格挡就被敌人行动前的 clear_block 清掉。
+    if owner is game_state.player:
+        if event_name != EVENT_PLAYER_TURN_END:
+            return logs
+    else:
+        if event_name != EVENT_TURN_END:
+            return logs
 
     block = int(value)
     if block <= 0:
         return logs
 
     logs.extend(gain_block_without_modifiers(
-        game_state=context.game_state,
+        game_state=game_state,
         source=owner,
         target=owner,
         amount=block,
@@ -721,6 +733,37 @@ def handle_metallicize(event_name, context, owner, value):
     ))
     return logs
 
+def handle_enrage(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_CARD_PLAY_AFTER:
+        return logs
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    # 激怒只给敌人用，避免以后玩家误挂 enrage 时触发奇怪逻辑。
+    if owner is context.game_state.player:
+        return logs
+
+    played_card = context.card
+    if played_card is None:
+        return logs
+
+    if getattr(played_card, "card_type", "") != "skill":
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    current = owner.gain_status("strength", amount)
+    logs.append("{} 的激怒触发，获得 {} 点力量。当前力量：{}。".format(
+        owner.name,
+        amount,
+        current
+    ))
+    return logs
 def handle_rupture(event_name, context, owner, value):
     logs = []
 
@@ -758,6 +801,48 @@ def handle_rupture(event_name, context, owner, value):
         owner.name,
         strength,
         current_strength
+    ))
+
+    return logs
+
+def handle_sharp_hide(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_CARD_PLAY_AFTER:
+        return logs
+    game_state = context.game_state
+    player = game_state.player
+    if owner is None or player is None:
+        return logs
+
+    # 锋利外甲是守护者效果；即使守护者刚被这张攻击牌击杀，
+    # 只要状态在本次事件快照中存在，仍然会结算。
+    if owner is player:
+        return logs
+    played_card = context.card
+    if played_card is None:
+        return logs
+    if getattr(played_card, "card_type", "") != "attack":
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    if not player.is_alive():
+        return logs
+    logs.append("{} 的锋利外甲触发，因为你打出了攻击牌【{}】。".format(
+        owner.name,
+        played_card.name
+    ))
+
+    from game.damage import deal_damage
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=owner,
+        target=player,
+        amount=amount,
+        damage_kind="sharp_hide",
+        card=None,
+        is_reaction_damage=True,
+        ignore_block=False
     ))
 
     return logs
@@ -821,13 +906,38 @@ def handle_demon_form(event_name, context, owner, value):
     )
 
 def handle_ritual(event_name, context, owner, value):
-    return handle_gain_strength_each_turn(
-        event_name=event_name,
-        context=context,
-        owner=owner,
-        value=value,
-        status_key="ritual"
-    )
+    # 玩家仪式仍按“恶魔形态式”的回合开始触发。
+    if owner is context.game_state.player:
+        return handle_gain_strength_each_turn(
+            event_name=event_name,
+            context=context,
+            owner=owner,
+            value=value,
+            status_key="ritual"
+        )
+
+    # 敌方仪式按原作节奏：敌方回合结束时获得力量；
+    # 刚获得仪式的同一回合跳过一次，避免第二回合攻击已经吃到力量。
+    logs = []
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None:
+        return logs
+    if not owner.is_alive():
+        return logs
+    if getattr(owner, "_ritual_skip_turn_end_once", False):
+        owner._ritual_skip_turn_end_once = False
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    current = owner.gain_status("strength", amount)
+    logs.append("{} 的仪式触发，获得 {} 点力量。当前力量：{}。".format(
+        owner.name,
+        amount,
+        current
+    ))
+    return logs
 
 def handle_mirage_shadows(event_name, context, owner, value):
     """
@@ -937,6 +1047,32 @@ def handle_no_draw(event_name, context, owner, value):
         owner.statuses.remove("no_draw")
 
     logs.append("{} 的不能抽牌状态消失了。".format(owner.name))
+    return logs
+
+def handle_entangled(event_name, context, owner, value):
+    """
+    缠身：
+    本回合不能打出攻击牌。
+    在玩家回合结束时移除。
+
+    由于红色奴隶主是在敌人行动阶段给予该状态，
+    所以它会持续到玩家下一个回合结束。
+    """
+    logs = []
+
+    if event_name != EVENT_PLAYER_TURN_END:
+        return logs
+
+    if owner is None:
+        return logs
+
+    if owner is not context.game_state.player:
+        return logs
+
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("entangled")
+
+    logs.append("{} 的缠身状态消失了。".format(owner.name))
     return logs
 
 def handle_rage(event_name, context, owner, value):
@@ -1237,6 +1373,27 @@ def handle_brutality(event_name, context, owner, value):
 
     return logs
 
+def handle_anger(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_DAMAGE_AFTER:
+        return logs
+    if context.target is not owner:
+        return logs
+    if context.extra.get("damage_kind") != "attack":
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    current = owner.gain_status("strength", amount)
+    logs.append("{} 生气了，获得 {} 点力量。当前力量：{}。".format(
+        owner.name,
+        amount,
+        current
+    ))
+    return logs
+
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "temporary_thorns": handle_temporary_thorns,
@@ -1268,5 +1425,9 @@ STATUS_EVENT_HANDLERS = {
     "duplication_potion_next_card": handle_duplication_potion_next_card,
     "juggernaut": handle_juggernaut,
     "berserk": handle_berserk,
+    "entangled": handle_entangled,
     "brutality": handle_brutality,
+    "anger": handle_anger,
+    "enrage": handle_enrage,
+    "sharp_hide": handle_sharp_hide,
 }

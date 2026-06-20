@@ -7,7 +7,12 @@ from data.card.AAAregistry import create_deck
 from data.relic.AAAregistry import create_relics
 from data.potion.AAAregistry import create_potions
 from data.route.route_templates import TEST_ROUTE
-from data.route.encounters import ENCOUNTER_TABLE, pick_encounter_id_by_node_type
+from data.route.encounters import (
+    ENCOUNTER_TABLE,
+    get_encounter_display_name,
+    pick_encounter_id_by_node_type,
+    resolve_encounter_enemy_ids,
+)
 
 from game.achievement import check_run_end_achievements, format_unlocked_achievements
 from game.battle_context import BattleContext
@@ -83,15 +88,50 @@ def start_run(session_id, character_id="character.test", seed=DEBUG_SEED):
         gold=getattr(character, "starting_gold", 0),
         route_nodes=build_route(TEST_ROUTE)
     )
+    prepare_visible_boss_for_route(run_state, seed=seed)
     if run_state.route_nodes:
         run_state.current_node_id = run_state.route_nodes[0].node_id
     enter_reply = enter_current_node(run_state, seed=seed)
     reply = []
     reply.append("新的路线开始。")
+    boss_name = getattr(run_state, "boss_name", "")
+    if boss_name:
+        reply.append("本轮 Boss：{}。".format(boss_name))
     reply.append("")
     reply.append(enter_reply)
 
     return run_state, "\n".join(reply)
+
+def prepare_visible_boss_for_route(run_state, seed=DEBUG_SEED):
+    """
+    在新路线开始时提前确定本层 Boss，并写入 Boss 节点。
+
+    这样玩家可以一开局就看到本轮 Boss，后续真正进入 Boss 节点时
+    也会使用同一个 encounter_id，不会出现显示和实际战斗不一致。
+    """
+    for node in run_state.route_nodes:
+        if getattr(node, "node_type", "") != "boss":
+            continue
+
+        encounter_id = getattr(node, "encounter_id", "")
+
+        if not encounter_id:
+            rng = random.Random(make_encounter_seed(
+                run_state,
+                node,
+                "boss",
+                seed=seed
+            ))
+            encounter_id = pick_encounter_id_by_node_type("boss", rng)
+            node.encounter_id = encounter_id
+
+        run_state.boss_encounter_id = encounter_id
+        run_state.boss_name = get_encounter_display_name(encounter_id)
+        return encounter_id
+
+    run_state.boss_encounter_id = ""
+    run_state.boss_name = ""
+    return ""
 
 def take_reward(run_state, option_index):
     if run_state.pending_reward is None:
@@ -210,55 +250,94 @@ def take_rewards(run_state, option_indices):
 
     return "\n".join(logs)
 
+
+def make_node_entry_snapshot(run_state):
+    """
+    生成“进入当前节点前”的快照。
+    注意要临时断开 node_entry_snapshot，避免 deepcopy 时把旧快照套娃复制。
+    """
+    old_snapshot = getattr(run_state, "node_entry_snapshot", None)
+    run_state.node_entry_snapshot = None
+    snapshot = copy.deepcopy(run_state)
+    run_state.node_entry_snapshot = old_snapshot
+    snapshot.node_entry_snapshot = None
+    return snapshot
+
+
+def reset_current_node_from_snapshot(run_state, seed=DEBUG_SEED):
+    """
+    SL：回到“当前节点刚进入时”的 RunState。
+    返回 (new_run_state, reply)。GameService 需要把 session 中的 run_state 替换成 new_run_state。
+    """
+    snapshot = getattr(run_state, "node_entry_snapshot", None)
+    if snapshot is None:
+        return run_state, "当前节点没有可回退的快照。"
+
+    new_run_state = copy.deepcopy(snapshot)
+    # 允许同一节点内多次 SL；快照自身断开递归引用。
+    new_run_state.node_entry_snapshot = copy.deepcopy(snapshot)
+    new_run_state.node_entry_snapshot.node_entry_snapshot = None
+
+    return new_run_state, "已读取存档，回到进入当前节点时。\n\n" + get_run_view(new_run_state)
+
 def enter_current_node(run_state, seed=DEBUG_SEED):
     """
     进入当前节点。
     战斗节点进入战斗；非战斗节点设置对应 pending 状态。
+
+    进入完成后记录“节点入口快照”，用于 /card sl 精确回到刚进入节点时，
+    包括敌人 HP、初始手牌、商店货架等随机结果。
     """
     node = run_state.get_current_node()
     if node is None:
         run_state.run_over = True
         return "路线节点不存在，Run 结束。"
 
+    run_state.current_battle = None
+    run_state.pending_reward = None
     run_state.clear_pending_nodes()
+
     if node.node_type in ("starting", "normal_enemy", "elite", "boss"):
-        return enter_battle_node(
+        result = enter_battle_node(
             run_state,
             node,
             seed=seed,
             effective_node_type=node.node_type
         )
-    if node.node_type == "mystery":
-        return enter_mystery_node(run_state, node, seed=seed)
-    if node.node_type == "shop":
-        return enter_shop_node(
+    elif node.node_type == "mystery":
+        result = enter_mystery_node(run_state, node, seed=seed)
+    elif node.node_type == "shop":
+        result = enter_shop_node(
             run_state,
             node,
             seed=seed,
             source_node_type="shop"
         )
-    if node.node_type == "event":
-        return enter_event_node(
+    elif node.node_type == "event":
+        result = enter_event_node(
             run_state,
             node,
             seed=seed,
             source_node_type="event"
         )
-    if node.node_type == "rest":
-        return enter_rest_node(
+    elif node.node_type == "rest":
+        result = enter_rest_node(
             run_state,
             node,
             source_node_type="rest"
         )
-    if node.node_type == "ancient":
-        return enter_ancient_node(run_state, node, seed=seed)
-    if node.node_type == "treasure":
-        return enter_treasure_node(run_state, node, seed=seed)
-    return "进入节点：{}。当前节点类型 {} 暂未实现。".format(
-        node.name,
-        node.node_type
-    )
+    elif node.node_type == "ancient":
+        result = enter_ancient_node(run_state, node, seed=seed)
+    elif node.node_type == "treasure":
+        result = enter_treasure_node(run_state, node, seed=seed)
+    else:
+        result = "进入节点：{}。当前节点类型 {} 暂未实现。".format(
+            node.name,
+            node.node_type
+        )
 
+    run_state.node_entry_snapshot = make_node_entry_snapshot(run_state)
+    return result
 
 def enter_mystery_node(run_state, node, seed=DEBUG_SEED):
     result_type = roll_mystery_result(run_state, node, seed=seed)
@@ -429,7 +508,8 @@ def enter_battle_node(run_state, node, seed=DEBUG_SEED, effective_node_type=None
     encounter = ENCOUNTER_TABLE.get(encounter_id)
     if encounter is None:
         return "遭遇配置不存在：{}".format(encounter_id)
-    enemy_ids = encounter.get("enemy_ids", [])
+    rng = random.Random(make_node_seed(run_state, node, seed=seed, offset=17))
+    enemy_ids = resolve_encounter_enemy_ids(encounter_id, rng)
     player = create_player_for_battle(run_state)
     game_state, battle_reply = start_battle_with_player(
         session_id=run_state.session_id,
@@ -438,6 +518,7 @@ def enter_battle_node(run_state, node, seed=DEBUG_SEED, effective_node_type=None
         enemy_ids=enemy_ids,
         seed=seed
     )
+    game_state.run_state = run_state
     run_state.current_battle = game_state
     run_state.current_battle_node_type = effective_node_type
     return "\n".join([
@@ -586,6 +667,11 @@ def finish_current_battle_if_needed(run_state):
         context
     ))
     sync_run_from_player_after_battle(run_state, game_state.player)
+    run_state.pending_stolen_gold_rewards = list(getattr(
+        game_state,
+        "stolen_gold_rewards",
+        []
+    ))
     current_node = run_state.get_current_node()
     node_type = getattr(run_state, "current_battle_node_type", "") or "normal_enemy"
     if not node_type and current_node is not None:
@@ -650,19 +736,43 @@ def choose_next_node(run_state, choice_index, seed=DEBUG_SEED):
     return enter_current_node(run_state, seed=seed)
 
 
+def format_run_potion_summary(run_state):
+    potions = getattr(run_state, "potions", [])
+    max_slots = getattr(run_state, "max_potion_slots", 3)
+
+    if not potions:
+        return "药水：无（0/{})".format(max_slots)
+
+    parts = []
+    for index, potion in enumerate(potions):
+        parts.append("[{}]{}".format(index, potion.name))
+
+    return "药水：{}（{}/{})".format(
+        "，".join(parts),
+        len(potions),
+        max_slots
+    )
+
+
 def get_run_view(run_state):
     lines = []
-    lines.append("=== Run 状态 ===")
-    # lines.append("{} HP：{}/{}".format(
-    #     run_state.character_name,
-    #     run_state.hp,
-    #     run_state.max_hp
-    # ))
-    lines.append("金币：{}".format(run_state.gold))
+
     if run_state.current_battle is not None:
-        lines.append("")
         lines.append(get_combat_view(run_state.current_battle))
-    elif run_state.pending_reward is not None:
+        lines.append("")
+        lines.append(format_run_potion_summary(run_state))
+        return "\n".join(lines)
+
+    lines.append("=== Run 状态 ===")
+    lines.append("{} HP：{}/{}".format(
+        run_state.character_name,
+        run_state.hp,
+        run_state.max_hp
+    ))
+    lines.append("金币：{}".format(run_state.gold))
+    lines.append(format_run_potion_summary(run_state))
+
+    if run_state.pending_reward is not None:
         lines.append("")
         lines.append(run_state.pending_reward.reward_text())
     elif run_state.pending_shop is not None:

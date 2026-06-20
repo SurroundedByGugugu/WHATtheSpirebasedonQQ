@@ -68,12 +68,16 @@ class GameState:
     # 本回合玩家已经打出的攻击牌数量。
     # 用于火焰吐息·旧：即使能力牌在中途打出，也要统计此前的攻击牌。
     player_card_type_played_counts_this_turn: dict = field(default_factory=lambda: {
-    "attack": 0,
-    "skill": 0,
-    "power": 0,
-    "status": 0,
-    "curse": 0,
-})
+        "attack": 0,
+        "skill": 0,
+        "power": 0,
+        "status": 0,
+        "curse": 0,
+    })
+    
+    # 本场战斗中，击败盗贼后可以返还的被偷金币。
+    # 每个元素形如：{"source": "抢劫的", "amount": 15}
+    stolen_gold_rewards: List[Any] = field(default_factory=list)
 
     def get_alive_enemies(self):
         return [enemy for enemy in self.enemies if enemy.is_alive()]

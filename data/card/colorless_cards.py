@@ -73,3 +73,35 @@ def create_amplify():
             },
         }
     )
+
+def create_soul():
+    return CardTemplate(
+        card_id="card.soul",
+        name="灵魂",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="抽 2 张牌。消耗。",
+        quantity="event",
+        owner_character_id="",
+        card_vars={
+            "draw": 2
+        },
+        effects=[
+            {
+                "op": "draw_cards",
+                "amount": {
+                    "var": "draw"
+                }
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "灵魂+",
+            "description": "抽 3 张牌。消耗。",
+            "card_vars": {
+                "draw": 3
+            },
+        }
+    )
