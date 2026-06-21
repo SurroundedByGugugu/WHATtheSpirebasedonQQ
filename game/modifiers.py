@@ -18,6 +18,14 @@ from game.constants import (
     FRAIL_PLAYER_CARD_BLOCK_MULT,
 )
 
+
+
+def entity_has_relic(entity, relic_id):
+    for relic in getattr(entity, "relics", []) or []:
+        if getattr(relic, "relic_id", "") == relic_id:
+            return True
+    return False
+
 def get_status_value(entity, key):
     if entity is None:
         return 0
@@ -82,7 +90,10 @@ def get_attack_status_multiplier(source, target, damage_source):
         if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
             multiplier *= VULNERABLE_PLAYER_CARD_DAMAGE_MULT
         elif damage_source == DAMAGE_SOURCE_ENEMY_ACTION:
-            multiplier *= VULNERABLE_ENEMY_ATTACK_DAMAGE_MULT
+            if entity_has_relic(target, "relic.odd_mushroom"):
+                multiplier *= 1.25
+            else:
+                multiplier *= VULNERABLE_ENEMY_ATTACK_DAMAGE_MULT
 
     return multiplier
 

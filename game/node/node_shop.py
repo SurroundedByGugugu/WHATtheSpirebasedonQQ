@@ -9,6 +9,8 @@ from typing import Any, List
 from data.card.AAAregistry import create_card, CARD_REGISTRY
 from data.potion.AAAregistry import create_potion
 from data.relic.AAAregistry import create_relic
+from game.command_help import command_tip
+from game.deck_utils import remove_card_from_master_deck
 from game.reward import (
     POTION_REWARD_POOL,
     SHOP_RELIC_POOL,
@@ -602,10 +604,10 @@ def format_shop(run_state):
         ))
 
     lines.append("")
-    lines.append("使用 /card buy 0 购买商品。")
-    lines.append("使用 /card buy 0,1,2 批量购买商品。")
-    lines.append("使用 /card leave 离开商店。")
-    lines.append("使用 /card item 0 查看商品详情。")
+    lines.append(command_tip("buy", "使用 /card buy 0 购买商品。"))
+    lines.append(command_tip("buy", "使用 /card buy 0,1,2 批量购买商品。"))
+    lines.append(command_tip("leave", "使用 /card leave 离开商店。"))
+    lines.append(command_tip("item", "使用 /card item 0 查看商品详情。"))
 
     return "\n".join(lines)
 
@@ -841,7 +843,7 @@ def format_remove_card_choices(run_state):
         ))
 
     lines.append("")
-    lines.append("使用 /card remove 0 删除对应牌。")
+    lines.append(command_tip("remove", "使用 /card remove 0 删除对应牌。"))
 
     return "\n".join(lines)
 
@@ -871,19 +873,23 @@ def remove_card_by_index(run_state, card_index):
             price
         )
 
-    removed_card = deck.pop(card_index)
+    removed_card, remove_logs = remove_card_from_master_deck(run_state, card_index, reason="shop_remove")
+    if removed_card is None:
+        return "\n".join(remove_logs)
 
     run_state.gold -= price
     run_state.card_remove_price = price + SHOP_REMOVE_PRICE_STEP
     shop_state.remove_used = True
 
-    return "定向删除【{}】。花费 {} 金币，当前金币：{}。下次定向删除价格：{}。".format(
+    logs = []
+    logs.append("定向删除【{}】。花费 {} 金币，当前金币：{}。下次定向删除价格：{}。".format(
         removed_card.name,
         price,
         run_state.gold,
         run_state.card_remove_price
-    )
-
+    ))
+    logs.extend(remove_logs[1:])
+    return "\n".join(logs)
 
 def random_remove_card(run_state, seed=None):
     shop_state = run_state.pending_shop
@@ -907,14 +913,19 @@ def random_remove_card(run_state, seed=None):
 
     rng = random.Random(seed)
     card_index = rng.randrange(len(deck))
-    removed_card = deck.pop(card_index)
+    removed_card, remove_logs = remove_card_from_master_deck(run_state, card_index, reason="shop_random_remove")
+    if removed_card is None:
+        return "\n".join(remove_logs)
 
     run_state.gold -= SHOP_RANDOM_REMOVE_PRICE
     shop_state.remove_used = True
 
-    return "你支付了 {} 金币。商人随手抽走了一张【{}】。当前金币：{}。定向删除价格仍为 {}。".format(
+    logs = []
+    logs.append("你支付了 {} 金币。商人随手抽走了一张【{}】。当前金币：{}。定向删除价格仍为 {}。".format(
         SHOP_RANDOM_REMOVE_PRICE,
         removed_card.name,
         run_state.gold,
         getattr(run_state, "card_remove_price", 50)
-    )
+    ))
+    logs.extend(remove_logs[1:])
+    return "\n".join(logs)

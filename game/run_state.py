@@ -35,6 +35,7 @@ class RunState:
     potions: List[Any] = field(default_factory=list)
     max_potion_slots: int = 3
     gold: int = 0
+    ascension_level: int = 0
 
     route_nodes: List[Any] = field(default_factory=list)
     current_node_id: str = ""
@@ -56,12 +57,27 @@ class RunState:
     # 上一场战斗中，击败盗贼后返还的金币奖励。
     pending_stolen_gold_rewards: List[Any] = field(default_factory=list)
 
+    # 事件战斗胜利后的额外结算。
+    # 例如：蘑菇事件胜利后获得奇怪蘑菇；冒险者尸体战斗后补发未搜索到的奖励。
+    pending_post_battle_effects: List[Any] = field(default_factory=list)
+
     # 进入当前节点前的快照，用于 /card sl 回退到本节点入口。
     # 保存的是“进入节点前”的 RunState 深拷贝，不包含自身，避免递归膨胀。
     node_entry_snapshot: Any = None
 
     pending_shop: Any = None
     pending_event: Any = None
+    # 待处理的瓶装遗物选择队列。
+    # 每项格式：
+    # {
+    #   "relic_id": "relic.bottled_lightning",
+    #   "relic_name": "瓶装闪电",
+    #   "required_card_type": "skill",
+    #   "required_card_type_name": "技能牌",
+    # }
+    pending_bottle_selections: List[Any] = field(default_factory=list)
+    # 已经遇到过的事件 id，用于事件随机优先选择未遇到事件。
+    seen_event_ids: List[str] = field(default_factory=list)
     pending_rest: Any = None
     pending_ancient: Any = None
 
@@ -79,6 +95,20 @@ class RunState:
 
     run_over: bool = False
     victory: bool = False
+
+    # ？房间概率。
+    # 当前实现按一层/阶段初始化一次：怪物 10%、宝箱 2%、商店 3%。
+    # elite 10% 只给“冒险者尸体”这类事件使用，普通 ? 房间不会直接掷出精英。
+    mystery_base_chances: dict = field(default_factory=lambda: {
+        "normal_enemy": 10,
+        "treasure": 2,
+        "shop": 3,
+        "elite": 10,
+    })
+    mystery_current_chances: dict = field(default_factory=dict)
+
+    # 已进入的 ? 房间数量。用于小宝箱。
+    mystery_rooms_entered: int = 0
 
     # 奖励统计：用于未来成就、隐藏事件、路线结算等。
     reward_stats: dict = field(default_factory=dict)

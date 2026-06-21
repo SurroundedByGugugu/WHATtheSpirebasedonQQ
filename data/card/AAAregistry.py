@@ -10,7 +10,13 @@ from data.card.status_cards import (
     create_wound,
     create_dazed,
     create_burn_i,
-    create_burn_ii
+    create_burn_ii,
+    create_regret,
+    create_injury,
+    create_doubt,
+    create_parasite,
+    create_pain,
+    create_decay
 )
 
 from data.card.colorless_cards import(
@@ -143,6 +149,12 @@ CARD_REGISTRY = {
     "card.status.dazed":create_dazed,
     "card.status.burn_i": create_burn_i,
     "card.status.burn_ii": create_burn_ii,
+    "card.curse.regret": create_regret,
+    "card.curse.injury": create_injury,
+    "card.curse.doubt": create_doubt,
+    "card.curse.parasite": create_parasite,
+    "card.curse.pain": create_pain,
+    "card.curse.decay": create_decay,
 
     "card.soul": create_soul,
     "card.burst": create_burst,

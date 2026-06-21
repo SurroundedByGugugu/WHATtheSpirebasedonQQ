@@ -77,3 +77,99 @@ def create_burn_ii():
         upgraded=False,
         upgrade_patch={}
     )
+
+def create_regret():
+    return CardTemplate(
+        card_id="card.curse.regret",
+        name="悔恨",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。在你的回合结束时，每有一张手牌就失去 1 点生命。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )
+
+
+
+def create_injury():
+    return CardTemplate(
+        card_id="card.curse.injury",
+        name="受伤",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )
+
+
+def create_doubt():
+    return CardTemplate(
+        card_id="card.curse.doubt",
+        name="疑虑",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。在你的回合结束时，获得 1 层虚弱。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )
+
+
+def create_parasite():
+    return CardTemplate(
+        card_id="card.curse.parasite",
+        name="寄生",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。如果这张牌在你的牌组中被转化或移除，你失去 3 点最大生命。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )
+
+
+def create_pain():
+    return CardTemplate(
+        card_id="card.curse.pain",
+        name="疼痛",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。当在手牌中时，每打出一张其他牌，失去 1 生命。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )
+
+
+def create_decay():
+    return CardTemplate(
+        card_id="card.curse.decay",
+        name="腐朽",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。若在手牌中，在你的回合结束时，受到 2 点伤害。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )

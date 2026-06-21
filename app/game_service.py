@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from game.constants import DEBUG_SEED
+from game.command_help import command_tip
 from game.engine import (
     play_card,
     play_cards_by_original_indices,
@@ -23,6 +24,8 @@ from game.engine import (
     choose_pending_exhume_card,
     get_pending_player_choice_hint,
 )
+
+from game.relic_logic.bottle_utils import choose_pending_bottle_card, format_pending_bottle, has_pending_bottle_selection
 
 from game.run_engine import (
     start_run,
@@ -199,7 +202,7 @@ class GameService(object):
             return "当前没有需要取消的确认操作。"
 
         if command in ("exit", "退出", "下一把"):
-            return self.request_exit_battle(session_id, run_state)
+            return self.request_exit_run(session_id, run_state)
 
         if command in ("sl", "读档", "回档", "回退"):
             return self.request_sl(session_id, run_state)
@@ -247,6 +250,22 @@ class GameService(object):
                     return "牌库编号必须是数字。"
                 return self.get_run_deck_detail(run_state, card_index)
             return self.get_run_deck(run_state)
+        
+        if command in ("bottle", "bottled", "瓶装", "选择瓶装"):
+            if len(parts) < 3:
+                return format_pending_bottle(run_state)
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "瓶装选择编号必须是数字。"
+            return choose_pending_bottle_card(run_state, choice_index)
+
+        if has_pending_bottle_selection(run_state):
+            return "\n".join([
+                "当前需要先处理瓶装选择。",
+                "",
+                format_pending_bottle(run_state)
+            ])
         
         if command in ("pick", "choose", "选择奖励", "选牌"):
             if len(parts) < 3:
@@ -534,18 +553,42 @@ class GameService(object):
 
         return "未知命令：{}。\n{}".format(command, self.help_text())
 
-    def request_exit_battle(self, session_id, run_state):
+    def request_exit_run(self, session_id, run_state):
+        """
+        /card exit / 下一把：
+        任意时机结束当前 Run。
+        - 战斗中：走战斗失败结算。
+        - 战斗外：直接结束并清理当前 Run。
+        """
+        if getattr(run_state, "run_over", False):
+            self.clear_run(session_id)
+            return "当前 Run 已结束。可以使用 /card new [角色序号] 开始下一把。"
+
+        self.pending_confirmations[session_id] = {"action": "exit_run"}
+
         game_state = run_state.current_battle
-        if game_state is None or game_state.battle_over:
-            return "当前不在进行中的战斗里。"
-        self.pending_confirmations[session_id] = {"action": "exit_battle"}
-        return "确认退出当前战斗并按战斗失败处理？使用 /card yes 确认，/card no 取消。"
+        if game_state is not None and not game_state.battle_over:
+            title = "确认退出当前战斗并按战斗失败处理？"
+        else:
+            title = "确认结束当前 Run 并按失败处理？"
+
+        return "\n".join([
+            title,
+            command_tip("yes", "使用 /card yes 确认。"),
+            command_tip("no", "使用 /card no 取消。"),
+        ])
 
     def request_sl(self, session_id, run_state):
         if getattr(run_state, "node_entry_snapshot", None) is None:
             return "当前节点没有可读取的节点入口快照。"
+
         self.pending_confirmations[session_id] = {"action": "sl"}
-        return "确认读取存档并回到进入当前节点时？使用 /card yes 确认，/card no 取消。"
+
+        return "\n".join([
+            "确认读取存档并回到进入当前节点时？",
+            command_tip("yes", "使用 /card yes 确认。"),
+            command_tip("no", "使用 /card no 取消。"),
+        ])
 
     def handle_yes(self, session_id, run_state):
         pending = self.pending_confirmations.pop(session_id, None)
@@ -554,14 +597,21 @@ class GameService(object):
 
         action = pending.get("action")
 
-        if action == "exit_battle":
+        if action in ("exit_battle", "exit_run"):
             game_state = run_state.current_battle
-            if game_state is None or game_state.battle_over:
-                return "当前没有可退出的进行中战斗。"
-            game_state.battle_over = True
-            game_state.victory = False
-            reply = "已退出当前战斗，按战斗失败处理。"
-            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
+            # 战斗中：沿用战斗失败流程，让 finish_current_battle_if_needed 统一收尾。
+            if game_state is not None and not game_state.battle_over:
+                game_state.battle_over = True
+                game_state.victory = False
+                reply = "已退出当前战斗，按战斗失败处理。"
+                return self.append_run_progress_after_battle(session_id, run_state, reply)
+
+            # 战斗外：直接结束当前 Run。
+            run_state.run_over = True
+            run_state.victory = False
+            self.clear_run(session_id)
+            return "已结束当前 Run，按失败处理。\n可以使用 /card new [角色序号] 开始下一把。"
 
         if action == "sl":
             new_run_state, reply = reset_current_node_from_snapshot(run_state, seed=DEBUG_SEED)

@@ -11,6 +11,7 @@ from data.card.AAAregistry import create_card
 from data.card.upgrade_rules import upgrade_card, has_upgrade
 from data.potion.AAAregistry import create_potion
 from data.relic.AAAregistry import create_relic
+from game.command_help import command_tip
 from game.constants import DEBUG_SEED
 
 
@@ -143,33 +144,45 @@ RELIC_REWARD_POOL = [
     "relic.ether_medium",
     "relic.charon_ashes",
     "relic.calipers",
-    "relic.keystone_of_the_tomb"
+    "relic.keystone_of_the_tomb",
+    "relic.juzu_bracelet",
+    "relic.tiny_chest",
+    "relic.bottled_lightning",
+    "relic.bottled_flame",
+    "relic.bottled_tornado",
 ]
 SHOP_RELIC_POOL = [
     "relic.x_potion",
 ]
 
 COMMON_RELIC_POOL = [
+    "relic.juzu_bracelet",
+    "relic.tiny_chest",
 ]
 
 UNCOMMON_RELIC_POOL = [
     "relic.ether_medium",
+    "relic.bottled_lightning",
+    "relic.bottled_flame",
+    "relic.bottled_tornado",
 ]
 
 RARE_RELIC_POOL = [
     "relic.charon_ashes",
     "relic.placeholder_stone",
     "relic.calipers",
-    "relic.keystone_of_the_tomb"
+    "relic.keystone_of_the_tomb",
 ]
 
 EVENT_RELIC_POOL = [
+    "relic.golden_idol",
+    "relic.odd_mushroom",
+    "relic.ssserpent_head",
+    "relic.warped_tongs",
+    "relic.spirit_poop",
 ]
 
 MYTH_RELIC_POOL = [
-]
-
-SHOP_RELIC_POOL = [
 ]
 
 
@@ -187,6 +200,7 @@ CARD_UPGRADE_CHANCE_MAX = 0.80
 GOLD_RANGE_BY_NODE_TYPE = {
     "normal_enemy": (10, 20),
     "elite": (25, 40),
+    "event_elite": (25, 40),
     "boss": (80, 120),
 }
 
@@ -195,6 +209,7 @@ GOLD_RANGE_BY_NODE_TYPE = {
 RELIC_CHANCE_BY_NODE_TYPE = {
     "normal_enemy": 0.0,
     "elite": 1.0,
+    "event_elite": 0.0,
     "boss": 1.0,
 }
 
@@ -256,10 +271,10 @@ class RewardState:
             ))
 
         lines.append("")
-        lines.append("使用 /card take 0 领取奖励。")
-        lines.append("使用 /card take 0,1,2 批量领取奖励。")
-        lines.append("卡牌奖励需要先 /card take 对应编号，再 /card pick 0 选择卡牌。")
-        lines.append("使用 /card skip 放弃剩余奖励。")
+        lines.append(command_tip("take", "使用 /card take 0 领取奖励。"))
+        lines.append(command_tip("take", "使用 /card take 0,1,2 批量领取奖励。"))
+        lines.append(command_tip("pick", "卡牌奖励需要先 /card take 对应编号，再 /card pick 0 选择卡牌。"))
+        lines.append(command_tip("skip", "使用 /card skip 放弃剩余奖励。"))
 
         return "\n".join(lines)
 
@@ -284,6 +299,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
 
     # 1. 金币奖励
     gold = roll_gold_reward(node_type, rng)
+    gold = apply_battle_gold_reward_modifiers(run_state, gold)
     reward_state.options.append(RewardOption(
         option_type="gold",
         title="{}金币".format(gold),
@@ -412,6 +428,22 @@ def on_relic_obtained(run_state, relic):
         if count >= 3:
             return "【造物原型】似乎正在发生某种变化……不过现在什么也没有发生。"
     return ""
+
+
+def apply_battle_gold_reward_modifiers(run_state, amount):
+    """应用战斗掉落金币修正。被盗金币返还不走这里。"""
+    value = int(amount)
+    for relic in getattr(run_state, "relics", []) or []:
+        modifier = getattr(relic, "modify_battle_gold_reward", None)
+        if modifier is None:
+            continue
+        try:
+            value = int(modifier(value, context={"run_state": run_state}))
+        except TypeError:
+            value = int(modifier(value))
+    if value < 0:
+        value = 0
+    return value
 
 def roll_gold_reward(node_type, rng):
     gold_range = GOLD_RANGE_BY_NODE_TYPE.get(node_type, (10, 20))
@@ -760,8 +792,8 @@ def format_card_choices(cards):
             format_card_reward_choice(card)
         ))
     lines.append("")
-    lines.append("使用 /card pick 0 选择卡牌。")
-    lines.append("使用 /card skip 放弃剩余奖励。")
+    lines.append(command_tip("pick", "使用 /card pick 0 选择卡牌。"))
+    lines.append(command_tip("skip", "使用 /card skip 放弃剩余奖励。"))
     return "\n".join(lines)
 
 def skip_remaining_rewards(run_state, reward_state):

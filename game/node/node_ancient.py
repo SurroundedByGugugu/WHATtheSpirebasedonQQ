@@ -7,6 +7,7 @@ from typing import Any, List
 
 from data.card.AAAregistry import create_card
 from data.relic.AAAregistry import create_relic
+from game.command_help import command_tip
 from game.reward import CARD_REWARD_POOL, get_available_relic_ids
 
 
@@ -65,7 +66,7 @@ def format_ancient(run_state):
         lines.append("[{}] {}".format(index, choice.title))
 
     lines.append("")
-    lines.append("使用 /card ancient 0 选择。")
+    lines.append(command_tip("ancient", "使用 /card ancient 0 选择。"))
 
     return "\n".join(lines)
 

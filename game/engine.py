@@ -42,6 +42,39 @@ from game.zone_utils import (
 )
 
 
+def move_bottled_cards_to_opening_hand(player):
+    """
+    瓶装遗物：被瓶装的牌在战斗开始时进入起始手牌。
+    该标记存放在长期牌组卡牌对象上，并随 deepcopy 进入战斗牌堆。
+    """
+    logs = []
+
+    if not player.draw_pile:
+        return logs
+
+    new_draw_pile = []
+    bottled_cards = []
+
+    for card in player.draw_pile:
+        if getattr(card, "bottled_by", "") or getattr(card, "bottled_relic_id", ""):
+            bottled_cards.append(card)
+        else:
+            new_draw_pile.append(card)
+
+    player.draw_pile = new_draw_pile
+    max_hand_size = getattr(player, "max_hand_size", 10)
+
+    for card in bottled_cards:
+        if len(player.hand) >= max_hand_size:
+            player.draw_pile.append(card)
+            logs.append("【{}】因手牌已满，瓶装没有生效，留在抽牌堆。".format(card.name))
+            continue
+        player.hand.append(card)
+        logs.append("【{}】因瓶装进入起始手牌。".format(card.name))
+
+    return logs
+
+
 def move_innate_cards_to_opening_hand(player):
     """
     固有：战斗开始时进入起始手牌。
@@ -75,6 +108,23 @@ def move_innate_cards_to_opening_hand(player):
         logs.append("【{}】因固有进入起始手牌。".format(card.name))
 
     return logs
+
+def apply_turn_start_hand_ready_effects(game_state):
+    """
+    抽完起始手牌/回合开始手牌后触发的遗物效果。
+    当前用于弯曲铁钳：随机临时升级一张手牌。
+    """
+    logs = []
+    player = game_state.player
+    for relic in getattr(player, "relics", []) or []:
+        handler = getattr(relic, "on_turn_start_hand_ready", None)
+        if handler is None:
+            continue
+        result = handler(game_state=game_state, player=player)
+        if result:
+            logs.extend(result)
+    return logs
+
 
 def format_enemy_start_info(enemies, game_state=None):
     """
@@ -142,6 +192,7 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
     logs.extend(dispatch_event(game_state, EVENT_BATTLE_START, context))
     logs.append(format_enemy_start_info(enemies, game_state))
     logs.extend(dispatch_event(game_state, EVENT_TURN_START, context))
+    logs.extend(move_bottled_cards_to_opening_hand(player))
     logs.extend(move_innate_cards_to_opening_hand(player))
     logs.append(player.status_text())
     opening_draw_count = 5 - len(player.hand)
@@ -152,6 +203,7 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
         game_state=game_state,
         draw_source="opening_hand"
     ))
+    logs.extend(apply_turn_start_hand_ready_effects(game_state))
     logs.append("")
     logs.append(player.hand_text(game_state))
     return game_state, "\n".join(logs)
@@ -195,6 +247,7 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
     logs.extend(dispatch_event(game_state, EVENT_BATTLE_START, context))
     logs.append(format_enemy_start_info(enemies, game_state))
     logs.extend(dispatch_event(game_state, EVENT_TURN_START, context))
+    logs.extend(move_bottled_cards_to_opening_hand(player))
     logs.extend(move_innate_cards_to_opening_hand(player))
     logs.append(player.status_text())
     opening_draw_count = 5 - len(player.hand)
@@ -205,6 +258,7 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
         game_state=game_state,
         draw_source="opening_hand"
     ))
+    logs.extend(apply_turn_start_hand_ready_effects(game_state))
     logs.append("")
     logs.append(player.hand_text(game_state))
     return game_state, "\n".join(logs)
@@ -383,6 +437,7 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
             card=card
         )
         logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
+        logs.extend(resolve_pain_cards_after_card_play(game_state, card))
 
         logs.extend(move_played_card_to_destination(game_state, card))
         return logs
@@ -391,27 +446,97 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
     logs.append("【{}】被{}，进入弃牌堆。".format(card.name, reason))
     return logs
 
-def resolve_status_card_turn_end(game_state, card):
+def resolve_pain_cards_after_card_play(game_state, played_card):
     """
-    处理回合结束时仍在手牌中的状态牌效果。
-    当前用于灼伤 I / II。
+    疼痛：当这张牌在手牌中时，每打出一张其他牌，失去 1 生命。
+    """
+    logs = []
+    player = game_state.player
+    if player is None or not player.is_alive():
+        return logs
+
+    for curse in list(getattr(player, "hand", []) or []):
+        if getattr(curse, "card_id", "") != "card.curse.pain":
+            continue
+        logs.append("【{}】在手牌中刺痛你，失去 1 点生命。".format(curse.name))
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=player,
+            target=player,
+            amount=1,
+            damage_kind="curse",
+            card=curse,
+            is_reaction_damage=False,
+            ignore_block=True
+        ))
+        if game_state.battle_over:
+            break
+    return logs
+
+
+def resolve_status_card_turn_end(game_state, card, hand_count=None):
+    """
+    处理回合结束时仍在手牌中的状态牌 / 诅咒牌效果。
+    当前用于灼伤 I / II、悔恨。
     """
     logs = []
     card_id = getattr(card, "card_id", "")
+    player = game_state.player
+
+    if player is None or not player.is_alive():
+        return logs
+
+    if card_id == "card.curse.regret":
+        if hand_count is None:
+            hand_count = len(getattr(player, "hand", []))
+
+        damage = int(hand_count)
+        if damage <= 0:
+            return logs
+
+        logs.append("【{}】在回合结束时令你充满悔意，失去 {} 点生命。".format(
+            card.name,
+            damage
+        ))
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=player,
+            target=player,
+            amount=damage,
+            damage_kind="curse",
+            card=card,
+            is_reaction_damage=False,
+            ignore_block=True
+        ))
+        return logs
+
+    if card_id == "card.curse.doubt":
+        current = player.gain_status("weak", 1)
+        logs.append("【{}】在回合结束时加深疑虑，获得 1 层虚弱。当前虚弱：{}。".format(
+            card.name,
+            current
+        ))
+        return logs
+
     burn_damage_map = {
         "card.status.burn_i": 2,
         "card.status.burn_ii": 4,
+        "card.curse.decay": 2,
     }
     damage = burn_damage_map.get(card_id, 0)
     if damage <= 0:
         return logs
-    player = game_state.player
-    if player is None or not player.is_alive():
-        return logs
-    logs.append("【{}】在回合结束时灼伤你，造成 {} 点伤害。".format(
-        card.name,
-        damage
-    ))
+
+    if card_id == "card.curse.decay":
+        logs.append("【{}】在回合结束时腐朽发作，造成 {} 点伤害。".format(
+            card.name,
+            damage
+        ))
+    else:
+        logs.append("【{}】在回合结束时灼伤你，造成 {} 点伤害。".format(
+            card.name,
+            damage
+        ))
     logs.extend(deal_damage(
         game_state=game_state,
         source=player,
@@ -432,8 +557,14 @@ def end_player_turn_hand_cleanup(game_state):
     logs = []
     retained_cards = []
 
+    hand_count_at_turn_end = len(old_hand)
+
     for card in old_hand:
-        logs.extend(resolve_status_card_turn_end(game_state, card))
+        logs.extend(resolve_status_card_turn_end(
+            game_state,
+            card,
+            hand_count=hand_count_at_turn_end
+        ))
         if game_state.battle_over:
             break
         # 虚无优先级最高：回合结束仍在手牌时，直接进入消耗堆。
@@ -1052,6 +1183,7 @@ def play_card(game_state, hand_index, target_index=None):
         card=card
     )
     logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
+    logs.extend(resolve_pain_cards_after_card_play(game_state, card))
 
     logs.extend(move_played_card_to_destination(game_state, card))
 
@@ -1815,6 +1947,7 @@ def end_turn(game_state):
         game_state=game_state,
         draw_source="turn_start"
     ))
+    logs.extend(apply_turn_start_hand_ready_effects(game_state))
     logs.append("")
     logs.append(player.hand_text(game_state))
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.relic.base_relic import RelicTemplate
+from game.relic_logic.bottle_utils import start_pending_bottle_selection
 
 
 class EtherMediumRelic(RelicTemplate):
@@ -15,3 +16,52 @@ class EtherMediumRelic(RelicTemplate):
             owner_character_id="",
             allow_duplicate=False
         )
+
+class BottledLightningRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.bottled_lightning",
+            name="瓶装闪电",
+            description="拾起时，选择一张技能牌。在每场战斗开始时，这张牌会出现在手牌中。",
+            story="细看这团旋转的雷云，你仿佛能看见自己的一部分在回望着你。",
+            quantity="uncommon",
+            owner_character_id="",
+            allow_duplicate=False
+        )
+
+    def on_obtained(self, run_state):
+        return start_pending_bottle_selection(run_state, self.relic_id, self.name, "skill")
+
+class BottledFlameRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.bottled_flame",
+            name="瓶装火焰",
+            description="拾起时，选择一张攻击牌。在每场战斗开始时，这张牌会出现在手牌中。",
+            story="在这个瓶子里，有着一团永远燃烧的火焰。",
+            quantity="uncommon",
+            owner_character_id="",
+            allow_duplicate=False
+        )
+
+    def on_obtained(self, run_state):
+        return start_pending_bottle_selection(run_state, self.relic_id, self.name, "attack")
+
+class BottledTornadoRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.bottled_tornado",
+            name="瓶装旋风",
+            description="拾起时，选择一张能力牌。在每场战斗开始时，这张牌会出现在手牌中。",
+            story="这个瓶子中传来轻轻的嗡嗡声与嗖嗖声。",
+            quantity="uncommon",
+            owner_character_id="",
+            allow_duplicate=False
+        )
+
+    def on_obtained(self, run_state):
+        return start_pending_bottle_selection(run_state, self.relic_id, self.name, "power")
+

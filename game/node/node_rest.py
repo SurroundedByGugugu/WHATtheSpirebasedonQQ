@@ -4,6 +4,8 @@
 from dataclasses import dataclass
 
 from data.card.upgrade_rules import has_upgrade, upgrade_card
+from game.command_help import command_tip
+from game.relic_logic.bottle_utils import copy_bottled_flags
 
 
 REST_HEAL_RATIO = 0.30
@@ -32,8 +34,8 @@ def format_rest(run_state):
     lines.append("[0] 休息：恢复最大生命值 {}% ({}) 的生命。".format(int(REST_HEAL_RATIO*100),heal_amount))
     lines.append("[1] 锻造：升级一张可升级的牌。")
     lines.append("")
-    lines.append("使用 /card rest 0 休息。")
-    lines.append("使用 /card rest 1 查看可升级牌。")
+    lines.append(command_tip("rest", "使用 /card rest 0 休息。"))
+    lines.append(command_tip("rest", "使用 /card rest 1 查看可升级牌。"))
     return "\n".join(lines)
 
 
@@ -93,7 +95,7 @@ def format_smith_choices(run_state):
         lines.append("    升级：{}".format(upgraded_card.description))
 
     lines.append("")
-    lines.append("使用 /card smith 0 升级对应牌。")
+    lines.append(command_tip("smith", "使用 /card smith 0 升级对应牌。"))
 
     return "\n".join(lines)
 
@@ -117,7 +119,7 @@ def smith_card(run_state, choice_index):
 
     deck_index, card = upgradable[choice_index]
     upgraded_card = upgrade_card(card)
-
+    upgraded_card = copy_bottled_flags(card, upgraded_card)
     run_state.master_deck[deck_index] = upgraded_card
     rest_state.used = True
 
