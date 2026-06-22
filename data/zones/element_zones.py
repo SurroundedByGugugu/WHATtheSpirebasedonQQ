@@ -3,6 +3,9 @@
 from data.zones.base_zone import ZoneTemplate
 
 
+EXTREME_MULTIPLE=2.0
+NORMAL_MULTIPLE=1.5
+
 ELEMENT_NAME_MAP = {
     "fire": "火",
     "earth": "地",
@@ -29,24 +32,26 @@ ZONE_ABILITY_TEXT = {
 }
 
 
+def get_zone_base_multiplier(is_extreme=False):
+    return EXTREME_MULTIPLE if is_extreme else NORMAL_MULTIPLE
+
+
 def get_zone_ability_text(element, is_extreme=False):
     base_text = "同属性牌造成的伤害和获得的格挡 ×{}。".format(
-        "1.3" if is_extreme else "1.1"
+        get_zone_base_multiplier(is_extreme)
     )
-
     pair = ZONE_ABILITY_TEXT.get(element)
     if pair is None:
         return base_text + "暂未定义特殊效果。"
 
     return base_text + (pair[1] if is_extreme else pair[0])
 
-
 class ElementZone(ZoneTemplate):
     """
     通用属性 Zone。
 
     普通 Zone：持续到战斗结束或被覆盖。
-    极 Zone：持续 3 回合，不可覆盖。
+    极 Zone：持续 3 回合。
     """
 
     def __init__(self, element, is_extreme=False, duration=0):
@@ -56,16 +61,17 @@ class ElementZone(ZoneTemplate):
 
         if is_extreme:
             name = "极{}Zone".format(element_name)
-            description = "场地上充满了{}元素。{}持续 {} 回合，不可覆盖。".format(
+            description = "场地上充满了{}元素。{}不可覆盖。".format(
                 element_name,
-                ability_text,
-                duration
+                ability_text
             )
-            multiplier = 1.3
         else:
             name = "{}Zone".format(element_name)
-            description = "场地上弥漫着{}元素。{}".format(element_name, ability_text)
-            multiplier = 1.1
+            description = "场地上弥漫着{}元素。{}".format(
+                element_name,
+                ability_text
+            )
+        multiplier = get_zone_base_multiplier(is_extreme)
 
         ZoneTemplate.__init__(
             self,

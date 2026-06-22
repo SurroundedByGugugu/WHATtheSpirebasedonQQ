@@ -231,7 +231,17 @@ def build_adventurer_corpse_event(run_state, rng=None, seed=None, source_node_ty
             "monster_name": "乐加维林",
         },
     ]
-    variant = rng.choice(variants)
+    try:
+        from data.route.encounters import get_encounter_seen_key
+        seen_elites = set(getattr(run_state, "seen_elite_encounter_ids", []) or [])
+        unseen_variants = [
+            variant for variant in variants
+            if get_encounter_seen_key(variant["encounter_id"]) not in seen_elites
+        ]
+        variant = rng.choice(unseen_variants or variants)
+    except Exception:
+        variant = rng.choice(variants)
+
     return EventState(
         title="冒险者尸体",
         event_id=EVENT_ADVENTURER_CORPSE,

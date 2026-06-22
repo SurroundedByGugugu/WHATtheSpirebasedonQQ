@@ -67,11 +67,20 @@ def lock_attack_target(game_state, enemy, duration=3, initial_bonus_percent=100)
         logs.append("锁定持续时间为 0。")
         return logs
 
+    current_locked_enemy = _get_locked_enemy(game_state)
+    if current_locked_enemy is not None and current_locked_enemy is not enemy:
+        clear_attack_target_lock(game_state)
+
     setattr(game_state, "_locked_attack_target_enemy", enemy)
     setattr(game_state, "_locked_attack_target_turns", duration)
 
+    current_bonus = initial_bonus_percent
     if hasattr(enemy, "statuses"):
-        enemy.statuses.set(NEXT_TARGET_DAMAGE_STATUS, initial_bonus_percent)
+        if current_locked_enemy is enemy:
+            current_bonus = enemy.statuses.add(NEXT_TARGET_DAMAGE_STATUS, initial_bonus_percent)
+        else:
+            enemy.statuses.set(NEXT_TARGET_DAMAGE_STATUS, initial_bonus_percent)
+            current_bonus = initial_bonus_percent
 
     try:
         target_index = game_state.enemies.index(enemy)
@@ -90,9 +99,10 @@ def lock_attack_target(game_state, enemy, duration=3, initial_bonus_percent=100)
             duration
         ))
 
-    logs.append("{} 受到的攻击牌伤害增加 {}%。".format(
+    logs.append("{} 受到的攻击牌伤害增加 {}%，当前增加 {}%。".format(
         enemy.name,
-        initial_bonus_percent
+        initial_bonus_percent,
+        current_bonus
     ))
     return logs
 

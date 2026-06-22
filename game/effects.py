@@ -14,6 +14,46 @@ from game.zone_utils import (
 )
 from game.block import gain_block_without_modifiers
 
+def is_player_attack_card(card):
+    return getattr(card, "card_type", "") == "attack"
+
+
+def should_apply_abyssal_form_effect(game_state, card, zone_element=""):
+    player = getattr(game_state, "player", None)
+    if player is None:
+        return False
+    if not is_player_attack_card(card):
+        return False
+    if get_status_value(player, "abyssal_form") <= 0:
+        return False
+
+    # 已经通过真实阴 Zone / 以太介质等吃到阴 Zone 时，不重复叠加深渊形态的虚拟极阴效果。
+    if str(zone_element).strip().lower() == "shade":
+        return False
+
+    return True
+
+
+def apply_abyssal_form_amount_modifier(value, game_state, card, zone_element=""):
+    if not should_apply_abyssal_form_effect(game_state, card, zone_element):
+        return int(value)
+    # 按当前极阴 Zone 的实际实现折算：基础数值乘区 2.0 × 阴特殊效果 2.0。
+    return int(int(value) * 2.0 * 2.0)
+
+
+def apply_abyssal_form_hp_loss_if_needed(game_state, card, zone_element, logs):
+    if not should_apply_abyssal_form_effect(game_state, card, zone_element):
+        return
+
+    logs.append("深渊形态使【{}】额外视为有极阴 Zone 效果。".format(card.name))
+    apply_zone_source_hp_loss_if_needed(
+        game_state=game_state,
+        source=game_state.player,
+        zone_element="shade",
+        logs=logs,
+        label="深渊形态"
+    )
+
 def iter_player_cards_by_piles(player, pile_names):
     """
     按指定牌堆遍历玩家当前战斗中的卡牌。
@@ -195,6 +235,14 @@ def resolve_amount(
         value = apply_zone_amount_modifier(
             value=value,
             game_state=game_state,
+            zone_element=zone_element
+        )
+
+    if modifier_profile == "attack_damage":
+        value = apply_abyssal_form_amount_modifier(
+            value=value,
+            game_state=game_state,
+            card=card,
             zone_element=zone_element
         )
 
@@ -2743,7 +2791,12 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         logs=logs,
         label="阴 Zone"
     )
-
+    apply_abyssal_form_hp_loss_if_needed(
+        game_state=game_state,
+        card=card,
+        zone_element=card_zone_element,
+        logs=logs
+    )
     replay_extra = int(getattr(card, "replay_extra", 0))
     replay_extra += int(effect_context.get("replay_extra", 0))
     replay_extra += get_zone_replay_extra(game_state, card_zone_element)

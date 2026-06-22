@@ -78,6 +78,11 @@ class RunState:
     pending_bottle_selections: List[Any] = field(default_factory=list)
     # 已经遇到过的事件 id，用于事件随机优先选择未遇到事件。
     seen_event_ids: List[str] = field(default_factory=list)
+
+    # 已经遇到过的普通 / 精英 encounter，用于遭遇池优先去重。
+    # 规则与事件池一致：当前池还有未遇到项时优先抽未遇到项；当前池全遇到过后才允许重复。
+    seen_normal_encounter_ids: List[str] = field(default_factory=list)
+    seen_elite_encounter_ids: List[str] = field(default_factory=list)
     pending_rest: Any = None
     pending_ancient: Any = None
 

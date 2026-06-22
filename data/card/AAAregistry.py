@@ -124,7 +124,11 @@ from data.card.character.armored_warrior_cards import(
 
 from data.card.character.yoirine_cards import (
     create_crystal_piercing,
-    create_crystal_zone
+    create_crystal_zone,
+    create_crystal_cocoon,
+    create_crystal_thorns,
+    create_abyssal_form,
+    create_phantom_form,
 )
 
 from data.card.character.lumine_cards import (
@@ -252,9 +256,13 @@ CARD_REGISTRY = {
     "card.blood_wall": create_blood_wall,
     "card.fire_strike":create_fire_strike,
     "card.fire_zone":create_fire_zone,
-
+    
     "card.crystal_piercing": create_crystal_piercing,
-    "card.crystal_zone":create_crystal_zone,
+    "card.crystal_zone": create_crystal_zone,
+    "card.crystal_cocoon": create_crystal_cocoon,
+    "card.crystal_thorns": create_crystal_thorns,
+    "card.abyssal_form": create_abyssal_form,
+    "card.phantom_form": create_phantom_form,
 
     "card.mirage_shadows": create_mirage_shadows,
     "card.god_in_hand": create_god_in_hand,

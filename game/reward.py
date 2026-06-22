@@ -20,6 +20,7 @@ from game.constants import DEBUG_SEED
 # =========================
 
 CARD_REWARD_POOL = [
+    #测试存档无色
     "card.gain_status_strength",
     "card.exhaust_strength",
     "card.ethereal_strength",
@@ -30,6 +31,7 @@ CARD_REWARD_POOL = [
     "card.test_heavy_strike",
     "card.test_x_drill",
 
+    #战士哥
     "card.whirlwind",
     "card.clothesline",
     "card.heavy_blade",
@@ -114,9 +116,15 @@ CARD_REWARD_POOL = [
     "card.fire_strike",
     "card.fire_zone",
 
+    #yoi
     "card.crystal_piercing",
     "card.crystal_zone",
+    "card.crystal_cocoon",
+    "card.crystal_thorns",
+    "card.abyssal_form",
+    "card.phantom_form",
 
+    #昼
     "card.mirage_shadows",
     "card.god_in_hand",
     "card.transfer",

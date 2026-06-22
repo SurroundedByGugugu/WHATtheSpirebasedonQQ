@@ -1518,6 +1518,17 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         damage = int(action.get("damage", 0))
         attack_type = action.get("attack_type", "")
         attack_element = action.get("attack_element", "")
+        # damage = apply_modifier_profile(
+        #     value=damage,
+        #     modifier_profile="attack_damage",
+        #     game_state=game_state,
+        #     source=enemy,
+        #     target=target,
+        #     card=None,
+        #     damage_source=DAMAGE_SOURCE_ENEMY_ACTION,
+        #     attack_type=attack_type,
+        #     attack_element=attack_element
+        # )
         damage = apply_modifier_profile(
             value=damage,
             modifier_profile="attack_damage",
@@ -1527,7 +1538,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             card=None,
             damage_source=DAMAGE_SOURCE_ENEMY_ACTION,
             attack_type=attack_type,
-            attack_element=attack_element
+            attack_element=attack_element,
+            zone_element=zone_element
         )
         from game.zone_utils import (
             apply_zone_amount_modifier,
@@ -1560,6 +1572,15 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         return
     if op == "enemy_gain_block":
         block = int(action.get("block", 0))
+        # block = apply_modifier_profile(
+        #     value=block,
+        #     modifier_profile="block",
+        #     game_state=game_state,
+        #     source=enemy,
+        #     target=enemy,
+        #     card=None,
+        #     block_source=BLOCK_SOURCE_ENEMY_ACTION
+        # )
         block = apply_modifier_profile(
             value=block,
             modifier_profile="block",
@@ -1567,7 +1588,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             source=enemy,
             target=enemy,
             card=None,
-            block_source=BLOCK_SOURCE_ENEMY_ACTION
+            block_source=BLOCK_SOURCE_ENEMY_ACTION,
+            zone_element=zone_element
         )
         from game.zone_utils import (
             apply_zone_amount_modifier,
@@ -1940,14 +1962,14 @@ def end_turn(game_state):
     if result:
         logs.append(result)
         return "\n".join(logs)
-    logs.append(player.status_text())
-    logs.append(format_enemy_current_status(game_state))
     logs.extend(player.draw_cards(
         5,
         game_state=game_state,
         draw_source="turn_start"
     ))
     logs.extend(apply_turn_start_hand_ready_effects(game_state))
+    logs.append(player.status_text())
+    logs.append(format_enemy_current_status(game_state))
     logs.append("")
     logs.append(player.hand_text(game_state))
 

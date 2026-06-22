@@ -5,6 +5,29 @@ def pick_weighted(pool, rng):
     weights = [item[1] for item in pool]
     return rng.choices(encounter_ids, weights=weights, k=1)[0]
 
+
+ENCOUNTER_SEEN_ALIAS_MAP = {
+    # 冒险者尸体中睡醒的乐加维林，和精英池中开局睡觉的乐加维林视为同一个遭遇。
+    "encounter.event.lagavulin_awake": "encounter.elite.lagavulin",
+}
+
+
+def get_encounter_seen_key(encounter_id):
+    return ENCOUNTER_SEEN_ALIAS_MAP.get(encounter_id, encounter_id)
+
+
+def get_unseen_weighted_pool(pool, seen_encounter_ids):
+    seen = set([get_encounter_seen_key(encounter_id) for encounter_id in (seen_encounter_ids or [])])
+    unseen_pool = [
+        item for item in pool
+        if get_encounter_seen_key(item[0]) not in seen
+    ]
+    return unseen_pool or pool
+
+
+def pick_weighted_with_seen_priority(pool, rng, seen_encounter_ids=None):
+    return pick_weighted(get_unseen_weighted_pool(pool, seen_encounter_ids), rng)
+
 ENCOUNTER_TABLE = {
     "encounter.test_dummy": {"enemy_ids": ["enemy.test_dummy"]},
     "encounter.elite.chaos_fragment": {"enemy_ids": ["enemy.chaos_fragment"]},
@@ -103,15 +126,15 @@ ENCOUNTER_DISPLAY_NAMES = {
 def get_encounter_display_name(encounter_id):
     return ENCOUNTER_DISPLAY_NAMES.get(encounter_id, encounter_id)
 
-def pick_encounter_id_by_node_type(node_type, rng):
+def pick_encounter_id_by_node_type(node_type, rng, seen_encounter_ids=None):
     if node_type == "starting":
-        return pick_weighted(STARTING_ENCOUNTER_POOL, rng)
+        return pick_weighted_with_seen_priority(STARTING_ENCOUNTER_POOL, rng, seen_encounter_ids)
     if node_type == "elite":
-        return pick_weighted(ELITE_ENCOUNTER_POOL, rng)
+        return pick_weighted_with_seen_priority(ELITE_ENCOUNTER_POOL, rng, seen_encounter_ids)
     if node_type == "boss":
         return pick_weighted(BOSS_ENCOUNTER_POOL, rng)
 
-    return pick_weighted(NORMAL_ENCOUNTER_POOL, rng)
+    return pick_weighted_with_seen_priority(NORMAL_ENCOUNTER_POOL, rng, seen_encounter_ids)
 
 def pick_enemy_spec(enemy_spec, rng):
     """

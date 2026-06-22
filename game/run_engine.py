@@ -14,6 +14,7 @@ from data.route.route_templates import generate_act1_grid_route
 from data.route.encounters import (
     ENCOUNTER_TABLE,
     get_encounter_display_name,
+    get_encounter_seen_key,
     pick_encounter_id_by_node_type,
     resolve_encounter_enemy_ids,
 )
@@ -58,6 +59,38 @@ from game.node.node_event_0 import (
     format_event,
     choose_event_option as choose_event_option_impl,
 )
+
+
+def get_encounter_history_attr(effective_node_type):
+    if effective_node_type in ("elite", "event_elite"):
+        return "seen_elite_encounter_ids"
+    if effective_node_type in ("starting", "normal_enemy", "event_normal"):
+        return "seen_normal_encounter_ids"
+    return ""
+
+
+def get_seen_encounter_ids(run_state, effective_node_type):
+    attr = get_encounter_history_attr(effective_node_type)
+    if not attr:
+        return []
+    seen = getattr(run_state, attr, None)
+    if seen is None:
+        seen = []
+        setattr(run_state, attr, seen)
+    return seen
+
+
+def mark_encounter_seen(run_state, effective_node_type, encounter_id):
+    attr = get_encounter_history_attr(effective_node_type)
+    if not attr or not encounter_id:
+        return
+    seen = getattr(run_state, attr, None)
+    if seen is None:
+        seen = []
+        setattr(run_state, attr, seen)
+    seen_key = get_encounter_seen_key(encounter_id)
+    if seen_key not in seen:
+        seen.append(seen_key)
 from game.node.node_ancient import (
     create_ancient_state,
     format_ancient,
@@ -635,6 +668,7 @@ def enter_battle_node(run_state, node, seed=DEBUG_SEED, effective_node_type=None
     encounter = ENCOUNTER_TABLE.get(encounter_id)
     if encounter is None:
         return "遭遇配置不存在：{}".format(encounter_id)
+    mark_encounter_seen(run_state, effective_node_type, encounter_id)
     rng = random.Random(make_node_seed(run_state, node, seed=seed, offset=17))
     enemy_ids = resolve_encounter_enemy_ids(encounter_id, rng)
     player = create_player_for_battle(run_state)
@@ -677,6 +711,7 @@ def start_forced_event_battle(
     if encounter is None:
         return "遭遇配置不存在：{}".format(encounter_id)
 
+    mark_encounter_seen(run_state, effective_node_type, encounter_id)
     rng = random.Random(make_node_seed(run_state, node, seed=seed, offset=917))
     enemy_ids = resolve_encounter_enemy_ids(encounter_id, rng)
     player = create_player_for_battle(run_state)
@@ -704,43 +739,17 @@ def start_forced_event_battle(
 
 def resolve_encounter_id_for_node(run_state, node, seed=DEBUG_SEED):
     """
-    根据节点类型决定本次战斗使用哪个 encounter。
-
-    规则：
-    1. 如果普通节点 / Boss 节点显式写了 encounter_id，则优先使用。
-    2. 精英节点默认从 ELITE_ENCOUNTER_POOL 随机抽。
-    3. 如果以后想固定某个精英，也可以给 elite 节点写 fixed_encounter_id。
+    兼容旧调用：根据节点类型推导实际战斗类型，再复用 get_encounter_id_for_node。
     """
-    # 可选：给特殊节点强行固定遭遇
-    fixed_encounter_id = getattr(node, "fixed_encounter_id", "")
-
-    if fixed_encounter_id:
-        return fixed_encounter_id
-
-    if node.node_type == "elite":
-        rng = random.Random(make_encounter_seed(run_state, node, seed=seed))
-        return pick_encounter_id_by_node_type("elite", rng)
-
-    encounter_id = getattr(node, "encounter_id", "")
-
-    if encounter_id:
-        return encounter_id
-
-    rng = random.Random(make_encounter_seed(run_state, node, seed=seed))
-    return pick_encounter_id_by_node_type(node.node_type, rng)
-
-
-def make_encounter_seed(run_state, node, seed=DEBUG_SEED):
-    base_seed = seed
-    if base_seed is None:
-        base_seed = getattr(run_state, "run_seed", None)
-    if base_seed is None:
-        base_seed = random.randint(1, 999999999)
-    node_seed = sum([
-        ord(ch)
-        for ch in getattr(node, "node_id", "")
-    ])
-    return int(base_seed) + 3000 + node_seed
+    effective_node_type = getattr(node, "node_type", "normal_enemy")
+    if effective_node_type not in ("starting", "normal_enemy", "elite", "boss"):
+        effective_node_type = "normal_enemy"
+    return get_encounter_id_for_node(
+        run_state=run_state,
+        node=node,
+        effective_node_type=effective_node_type,
+        seed=seed
+    )
 
 def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_SEED):
     """
@@ -765,10 +774,10 @@ def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_S
     if effective_node_type == "starting":
         if node.node_type != "mystery" and getattr(node, "encounter_id", ""):
             return node.encounter_id
-        return pick_encounter_id_by_node_type("starting", rng)
+        return pick_encounter_id_by_node_type("starting", rng, get_seen_encounter_ids(run_state, effective_node_type))
 
     if effective_node_type == "elite":
-        return pick_encounter_id_by_node_type("elite", rng)
+        return pick_encounter_id_by_node_type("elite", rng, get_seen_encounter_ids(run_state, effective_node_type))
 
     if effective_node_type == "boss":
         if getattr(node, "encounter_id", ""):
@@ -778,7 +787,7 @@ def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_S
     if effective_node_type == "normal_enemy":
         if node.node_type != "mystery" and getattr(node, "encounter_id", ""):
             return node.encounter_id
-        return pick_encounter_id_by_node_type("normal_enemy", rng)
+        return pick_encounter_id_by_node_type("normal_enemy", rng, get_seen_encounter_ids(run_state, effective_node_type))
 
     if getattr(node, "encounter_id", ""):
         return node.encounter_id

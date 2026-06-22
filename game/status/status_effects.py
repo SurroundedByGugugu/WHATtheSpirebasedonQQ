@@ -9,8 +9,9 @@ from game.constants import (
     EVENT_PLAYER_TURN_END,
     EVENT_TURN_END,
     EVENT_TURN_START,
+    BLOCK_SOURCE_PLAYED_CARD,
 )
-from game.modifiers import get_status_value
+from game.modifiers import get_status_value, apply_block_modifiers
 from game.status.status_defs import get_status_name
 from game.block import gain_block_without_modifiers
 
@@ -42,6 +43,9 @@ STATUS_EVENT_PRIORITY = {
     "sharp_hide": 12,
     "flex": 11,
     "temporary_dexterity_loss": 10,
+    "crystal_cocoon": 10,
+    "abyssal_form": 10,
+    "phantom_form": 10,
     "no_draw": 9,
 }
 
@@ -1023,8 +1027,8 @@ def handle_mirage_shadows(event_name, context, owner, value):
     蜃楼复影：
     每个玩家回合开始时，根据记录的延迟格挡条目获得格挡。
     注意：
-    这里直接修改 owner.block，不走 gain_block / modifier_profile="block"。
-    所以该格挡不受敏捷、脆弱等格挡修正影响。
+    这里把记录的基础格挡重新走一次格挡修正。
+    因此延迟格挡会受到敏捷、脆弱等状态影响。
     """
     logs = []
     if event_name != EVENT_TURN_START:
@@ -1053,17 +1057,25 @@ def handle_mirage_shadows(event_name, context, owner, value):
                 "block": block_amount
             })
     if total_block > 0:
+        final_block = apply_block_modifiers(
+            value=total_block,
+            game_state=context.game_state,
+            source=owner,
+            target=owner,
+            card=None,
+            block_source=BLOCK_SOURCE_PLAYED_CARD
+        )
         logs.extend(gain_block_without_modifiers(
             game_state=context.game_state,
             source=owner,
             target=owner,
-            amount=total_block,
+            amount=final_block,
             block_source="mirage_shadows",
             card=None,
             message="{} 的蜃楼复影触发，获得 {} 点格挡。当前格挡：{}。".format(
                 owner.name,
-                total_block,
-                owner.block + total_block
+                final_block,
+                owner.block + final_block
             )
         ))
     setattr(owner, "_mirage_shadow_entries", new_entries)
@@ -1413,25 +1425,19 @@ def handle_berserk(event_name, context, owner, value):
 
 def handle_brutality(event_name, context, owner, value):
     logs = []
-
     if event_name != EVENT_TURN_START:
         return logs
-
     if owner is None or not owner.is_alive():
         return logs
-
     amount = int(value)
     if amount <= 0:
         return logs
-
     from game.damage import deal_damage
-
     logs.append("{} 的残暴触发，失去 {} 点生命并抽 {} 张牌。".format(
         owner.name,
         amount,
         amount
     ))
-
     logs.extend(deal_damage(
         game_state=context.game_state,
         source=owner,
@@ -1442,14 +1448,12 @@ def handle_brutality(event_name, context, owner, value):
         is_reaction_damage=False,
         ignore_block=True
     ))
-
     if owner.is_alive():
         logs.extend(owner.draw_cards(
             amount,
             game_state=context.game_state,
             draw_source="brutality"
         ))
-
     return logs
 
 def handle_anger(event_name, context, owner, value):
@@ -1471,6 +1475,34 @@ def handle_anger(event_name, context, owner, value):
         amount,
         current
     ))
+    return logs
+
+def handle_crystal_cocoon(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+    if owner is not context.game_state.player:
+        return logs
+    layers = int(value)
+    if layers <= 0:
+        return logs
+    current_block = int(getattr(owner, "block", 0))
+    gain_amount = current_block * layers
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("crystal_cocoon")
+    if gain_amount <= 0:
+        logs.append("{} 的晶茧裂开，但当前没有格挡可转化为力量。".format(owner.name))
+        return logs
+    current_strength = owner.gain_status("strength", gain_amount)
+    logs.append("{} 的晶茧裂开，获得 {} 点力量。当前力量：{}。".format(
+        owner.name,
+        gain_amount,
+        current_strength
+    ))
+
     return logs
 
 STATUS_EVENT_HANDLERS = {
@@ -1509,4 +1541,5 @@ STATUS_EVENT_HANDLERS = {
     "anger": handle_anger,
     "enrage": handle_enrage,
     "sharp_hide": handle_sharp_hide,
+    "crystal_cocoon": handle_crystal_cocoon,
 }

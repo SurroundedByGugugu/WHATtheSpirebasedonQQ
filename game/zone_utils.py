@@ -30,6 +30,7 @@ def collect_zone_deploy_modifiers(game_state, source=None, card=None, element=""
     """
     result = {
         "force_extreme": False,
+        "extreme_extend_bonus": 0,
         "logs": []
     }
 
@@ -58,6 +59,10 @@ def collect_zone_deploy_modifiers(game_state, source=None, card=None, element=""
 
         if relic_result.get("force_extreme", False):
             result["force_extreme"] = True
+
+        result["extreme_extend_bonus"] += int(
+            relic_result.get("extreme_extend_bonus", 0)
+        )
 
         for log in relic_result.get("logs", []):
             result["logs"].append(log)
@@ -88,16 +93,38 @@ def deploy_element_zone(game_state, element, source=None, card=None, force_extre
 
     if current_zone is not None and getattr(current_zone, "is_extreme", False):
         if not current_zone.is_expired():
-            logs.append("当前为极 Zone，持续期间不可覆盖：{}。".format(current_zone.summary_text()))
-            return logs
+            current_element = normalize_element(getattr(current_zone, "element", ""))
 
+            if current_element != element:
+                logs.append("当前为极 Zone，持续期间不可覆盖：{}。".format(current_zone.summary_text()))
+                return logs
+
+            modifier_result = collect_zone_deploy_modifiers(
+                game_state=game_state,
+                source=source,
+                card=card,
+                element=element
+            )
+
+            logs.extend(modifier_result.get("logs", []))
+
+            base_extend = 2
+            extra_extend = int(modifier_result.get("extreme_extend_bonus", 0))
+            total_extend = base_extend + extra_extend
+            current_zone.duration += total_extend
+
+            logs.append("当前为同属性极 Zone，本次展开改为延长 {} 回合。{} 剩余 {} 回合。".format(
+                total_extend,
+                current_zone.name,
+                current_zone.duration
+            ))
+            return logs
     modifier_result = collect_zone_deploy_modifiers(
         game_state=game_state,
         source=source,
         card=card,
         element=element
     )
-
     force_extreme = force_extreme or modifier_result.get("force_extreme", False)
     logs.extend(modifier_result.get("logs", []))
 

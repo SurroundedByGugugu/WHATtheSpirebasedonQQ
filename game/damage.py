@@ -51,6 +51,18 @@ def take_damage_with_wind_block_effect(target, amount, multiplier):
         target.block
     )
 
+def should_ignore_block_by_phantom_form(game_state, source, card, damage_kind):
+    if game_state is None:
+        return False
+    if damage_kind != "attack":
+        return False
+    if source is not getattr(game_state, "player", None):
+        return False
+    if getattr(card, "card_type", "") != "attack":
+        return False
+
+    from game.modifiers import get_status_value
+    return get_status_value(source, "phantom_form") > 0
 
 def deal_damage(
     game_state,
@@ -95,7 +107,18 @@ def deal_damage(
     old_block = target.block
     was_alive = target.is_alive()
 
+    phantom_ignore_block = False
+    if (
+        not ignore_block
+        and should_ignore_block_by_phantom_form(game_state, source, card, damage_kind)
+    ):
+        ignore_block = True
+        phantom_ignore_block = True
+
     if ignore_block:
+        if phantom_ignore_block and old_block > 0:
+            logs.append("虚影形态：本次攻击无视格挡。")
+            
         if amount <= 0:
             logs.append("{} 没有受到伤害。".format(target.name))
         else:

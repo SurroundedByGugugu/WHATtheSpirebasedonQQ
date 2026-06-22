@@ -181,7 +181,36 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
-
+register_status_def(StatusDef(
+    key="crystal_cocoon",
+    name="晶茧",
+    description="回合结束时，在敌人攻击完后，每层使你获得等同于当前格挡的力量，然后移除此状态。",
+    category="buff",
+    display_mode="stack",
+    order=77,
+    decay_timing="none",
+    decay_amount=0,
+))
+register_status_def(StatusDef(
+    key="abyssal_form",
+    name="深渊形态",
+    description="攻击牌额外视为有极阴 Zone 效果；不会新开或覆盖 Zone。",
+    category="buff",
+    display_mode="stack",
+    order=81,
+    decay_timing="none",
+    decay_amount=0,
+))
+register_status_def(StatusDef(
+    key="phantom_form",
+    name="虚影形态",
+    description="攻击牌无视格挡。",
+    category="buff",
+    display_mode="stack",
+    order=82,
+    decay_timing="none",
+    decay_amount=0,
+))
 register_status_def(StatusDef(
     key="regeneration",
     name="再生",
