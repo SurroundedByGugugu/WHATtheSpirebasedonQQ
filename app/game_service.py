@@ -659,13 +659,13 @@ class GameService(object):
             is_extreme = True
             zone_key = zone_key[1:]
         element_aliases = {
-            "fire": "fire", "火": "fire",
-            "earth": "earth", "地": "earth",
-            "wind": "wind", "风": "wind",
-            "water": "water", "水": "water",
-            "thunder": "thunder", "雷": "thunder",
-            "shade": "shade", "阴": "shade",
-            "crystal": "crystal", "晶": "crystal", "极晶": "crystal",
+            "fire": "fire", "火": "fire","极火": "fire","烈火": "fire",
+            "earth": "earth", "地": "earth","极地": "earth","地裂": "earth",
+            "wind": "wind", "风": "wind","极风": "wind","风王": "wind",
+            "water": "water", "水": "water","极水": "water","水天": "water",
+            "thunder": "thunder", "雷": "thunder","极雷": "thunder","招雷": "thunder",
+            "shade": "shade", "阴": "shade","极阴": "shade","刻阴": "shade",
+            "crystal": "crystal", "晶": "crystal", "极晶": "crystal","辉晶": "crystal",
         }
         if zone_key in element_aliases:
             return self.format_zone_info(element_aliases[zone_key], is_extreme=is_extreme)
