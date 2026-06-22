@@ -208,12 +208,12 @@ class GameService(object):
             return self.request_sl(session_id, run_state)
 
         # 这些命令是 Run 层命令，允许当前没有战斗
-        if command in ("hand", "view", "查看", "手牌", "查看战斗状态", "查看手牌"):
+        if command in ("hand", "view", "查看", "手牌", "查看战斗状态", "查看手牌", "run", "info", "角色", "角色状态", "当前状态"):
             return get_run_view(run_state)
 
         if command in ("status", "状态", "查看状态", "查看buff", "buff", "debuff"):
             if run_state.current_battle is None:
-                return "当前不在战斗中，没有可查看的全场状态。"
+                return get_run_view(run_state)
             return get_status_detail(run_state.current_battle)
 
         if command in ("state", "zone", "field", "场地", "查看场地", "查看zone", "查看field"):
@@ -1095,18 +1095,12 @@ class GameService(object):
     def help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.22-2",
-            "- 更新完了塔1通用事件和配套的诅咒",
-            "- 更新遗物瓶装三件套(风还没有锁定在没有能力牌时不出现)和佛珠",
-            "- 修正最终boss可能货不对板的bug",
-            "- 添加火堆和商店的伪保底",
-            "- 优化多段攻击的文本提示",
-            "- 优化信息显示顺序",
-            "- 优化遇敌去重",
+            "当前版本：v26.06.22-3",
             "",
             "/card characters 查看可选角色",
             "/card new 0      选择 0 号测试角色并开始测试战斗",
             "/card view       查看战斗状态和手牌",
+            "/card run        查看角色 hp/金币/药水/遗物 总览",
             "/card help       查看帮助",
             "*目前全部指令过多，请使用(.help我超，塔)查看相关内容。",
             "**可使用(.help塔指令等效)查看指令的其他等效写法，部分支持中文。",

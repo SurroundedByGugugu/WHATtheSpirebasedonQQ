@@ -617,6 +617,44 @@ def format_card_type_name(card_type):
     return mapping.get(str(card_type), str(card_type))
 
 
+def format_card_attack_type_name(attack_type):
+    mapping = {
+        "slash": "斩",
+        "piercing": "突",
+        "blunt": "钝",
+        "magic": "术",
+    }
+    attack_type = str(attack_type or "").strip()
+    if not attack_type:
+        return "-"
+    return mapping.get(attack_type, attack_type)
+
+
+def format_card_element_name(element):
+    element = str(element or "").strip()
+    if not element:
+        return "-"
+    try:
+        from data.zones.element_zones import get_element_display_name
+        return get_element_display_name(element) or element
+    except Exception:
+        return element
+
+
+def format_card_header(card):
+    return "【{}】（{} / {} / {} / {}）".format(
+        card.name,
+        format_card_quantity_name(getattr(card, "quantity", "")),
+        format_card_type_name(getattr(card, "card_type", "")),
+        format_card_attack_type_name(getattr(card, "attack_type", "")),
+        format_card_element_name(getattr(card, "attack_element", ""))
+    )
+
+
+def format_card_reward_summary(card):
+    return format_card_header(card)
+
+
 def collect_effect_refs_from_value(value, status_keys, card_ids):
     if isinstance(value, dict):
         for key, child in value.items():
@@ -697,11 +735,7 @@ def format_card_reward_choice(card):
     奖励、商店、牌库详情共用的卡牌说明。
     """
     lines = []
-    lines.append("【{}】（{} / {}）".format(
-        card.name,
-        format_card_quantity_name(getattr(card, "quantity", "")),
-        format_card_type_name(getattr(card, "card_type", ""))
-    ))
+    lines.append(format_card_header(card))
 
     if getattr(card, "upgraded", False):
         lines.append("效果：{}".format(format_card_full_effect(card)))
@@ -797,10 +831,12 @@ def format_card_choices(cards):
     for index, card in enumerate(cards):
         lines.append("[{}] {}".format(
             index,
-            format_card_reward_choice(card)
+            format_card_reward_summary(card)
         ))
     lines.append("")
+    lines.append("格式：稀有度 / 牌类型 / 伤害类型 / 属性。没有对应标注时显示 -。")
     lines.append(command_tip("pick", "使用 /card pick 0 选择卡牌。"))
+    lines.append(command_tip("deck", "选入牌库后，可使用 /card deck 编号 查看完整说明。"))
     lines.append(command_tip("skip", "使用 /card skip 放弃剩余奖励。"))
     return "\n".join(lines)
 

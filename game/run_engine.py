@@ -1023,6 +1023,19 @@ def format_run_potion_summary(run_state):
     )
 
 
+def format_run_relic_summary(run_state):
+    relics = getattr(run_state, "relics", [])
+
+    if not relics:
+        return "遗物：无"
+
+    parts = []
+    for index, relic in enumerate(relics):
+        parts.append("[{}]{}".format(index, relic.name))
+
+    return "遗物：{}".format("，".join(parts))
+
+
 def get_run_view(run_state):
     lines = []
 
@@ -1040,6 +1053,7 @@ def get_run_view(run_state):
     ))
     lines.append("金币：{}".format(run_state.gold))
     lines.append(format_run_potion_summary(run_state))
+    lines.append(format_run_relic_summary(run_state))
 
     if has_pending_bottle_selection(run_state):
         lines.append("")

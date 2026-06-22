@@ -233,17 +233,21 @@ def format_grid_route_text(run_state):
         show_reachability=True,
     ))
 
-    preview_floor = next_floor + 1
-    if preview_floor <= max_floor:
+    preview_lines = []
+    for preview_floor in range(next_floor + 1, min(next_floor + 3, max_floor) + 1):
         preview_nodes = get_floor_nodes(run_state.route_nodes, preview_floor)
-        if preview_nodes:
-            lines.append("")
-            lines.append("后续预告：")
-            lines.append(format_floor_line(
-                run_state,
-                preview_floor,
-                show_reachability=False,
-            ))
+        if not preview_nodes:
+            continue
+        preview_lines.append(format_floor_line(
+            run_state,
+            preview_floor,
+            show_reachability=False,
+        ))
+
+    if preview_lines:
+        lines.append("")
+        lines.append("后续预告：")
+        lines.extend(preview_lines)
 
     return "\n".join(lines)
 

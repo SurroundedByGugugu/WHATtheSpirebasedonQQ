@@ -2777,7 +2777,8 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         effect_context=effect_context
     )
 
-    # 打出牌时触发一次的 Zone 能力。重放不会重复触发这里。
+    # 打出牌时触发一次的 Zone 能力。真实阴 Zone 的反噬仍按“打出牌”触发一次。
+    # 深渊形态视为每次重放都重新结算一次虚拟极阴效果，所以放到重放循环内处理。
     apply_water_zone_regeneration_on_card_play(
         game_state=game_state,
         card=card,
@@ -2790,12 +2791,6 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         zone_element=card_zone_element,
         logs=logs,
         label="阴 Zone"
-    )
-    apply_abyssal_form_hp_loss_if_needed(
-        game_state=game_state,
-        card=card,
-        zone_element=card_zone_element,
-        logs=logs
     )
     replay_extra = int(getattr(card, "replay_extra", 0))
     replay_extra += int(effect_context.get("replay_extra", 0))
@@ -2818,6 +2813,17 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
                 play_index + 1,
                 total_times
             ))
+
+        apply_abyssal_form_hp_loss_if_needed(
+            game_state=game_state,
+            card=card,
+            zone_element=card_zone_element,
+            logs=logs
+        )
+
+        if game_state.battle_over or not game_state.player.is_alive():
+            logs.append("玩家已经倒下，后续结算不再执行。")
+            break
 
         for effect in card.effects:
             logs.extend(apply_card_effect(
