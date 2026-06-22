@@ -318,6 +318,106 @@ def generate_random_floor_types(floor, rng):
     return result
 
 
+def get_floor_type_counts(route, floor):
+    counts = {}
+
+    for item in route:
+        if int(item.get("floor", -1)) != int(floor):
+            continue
+
+        node_type = item.get("node_type", "")
+        counts[node_type] = counts.get(node_type, 0) + 1
+
+    return counts
+
+
+def replace_random_route_node_type(route, rng, candidate_floors, new_type):
+    """
+    给随机地图做保底补点。
+
+    优先替换事件；其次替换普通战斗，但保留每层至少 2 个普通战斗。
+    不替换 starting / treasure / boss / shop / rest。
+    """
+    fixed_types = {"starting", "treasure", "boss", "shop", "rest"}
+    candidate_floors = set(candidate_floors)
+
+    def collect(prefer_event):
+        result = []
+
+        for item in route:
+            floor = int(item.get("floor", -1))
+            if floor not in candidate_floors:
+                continue
+            if int(item.get("col", -1)) < 0:
+                continue
+
+            node_type = item.get("node_type", "")
+            if node_type in fixed_types:
+                continue
+            if prefer_event and node_type != "event":
+                continue
+
+            if node_type == "normal_enemy":
+                counts = get_floor_type_counts(route, floor)
+                if counts.get("normal_enemy", 0) <= 2:
+                    continue
+
+            result.append(item)
+
+        return result
+
+    candidates = collect(prefer_event=True)
+    if not candidates:
+        candidates = collect(prefer_event=False)
+
+    if not candidates:
+        return False
+
+    item = rng.choice(candidates)
+    item["node_type"] = new_type
+    item["name"] = NODE_NAME_BY_TYPE.get(new_type, new_type)
+
+    return True
+
+
+def enforce_act1_route_guarantees(route, rng):
+    """
+    避免随机结果在可变楼层完全没有商店或火堆。
+
+    第 14 层已经固定为 Boss 前火堆；
+    这里额外保证：
+    - 4~13 层至少有 1 个商店；
+    - 6~13 层至少有 1 个随机火堆。
+    """
+    shop_floors = [
+        floor for floor in range(4, 14)
+        if floor != ACT1_TREASURE_FLOOR
+    ]
+    rest_floors = [
+        floor for floor in range(6, 14)
+        if floor != ACT1_TREASURE_FLOOR
+    ]
+
+    has_shop = any(
+        item.get("node_type") == "shop"
+        and int(item.get("floor", -1)) in shop_floors
+        for item in route
+    )
+
+    has_rest = any(
+        item.get("node_type") == "rest"
+        and int(item.get("floor", -1)) in rest_floors
+        for item in route
+    )
+
+    if not has_shop:
+        replace_random_route_node_type(route, rng, shop_floors, "shop")
+
+    if not has_rest:
+        replace_random_route_node_type(route, rng, rest_floors, "rest")
+
+    return route
+
 def generate_act1_grid_route(seed=None):
     """
     生成固定 5 列、15 层的一层路线。
@@ -361,5 +461,5 @@ def generate_act1_grid_route(seed=None):
                 "col": col,
                 "next_node_ids": make_adjacent_next_ids(1, floor, col),
             })
-
+    enforce_act1_route_guarantees(route, rng)
     return route

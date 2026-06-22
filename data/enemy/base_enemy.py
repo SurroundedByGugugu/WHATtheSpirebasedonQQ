@@ -199,7 +199,7 @@ class Enemy(object):
         )
 
     def status_text(self, game_state=None):
-        return "{} HP：{}/{}，格挡：{}，意图：{}，状态：{}".format(
+        return "{} HP：{}/{}；格挡：{}；意图：{}；状态：{}".format(
             self.name,
             self.hp,
             self.max_hp,

@@ -287,18 +287,81 @@ def handle_poison_thorns(event_name, context, owner, value):
     ))
     return logs
 
+def queue_pending_curl_up(game_state, owner, block, card):
+    """
+    记录“本张牌结算结束后”才触发的蜷缩。
+    同一张牌的多段攻击只记录一次。
+    """
+    pending = getattr(game_state, "pending_curl_up_targets", None)
+    if pending is None:
+        pending = []
+        setattr(game_state, "pending_curl_up_targets", pending)
+
+    for item in pending:
+        if item.get("owner") is owner:
+            return
+
+    pending.append({
+        "owner": owner,
+        "block": int(block),
+        "card": card,
+    })
+
+def resolve_pending_curl_up_after_card(game_state, card=None):
+    """
+    结算本张牌累计触发的蜷缩。
+    """
+    pending = list(getattr(game_state, "pending_curl_up_targets", []) or [])
+    if not pending:
+        return []
+
+    logs = []
+    remaining = []
+
+    for item in pending:
+        item_card = item.get("card")
+
+        if card is not None and item_card is not card:
+            remaining.append(item)
+            continue
+
+        owner = item.get("owner")
+        block = int(item.get("block", 0))
+
+        if owner is None:
+            continue
+        if not owner.is_alive():
+            continue
+
+        if block <= 0:
+            logs.append("{} 的蜷缩消失了。".format(owner.name))
+            continue
+
+        old_block = int(getattr(owner, "block", 0))
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=owner,
+            target=owner,
+            amount=block,
+            block_source="curl_up",
+            card=item_card,
+            message="{} 的蜷缩触发，获得 {} 点格挡。蜷缩消失了。当前格挡：{}。".format(
+                owner.name,
+                block,
+                old_block + block
+            )
+        ))
+
+    setattr(game_state, "pending_curl_up_targets", remaining)
+    return logs
+
 def handle_curl_up(event_name, context, owner, value):
     """
     蜷缩：
-    受到攻击后，获得等同于层数的格挡，然后移除此状态。
-
-    当前规则：
-    1. 只响应 attack 类型伤害。
-    2. 反应伤害不触发，避免荆棘等反伤触发蜷缩。
-    3. 即使攻击被格挡完全抵消，只要攻击结算值 amount > 0，也会触发。
-    4. 如果拥有者已死亡，不触发。
+    受到攻击伤害时触发；如果来源是玩家打出的牌，则在整张牌结算后获得格挡。
     """
     logs = []
+
     if event_name != EVENT_DAMAGE_AFTER:
         return logs
     if context.target is not owner:
@@ -311,16 +374,32 @@ def handle_curl_up(event_name, context, owner, value):
         return logs
     if not owner.is_alive():
         return logs
+
     amount = int(context.extra.get("amount", 0))
     if amount <= 0:
         return logs
+
     block = int(value)
+
     if hasattr(owner, "statuses"):
         owner.statuses.remove("curl_up")
+
+    # 玩家打出的牌造成的攻击伤害：延迟到本张牌全部结算后触发。
+    if context.card is not None and context.source is context.game_state.player:
+        queue_pending_curl_up(
+            game_state=context.game_state,
+            owner=owner,
+            block=block,
+            card=context.card
+        )
+        return logs
+
+    # 非卡牌来源保留即时结算，避免 pending 残留。
     if block <= 0:
         logs.append("{} 的蜷缩消失了。".format(owner.name))
         return logs
-    owner.block += block
+
+    old_block = int(getattr(owner, "block", 0))
     logs.extend(gain_block_without_modifiers(
         game_state=context.game_state,
         source=owner,
@@ -331,7 +410,7 @@ def handle_curl_up(event_name, context, owner, value):
         message="{} 的蜷缩触发，获得 {} 点格挡。蜷缩消失了。当前格挡：{}。".format(
             owner.name,
             block,
-            owner.block + block
+            old_block + block
         )
     ))
     return logs

@@ -295,11 +295,12 @@ def deal_card_attack_damage_to_target(game_state, card, effect, target_entity, e
         attack_element=attack_element
     )
 
-    logs.append(prefix.format(
-        card=card,
-        target=target_entity,
-        damage=damage
-    ))
+    if prefix:
+        logs.append(prefix.format(
+            card=card,
+            target=target_entity,
+            damage=damage
+        ))
 
     logs.extend(deal_damage(
         game_state=game_state,
@@ -658,6 +659,19 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs.append("目标敌人无效。")
             return logs
 
+        compact_fixed_target_multi_hit = (
+            times > 1
+            and target_key in ("selected_enemy", "enemy")
+            and target_entity is not None
+        )
+
+        if compact_fixed_target_multi_hit:
+            logs.append("【{}】对 {} 连续结算 {} 次攻击。".format(
+                card.name,
+                target_entity.name,
+                times
+            ))
+
         for hit_index in range(times):
             if game_state.battle_over:
                 logs.append("战斗已经结束，后续伤害不再结算。")
@@ -667,7 +681,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 logs.append("目标已被击败，后续伤害不再结算。")
                 break
 
-            if times > 1:
+            if times > 1 and not compact_fixed_target_multi_hit:
                 logs.append("【{}】第 {}/{} 次伤害：".format(
                     card.name,
                     hit_index + 1,
@@ -684,7 +698,11 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 attack_element=attack_element,
                 zone_element=zone_element,
                 logs=logs,
-                prefix="【{card.name}】造成 {damage} 点攻击伤害。"
+                prefix=(
+                    ""
+                    if compact_fixed_target_multi_hit
+                    else "【{card.name}】造成 {damage} 点攻击伤害。"
+                )
             )
 
         return logs
@@ -731,10 +749,26 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             return logs
 
         unique_targets = bool(effect.get("unique_targets", False))
+
+        compact_random_single_target_multi_hit = False
+        compact_random_target = None
+
+        if times > 1 and not unique_targets:
+            alive_enemies_for_log = get_alive_enemies(game_state)
+            if len(alive_enemies_for_log) == 1:
+                compact_random_single_target_multi_hit = True
+                compact_random_target = alive_enemies_for_log[0]
+                logs.append("【{}】随机目标仅有 {}，连续结算 {} 次攻击。".format(
+                    card.name,
+                    compact_random_target.name,
+                    times
+                ))
+
         if unique_targets:
             candidate_pool = get_alive_enemies(game_state)
         else:
             candidate_pool = None
+
         for hit_index in range(times):
             if game_state.battle_over:
                 logs.append("战斗已经结束，后续随机伤害不再结算。")
@@ -767,13 +801,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 attack_type=attack_type,
                 attack_element=attack_element
             )
-            logs.append("【{}】随机命中 {}，造成 {} 点攻击伤害。第 {}/{} 次。".format(
-                card.name,
-                target_entity.name,
-                damage,
-                hit_index + 1,
-                times
-            ))
+            if not compact_random_single_target_multi_hit:
+                logs.append("【{}】随机命中 {}，造成 {} 点攻击伤害。第 {}/{} 次。".format(
+                    card.name,
+                    target_entity.name,
+                    damage,
+                    hit_index + 1,
+                    times
+                ))
             logs.extend(deal_damage(
                 game_state=game_state,
                 source=game_state.player,
@@ -2742,7 +2777,11 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
 
             if game_state.battle_over:
                 break
-
+    from game.status.status_effects import resolve_pending_curl_up_after_card
+    logs.extend(resolve_pending_curl_up_after_card(
+        game_state=game_state,
+        card=card
+    ))            
     return logs
 
 

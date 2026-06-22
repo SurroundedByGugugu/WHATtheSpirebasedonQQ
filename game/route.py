@@ -92,13 +92,22 @@ def node_type_display_text(node, run_state=None):
 
     if node_type == "boss":
         encounter_id = getattr(node, "encounter_id", "")
+
+        if encounter_id:
+            return "Boss：{}".format(get_encounter_display_name(encounter_id))
+
         boss_name = ""
+        boss_encounter_id = ""
         if run_state is not None:
             boss_name = getattr(run_state, "boss_name", "")
-        if boss_name or encounter_id:
-            return "Boss：{}".format(
-                boss_name or get_encounter_display_name(encounter_id)
-            )
+            boss_encounter_id = getattr(run_state, "boss_encounter_id", "")
+
+        if boss_name:
+            return "Boss：{}".format(boss_name)
+
+        if boss_encounter_id:
+            return "Boss：{}".format(get_encounter_display_name(boss_encounter_id))
+
         return "Boss"
 
     mapping = {

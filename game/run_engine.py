@@ -109,34 +109,47 @@ def start_run(session_id, character_id="character.test", seed=DEBUG_SEED):
 
 def prepare_visible_boss_for_route(run_state, seed=DEBUG_SEED):
     """
-    在新路线开始时提前确定本层 Boss，并写入 Boss 节点。
+    在新路线开始时提前确定本层 Boss，并写入所有 Boss 节点。
 
-    这样玩家可以一开局就看到本轮 Boss，后续真正进入 Boss 节点时
-    也会使用同一个 encounter_id，不会出现显示和实际战斗不一致。
+    固定 5 列地图中，第 15 层有多个 boss RouteNode。
+    如果只写入第一个 boss 节点，其他列进入时会重新随机 boss，
+    造成“地图显示史莱姆老大，实际进入六火亡魂”的货不对板。
     """
-    for node in run_state.route_nodes:
-        if getattr(node, "node_type", "") != "boss":
-            continue
+    boss_nodes = [
+        node for node in run_state.route_nodes
+        if getattr(node, "node_type", "") == "boss"
+    ]
 
-        encounter_id = getattr(node, "encounter_id", "")
+    if not boss_nodes:
+        run_state.boss_encounter_id = ""
+        run_state.boss_name = ""
+        return ""
 
-        if not encounter_id:
-            rng = random.Random(make_encounter_seed(
-                run_state,
-                node,
-                "boss",
-                seed=seed
-            ))
-            encounter_id = pick_encounter_id_by_node_type("boss", rng)
-            node.encounter_id = encounter_id
+    encounter_id = getattr(run_state, "boss_encounter_id", "")
 
-        run_state.boss_encounter_id = encounter_id
-        run_state.boss_name = get_encounter_display_name(encounter_id)
-        return encounter_id
+    if not encounter_id:
+        for node in boss_nodes:
+            node_encounter_id = getattr(node, "encounter_id", "")
+            if node_encounter_id:
+                encounter_id = node_encounter_id
+                break
 
-    run_state.boss_encounter_id = ""
-    run_state.boss_name = ""
-    return ""
+    if not encounter_id:
+        rng = random.Random(make_encounter_seed(
+            run_state,
+            boss_nodes[0],
+            "boss",
+            seed=seed
+        ))
+        encounter_id = pick_encounter_id_by_node_type("boss", rng)
+
+    for node in boss_nodes:
+        node.encounter_id = encounter_id
+
+    run_state.boss_encounter_id = encounter_id
+    run_state.boss_name = get_encounter_display_name(encounter_id)
+
+    return encounter_id
 
 def take_reward(run_state, option_index):
     if run_state.pending_reward is None:

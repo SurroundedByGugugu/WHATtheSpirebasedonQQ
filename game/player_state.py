@@ -209,7 +209,7 @@ class PlayerState:
         )
 
     def status_text(self):
-        return "{} HP：{}/{}，费用：{}/{}，格挡：{}，状态：{}".format(
+        return "{} HP：{}/{}；费用：{}/{}；格挡：{}；状态：{}".format(
             self.name,
             self.hp,
             self.max_hp,
