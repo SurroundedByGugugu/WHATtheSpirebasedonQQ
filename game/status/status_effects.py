@@ -1490,14 +1490,17 @@ def handle_crystal_cocoon(event_name, context, owner, value):
     if layers <= 0:
         return logs
     current_block = int(getattr(owner, "block", 0))
-    gain_amount = current_block * layers
+    # 晶茧下修：保留原本“回合结束后读取当前格挡并乘以层数”的结构，
+    # 但先将格挡值二值化。即：有格挡视为 1，无格挡视为 0。
+    block_binary = 1 if current_block > 0 else 0
+    gain_amount = block_binary * layers
     if hasattr(owner, "statuses"):
         owner.statuses.remove("crystal_cocoon")
     if gain_amount <= 0:
         logs.append("{} 的晶茧裂开，但当前没有格挡可转化为力量。".format(owner.name))
         return logs
     current_strength = owner.gain_status("strength", gain_amount)
-    logs.append("{} 的晶茧裂开，获得 {} 点力量。当前力量：{}。".format(
+    logs.append("{} 的晶茧裂开，当前有格挡，获得 {} 点力量。当前力量：{}。".format(
         owner.name,
         gain_amount,
         current_strength

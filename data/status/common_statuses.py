@@ -184,7 +184,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="crystal_cocoon",
     name="晶茧",
-    description="回合结束时，在敌人攻击完后，每层使你获得等同于当前格挡的力量，然后移除此状态。",
+    description="回合结束时，在敌人攻击完后，若你有格挡，每层使你获得 1 点力量，然后移除此状态。",
     category="buff",
     display_mode="stack",
     order=77,

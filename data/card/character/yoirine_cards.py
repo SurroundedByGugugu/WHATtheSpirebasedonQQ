@@ -83,7 +83,7 @@ def create_crystal_cocoon():
         card_type="skill",
         cost=1,
         target="self",
-        description="获得 3 点格挡。本回合结束时，在敌人攻击完后，获得与当前格挡层数相同的力量。",
+        description="获得 3 点格挡。本回合结束时，在敌人攻击完后，若你有格挡，获得 1 点力量。",
         quantity="uncommon",
         attack_element="crystal",
         owner_character_id="character.yoirine",
@@ -112,9 +112,10 @@ def create_crystal_cocoon():
         upgraded=False,
         upgrade_patch={
             "name": "晶茧+",
-            "description": "获得 4 点格挡。本回合结束时，在敌人攻击完后，获得与当前格挡层数相同的力量。",
+            "description": "获得 4 点格挡。本回合结束时，在敌人攻击完后，若你有格挡，获得 2 点力量。",
             "card_vars": {
-                "block": 4
+                "block": 4,
+                "cocoon": 2
             },
         }
     )
