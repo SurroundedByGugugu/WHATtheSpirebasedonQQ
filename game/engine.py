@@ -109,6 +109,36 @@ def move_innate_cards_to_opening_hand(player):
 
     return logs
 
+def get_opening_draw_bonus(game_state):
+    player = game_state.player
+    bonus = 0
+    for relic in getattr(player, "relics", []) or []:
+        getter = getattr(relic, "get_opening_draw_bonus", None)
+        if getter is None:
+            continue
+        try:
+            bonus += int(getter(game_state=game_state, player=player))
+        except TypeError:
+            bonus += int(getter(game_state, player))
+    if bonus < 0:
+        bonus = 0
+    return bonus
+
+
+def apply_card_play_start_relics(game_state, card):
+    """打出卡牌、正式结算效果前触发的遗物。当前用于钢笔尖。"""
+    logs = []
+    player = game_state.player
+    for relic in getattr(player, "relics", []) or []:
+        handler = getattr(relic, "on_card_play_start", None)
+        if handler is None:
+            continue
+        result = handler(game_state=game_state, player=player, card=card)
+        if result:
+            logs.extend(result)
+    return logs
+
+
 def apply_turn_start_hand_ready_effects(game_state):
     """
     抽完起始手牌/回合开始手牌后触发的遗物效果。
@@ -195,7 +225,7 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
     logs.extend(move_bottled_cards_to_opening_hand(player))
     logs.extend(move_innate_cards_to_opening_hand(player))
     logs.append(player.status_text())
-    opening_draw_count = 5 - len(player.hand)
+    opening_draw_count = 5 + get_opening_draw_bonus(game_state) - len(player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
     logs.extend(player.draw_cards(
@@ -250,7 +280,7 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
     logs.extend(move_bottled_cards_to_opening_hand(player))
     logs.extend(move_innate_cards_to_opening_hand(player))
     logs.append(player.status_text())
-    opening_draw_count = 5 - len(player.hand)
+    opening_draw_count = 5 + get_opening_draw_bonus(game_state) - len(player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
     logs.extend(player.draw_cards(
@@ -325,6 +355,7 @@ def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
     reason_text_map = {
         "after_play": "因消耗",
         "ethereal": "因虚无",
+        "relic_play": "因遗物允许打出后",
     }
     reason_text = reason_text_map.get(reason, "因{}".format(reason))
     logs.append("【{}】{}进入消耗堆。".format(card.name, reason_text))
@@ -364,6 +395,14 @@ def move_played_card_to_destination(game_state, card):
     logs = []
     player = game_state.player
 
+    if getattr(card, "force_exhaust_after_play", False):
+        logs.extend(move_card_to_exhaust_pile(
+            game_state=game_state,
+            card=card,
+            reason="relic_play"
+        ))
+        return logs
+
     if getattr(card, "card_type", "") == "power":
         logs.append("【{}】作为能力牌生效，本场战斗中消失。".format(card.name))
         return logs
@@ -393,6 +432,22 @@ def move_played_card_to_destination(game_state, card):
 
     return logs
 
+
+def apply_card_discard_relics(game_state, card, reason="丢弃"):
+    logs = []
+    if reason == "回合结束丢弃":
+        return logs
+    player = game_state.player
+    for relic in getattr(player, "relics", []) or []:
+        handler = getattr(relic, "on_card_discard", None)
+        if handler is None:
+            continue
+        result = handler(game_state=game_state, player=player, card=card, reason=reason)
+        if result:
+            logs.extend(result)
+    return logs
+
+
 def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=False):
     player = game_state.player
     logs = []
@@ -407,6 +462,7 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
             logs.append(cannot_play_reason)
             player.discard_pile.append(card)
             logs.append("【{}】被 {}，进入弃牌堆。".format(card.name, reason))
+            logs.extend(apply_card_discard_relics(game_state, card, reason=reason))
             return logs
 
         logs.append("【{}】因奇巧被{}，免费打出。".format(card.name, reason))
@@ -421,6 +477,7 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
             effect_context=effect_context,
             logs=logs
         )
+        logs.extend(apply_card_play_start_relics(game_state, card))
         logs.extend(apply_card_effects(
             game_state,
             card,
@@ -984,8 +1041,11 @@ def discard_selected_hand_cards(game_state, hand_indices):
 
     if not unique_indices:
         if game_state.pending_discard_selection:
+            source = getattr(game_state, "pending_discard_source", "")
             game_state.pending_discard_selection = False
             game_state.pending_discard_source = ""
+            if source == "gambling_chip":
+                return "【赌博筹码】未选择丢弃手牌。"
             return "未选择丢弃手牌。"
         return "没有指定要丢弃的手牌。"
 
@@ -1001,6 +1061,7 @@ def discard_selected_hand_cards(game_state, hand_indices):
     for index in sorted(unique_indices, reverse=True):
         player.hand.pop(index)
 
+    pending_source = getattr(game_state, "pending_discard_source", "")
     for index, card in indexed_cards:
         logs.append("选择丢弃手牌 [{}] 【{}】。".format(index, card.name))
         logs.extend(resolve_discarded_card(
@@ -1009,6 +1070,10 @@ def discard_selected_hand_cards(game_state, hand_indices):
             reason="主动丢弃",
             trigger_clever=True
         ))
+
+    if pending_source == "gambling_chip" and indexed_cards:
+        logs.append("【赌博筹码】抽取与丢弃数量相同的牌：{} 张。".format(len(indexed_cards)))
+        logs.extend(player.draw_cards(len(indexed_cards), game_state=game_state, draw_source="gambling_chip"))
 
     if game_state.pending_discard_selection:
         game_state.pending_discard_selection = False
@@ -1020,6 +1085,32 @@ def discard_selected_hand_cards(game_state, hand_indices):
 
     return "\n".join(logs)
 
+
+def try_prevent_player_death(game_state):
+    player = game_state.player
+    if player is None or player.is_alive():
+        return []
+    # 瓶中精灵优先于蜥蜴尾巴。
+    for index, potion in enumerate(list(getattr(player, "potions", []) or [])):
+        if getattr(potion, "potion_id", "") == "potion.fairy_in_a_bottle":
+            try:
+                player.potions.pop(index)
+            except Exception:
+                pass
+            heal_to = max(1, int(player.max_hp * 0.30))
+            old_hp = player.hp
+            player.hp = heal_to
+            return ["【瓶中精灵】触发：免于死亡，丢弃该药水，HP：{} -> {}。".format(old_hp, player.hp)]
+    for relic in getattr(player, "relics", []) or []:
+        if getattr(relic, "relic_id", "") == "relic.lizard_tail" and not getattr(relic, "used", False):
+            relic.used = True
+            heal_to = max(1, int(player.max_hp * 0.50))
+            old_hp = player.hp
+            player.hp = heal_to
+            return ["【{}】触发：免于死亡，HP：{} -> {}。".format(relic.name, old_hp, player.hp)]
+    return []
+
+
 def check_battle_result(game_state):
     """
     检查战斗是否结束。
@@ -1028,6 +1119,9 @@ def check_battle_result(game_state):
     这种情况下按失败处理。
     """
     if not game_state.player.is_alive():
+        prevent_logs = try_prevent_player_death(game_state)
+        if prevent_logs:
+            return "\n".join(prevent_logs)
         game_state.battle_over = True
         game_state.victory = False
         return "{} 已倒下，战斗失败。".format(game_state.player.name)
@@ -1151,6 +1245,24 @@ def play_card(game_state, hand_index, target_index=None):
             spent_cost
         ))
 
+    # 蓝蜡烛 / 医药箱允许打出的诅咒、状态牌：打出后强制消耗。
+    if getattr(card, "card_type", "") == "curse" and any(getattr(relic, "relic_id", "") == "relic.blue_candle" for relic in getattr(player, "relics", []) or []):
+        setattr(card, "force_exhaust_after_play", True)
+        logs.append("【蓝蜡烛】触发：打出诅咒牌【{}】，失去 1 点生命。".format(card.name))
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=player,
+            target=player,
+            amount=1,
+            damage_kind="curse",
+            card=card,
+            is_reaction_damage=False,
+            ignore_block=True
+        ))
+    elif getattr(card, "card_type", "") == "status" and any(getattr(relic, "relic_id", "") == "relic.medical_kit" for relic in getattr(player, "relics", []) or []):
+        setattr(card, "force_exhaust_after_play", True)
+        logs.append("【医药箱】触发：打出状态牌【{}】，该牌将被消耗。".format(card.name))
+
     # 执行效果
     effect_context = {}
     if is_x_cost:
@@ -1166,6 +1278,7 @@ def play_card(game_state, hand_index, target_index=None):
         effect_context=effect_context,
         logs=logs
     )
+    logs.extend(apply_card_play_start_relics(game_state, card))
     logs.extend(apply_card_effects(
         game_state,
         card,

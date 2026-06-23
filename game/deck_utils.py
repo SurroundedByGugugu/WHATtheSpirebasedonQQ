@@ -73,6 +73,28 @@ def get_transform_candidate_ids(run_state=None):
     return result
 
 
+def get_curse_transform_candidate_ids():
+    result = []
+    for card_id in CARD_REWARD_POOL:
+        try:
+            card = create_card(card_id)
+        except Exception:
+            continue
+        if getattr(card, "card_type", "") == "curse":
+            result.append(card_id)
+    # 诅咒通常不在奖励池里，直接从注册表兜底收集。
+    if not result:
+        from data.card.AAAregistry import CARD_REGISTRY
+        for card_id in CARD_REGISTRY.keys():
+            try:
+                card = create_card(card_id)
+            except Exception:
+                continue
+            if getattr(card, "card_type", "") == "curse":
+                result.append(card_id)
+    return result
+
+
 def transform_card_in_master_deck(run_state, card_index, rng=None):
     if rng is None:
         rng = random.Random()
@@ -82,7 +104,10 @@ def transform_card_in_master_deck(run_state, card_index, rng=None):
         return None, None, ["卡牌编号无效。"]
 
     old_card = deck[card_index]
-    pool = get_transform_candidate_ids(run_state)
+    if getattr(old_card, "card_type", "") == "curse":
+        pool = get_curse_transform_candidate_ids()
+    else:
+        pool = get_transform_candidate_ids(run_state)
     old_card_id = getattr(old_card, "card_id", "")
     pool = [card_id for card_id in pool if card_id != old_card_id] or pool
 
@@ -109,4 +134,7 @@ def transform_card_in_master_deck(run_state, card_index, rng=None):
         old_card,
         reason="transform"
     ))
+    if getattr(old_card, "card_type", "") == "curse" and getattr(new_card, "card_type", "") == "curse":
+        from game.relic_logic.run_relic_utils import trigger_darkstone_periapt_for_curse
+        logs.extend(trigger_darkstone_periapt_for_curse(run_state, new_card))
     return old_card, new_card, logs

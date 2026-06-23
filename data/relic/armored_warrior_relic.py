@@ -20,20 +20,8 @@ class BurningBloodRelic(RelicTemplate):
         if player is None:
             return logs
         if event_name == EVENT_BATTLE_END:
-            old_hp = player.hp
-            player.hp += 6
-            if player.hp > player.max_hp:
-                player.hp = player.max_hp
-            real_heal = player.hp - old_hp
-            if real_heal > 0:
-                logs.append("【{}】触发：战斗结束时，HP 恢复 {}。".format(
-                    self.name,
-                    real_heal
-                ))
-            else:
-                logs.append("【{}】触发：HP 已满，没有恢复。".format(
-                    self.name
-                ))
+            from game.relic_logic.combat_relic_utils import heal_player_in_combat
+            logs.extend(heal_player_in_combat(context.game_state, 6, self.name))
             return logs
         return logs
     

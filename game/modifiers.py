@@ -81,14 +81,20 @@ def get_attack_status_multiplier(source, target, damage_source):
         if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
             multiplier *= WEAK_PLAYER_CARD_DAMAGE_MULT
         elif damage_source == DAMAGE_SOURCE_ENEMY_ACTION:
-            multiplier *= WEAK_ENEMY_ATTACK_DAMAGE_MULT
+            if entity_has_relic(target, "relic.paper_crane"):
+                multiplier *= 0.60
+            else:
+                multiplier *= WEAK_ENEMY_ATTACK_DAMAGE_MULT
 
     if get_status_value(source, "burn") > 0:
         multiplier *= 0.5
 
     if get_status_value(target, "vulnerable") > 0:
         if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
-            multiplier *= VULNERABLE_PLAYER_CARD_DAMAGE_MULT
+            if entity_has_relic(source, "relic.paper_frog"):
+                multiplier *= 1.75
+            else:
+                multiplier *= VULNERABLE_PLAYER_CARD_DAMAGE_MULT
         elif damage_source == DAMAGE_SOURCE_ENEMY_ACTION:
             if entity_has_relic(target, "relic.odd_mushroom"):
                 multiplier *= 1.25
@@ -142,8 +148,21 @@ def apply_attack_damage_modifiers(
     value = int(value)
     if damage_source is None:
         damage_source = DAMAGE_SOURCE_PLAYED_CARD
-    # 1. 力量属于攻击基础区的加算修正
+    # 1. 力量属于攻击基础区的加算修正。
     value += get_status_value(source, "strength")
+
+    if (
+        damage_source == DAMAGE_SOURCE_PLAYED_CARD
+        and card is not None
+        and entity_has_relic(source, "relic.strike_dummy")
+        and "打击" in getattr(card, "name", "")
+    ):
+        value += 3
+
+    # 活力也是攻击基础区的加算修正；赤牛的多段攻击每段均吃到加成。
+    if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
+        value += get_status_value(source, "vigor")
+
     # 2. 状态乘区
     status_multiplier = get_attack_status_multiplier(
         source=source,
@@ -162,6 +181,11 @@ def apply_attack_damage_modifiers(
         zone_element=zone_element
     )
     value = int(value * environment_multiplier)
+
+    # 5. 钢笔尖：大多数伤害修正之后翻倍。
+    if damage_source == DAMAGE_SOURCE_PLAYED_CARD and getattr(source, "_pen_nib_active_card", None) is card:
+        value = int(value * 2)
+
     if value < 0:
         value = 0
     return int(value)

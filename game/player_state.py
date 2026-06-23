@@ -50,7 +50,13 @@ class PlayerState:
         logs = []
 
         old_block = int(getattr(self, "block", 0))
-        self.cost = self.max_cost
+        old_cost = int(getattr(self, "cost", 0))
+        has_ice_cream = any(getattr(relic, "relic_id", "") == "relic.ice_cream" for relic in getattr(self, "relics", []) or [])
+        if has_ice_cream and old_cost > 0:
+            self.cost = self.max_cost + old_cost
+            logs.append("【冰淇淋】触发：保留上回合剩余 {} 点能量。当前费用：{}/{}。".format(old_cost, self.cost, self.max_cost))
+        else:
+            self.cost = self.max_cost
 
         if game_state is None:
             self.block = 0
@@ -123,6 +129,13 @@ class PlayerState:
                     self.discard_pile = []
                     random.shuffle(self.draw_pile)
                     logs.append("弃牌堆洗回抽牌堆。")
+                    for relic in getattr(self, "relics", []) or []:
+                        handler = getattr(relic, "on_shuffle", None)
+                        if handler is None:
+                            continue
+                        result = handler(game_state, self)
+                        if result:
+                            logs.extend(result)
                 else:
                     logs.append("无牌可抽。")
                     break

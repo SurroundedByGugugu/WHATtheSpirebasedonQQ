@@ -371,7 +371,7 @@ def deal_card_attack_damage_to_target(game_state, card, effect, target_entity, e
         logs=logs
     )
 
-def reshuffle_discard_into_draw_if_needed(player, logs):
+def reshuffle_discard_into_draw_if_needed(player, logs, game_state=None):
     """
     抽牌堆为空时，将弃牌堆洗回抽牌堆。
     用于破灭：打出时抽牌堆为空，也要先进行一轮洗牌。
@@ -386,6 +386,14 @@ def reshuffle_discard_into_draw_if_needed(player, logs):
     player.discard_pile = []
     random.shuffle(player.draw_pile)
     logs.append("抽牌堆为空，弃牌堆洗回抽牌堆。")
+    if game_state is not None:
+        for relic in getattr(player, "relics", []) or []:
+            handler = getattr(relic, "on_shuffle", None)
+            if handler is None:
+                continue
+            result = handler(game_state, player)
+            if result:
+                logs.extend(result)
     return bool(player.draw_pile)
 
 def get_auto_play_target_index(game_state, card):
@@ -1094,22 +1102,28 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             return logs
 
         player = game_state.player
+        from game.relic_logic.combat_relic_utils import apply_magic_flower_heal_amount
+        heal_amount = apply_magic_flower_heal_amount(player, total_real_damage)
         old_hp = player.hp
-        player.hp += total_real_damage
+        player.hp += heal_amount
         if player.hp > player.max_hp:
             player.hp = player.max_hp
 
         real_heal = player.hp - old_hp
+        flower_text = ""
+        if heal_amount != total_real_damage:
+            flower_text = "【魔法花】使回复量 {} -> {}。".format(total_real_damage, heal_amount)
 
         if real_heal > 0:
-            logs.append("{} 根据未被格挡的伤害回复 {} 点生命。当前 HP：{}/{}。".format(
+            logs.append("{} {}根据未被格挡的伤害回复 {} 点生命。当前 HP：{}/{}。".format(
                 player.name,
+                flower_text,
                 real_heal,
                 player.hp,
                 player.max_hp
             ))
         else:
-            logs.append("{} 生命已满，没有实际回复。".format(player.name))
+            logs.append("{} {}生命已满，没有实际回复。".format(player.name, flower_text))
 
         return logs
 
@@ -1320,7 +1334,21 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
             status_applied = True
 
-            if hasattr(target_entity, "gain_status_with_result"):
+            # 统一走状态施加工具，以便异蛇头骨、冠军腰带等遗物能修正“玩家给予敌人状态”的来源。
+            if target_entity is not game_state.player and hasattr(target_entity, "enemy_id"):
+                from game.relic_logic.combat_relic_utils import apply_status_with_player_relics
+
+                before_value = get_status_value(target_entity, status_key)
+                logs.extend(apply_status_with_player_relics(
+                    game_state=game_state,
+                    source=game_state.player,
+                    target=target_entity,
+                    status_key=status_key,
+                    amount=amount
+                ))
+                after_value = get_status_value(target_entity, status_key)
+                status_applied = after_value != before_value or int(amount) == 0
+            elif hasattr(target_entity, "gain_status_with_result"):
                 result = target_entity.gain_status_with_result(status_key, amount)
                 status_applied = bool(result.get("applied", False))
 
@@ -2189,7 +2217,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
     if op == "play_draw_pile_top_and_exhaust":
         player = game_state.player
 
-        has_draw_card = reshuffle_discard_into_draw_if_needed(player, logs)
+        has_draw_card = reshuffle_discard_into_draw_if_needed(player, logs, game_state=game_state)
 
         if not has_draw_card:
             logs.append("抽牌堆和弃牌堆都为空，【{}】没有可打出的牌。".format(card.name))

@@ -64,6 +64,75 @@ def should_ignore_block_by_phantom_form(game_state, source, card, damage_kind):
     from game.modifiers import get_status_value
     return get_status_value(source, "phantom_form") > 0
 
+
+def _entity_has_relic(entity, relic_id):
+    for relic in getattr(entity, "relics", []) or []:
+        if getattr(relic, "relic_id", "") == relic_id:
+            return True
+    return False
+
+
+def _get_status_value(entity, key):
+    statuses = getattr(entity, "statuses", None)
+    if statuses is None:
+        return 0
+    try:
+        return int(statuses.get(key))
+    except Exception:
+        return 0
+
+
+def _apply_unblocked_damage_relics_and_statuses(game_state, source, target, raw_unblocked, damage_kind, card, logs):
+    final_damage = int(raw_unblocked)
+    if final_damage <= 0:
+        return 0
+
+    hp_loss_kinds = {
+        "poison", "hp_loss", "life_loss", "card_hp_loss",
+        "power_hp_loss_from_card", "curse", "burn"
+    }
+    if damage_kind not in hp_loss_kinds and _get_status_value(target, "intangible") > 0 and final_damage > 1:
+        logs.append("{} 的无实体使本次未被格挡的伤害降为 1。".format(target.name))
+        final_damage = 1
+
+    if (
+        damage_kind == "attack"
+        and source is getattr(game_state, "player", None)
+        and hasattr(target, "enemy_id")
+        and getattr(card, "card_type", "") == "attack"
+        and _entity_has_relic(source, "relic.the_boot")
+        and final_damage > 0
+        and final_damage <= 5
+    ):
+        if final_damage < 5:
+            logs.append("【发条靴】触发：未被格挡的攻击伤害 {} -> 5。".format(final_damage))
+        final_damage = 5
+
+    player = getattr(game_state, "player", None)
+    if target is player and final_damage > 0:
+        if (
+            damage_kind == "attack"
+            and source is not None
+            and hasattr(source, "enemy_id")
+            and _entity_has_relic(target, "relic.torii")
+            and final_damage <= 5
+        ):
+            if final_damage != 1:
+                logs.append("【鸟居】触发：未被格挡的攻击伤害 {} -> 1。".format(final_damage))
+            final_damage = 1
+
+        if _entity_has_relic(target, "relic.tungsten_rod"):
+            old_damage = final_damage
+            final_damage = max(0, final_damage - 1)
+            logs.append("【钨合金棍】触发：生命损失 {} -> {}。".format(old_damage, final_damage))
+
+        if final_damage > 0 and _get_status_value(target, "buffer") > 0:
+            target.statuses.add("buffer", -1)
+            logs.append("{} 的缓冲阻止了本次生命值损伤。剩余缓冲：{}。".format(target.name, _get_status_value(target, "buffer")))
+            final_damage = 0
+
+    return final_damage
+
 def deal_damage(
     game_state,
     source,
@@ -118,17 +187,23 @@ def deal_damage(
     if ignore_block:
         if phantom_ignore_block and old_block > 0:
             logs.append("虚影形态：本次攻击无视格挡。")
-            
+
         if amount <= 0:
             logs.append("{} 没有受到伤害。".format(target.name))
         else:
-            target.hp -= amount
-
+            final_damage = _apply_unblocked_damage_relics_and_statuses(
+                game_state=game_state,
+                source=source,
+                target=target,
+                raw_unblocked=amount,
+                damage_kind=damage_kind,
+                card=card,
+                logs=logs
+            )
+            target.hp -= final_damage
             if target.hp < 0:
                 target.hp = 0
-
             real_damage = old_hp - target.hp
-
             logs.append("{} 失去 {} 点生命，剩余 HP：{}/{}，格挡：{}。".format(
                 target.name,
                 real_damage,
@@ -145,13 +220,40 @@ def deal_damage(
                 zone_element=zone_element
             )
         if wind_block_multiplier > 1.0:
+            # 风 Zone 的格挡倍率仍沿用旧函数；这里保留原行为，不在风格挡路径额外套发条靴。
             logs.append(take_damage_with_wind_block_effect(
                 target=target,
                 amount=amount,
                 multiplier=wind_block_multiplier
             ))
         else:
-            logs.append(target.take_damage(amount))
+            if amount <= 0:
+                logs.append("{} 没有受到伤害。".format(target.name))
+            else:
+                blocked_now = min(int(getattr(target, "block", 0)), amount)
+                target.block -= blocked_now
+                if target.block < 0:
+                    target.block = 0
+                raw_unblocked = amount - blocked_now
+                final_damage = _apply_unblocked_damage_relics_and_statuses(
+                    game_state=game_state,
+                    source=source,
+                    target=target,
+                    raw_unblocked=raw_unblocked,
+                    damage_kind=damage_kind,
+                    card=card,
+                    logs=logs
+                )
+                target.hp -= final_damage
+                if target.hp < 0:
+                    target.hp = 0
+                logs.append("{} 受到 {} 点伤害，剩余 HP：{}/{}，格挡：{}。".format(
+                    target.name,
+                    old_hp - target.hp,
+                    target.hp,
+                    target.max_hp,
+                    target.block
+                ))
 
     real_damage = old_hp - target.hp
     blocked = old_block - target.block
@@ -183,6 +285,8 @@ def deal_damage(
             "attack_type": attack_type,
             "attack_element": attack_element,
             "zone_element": zone_element,
+            "target_was_alive": was_alive,
+            "target_is_dead_after": (was_alive and not target.is_alive()),
         }
     )
 

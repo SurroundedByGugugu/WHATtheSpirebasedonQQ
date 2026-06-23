@@ -6,6 +6,7 @@ from data.potion.test_potions import (
     create_test_dexterity_potion,
 )
 from data.potion.uncommon_potions import create_duplication_potion
+from data.potion.rare_potions import create_fairy_in_a_bottle
 
 
 POTION_REGISTRY = {
@@ -13,6 +14,7 @@ POTION_REGISTRY = {
     "potion.test_fire": create_test_fire_potion,
     "potion.test_dexterity": create_test_dexterity_potion,
     "potion.duplication": create_duplication_potion,
+    "potion.fairy_in_a_bottle": create_fairy_in_a_bottle,
 }
 
 

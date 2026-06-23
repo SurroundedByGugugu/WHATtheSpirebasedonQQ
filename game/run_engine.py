@@ -31,12 +31,18 @@ from game.run_state import RunState
 from game.status.status_container import StatusContainer
 
 from game.reward import (
+    RewardOption,
+    RewardState,
     create_battle_reward,
-    take_reward_option,
+    get_card_reward_upgrade_chance,
     pick_card_from_reward,
+    replace_potion_reward,
+    roll_card_rewards,
     skip_remaining_rewards,
-    replace_potion_reward
+    take_reward_option,
+    take_singing_bowl_reward,
 )
+from game.relic_logic.run_relic_utils import gain_gold_with_relics, has_run_relic, increase_max_hp
 from game.node.node_shop import (
     create_shop_state,
     format_shop,
@@ -53,6 +59,12 @@ from game.node.node_rest import (
     rest_heal,
     format_smith_choices,
     smith_card,
+    get_rest_options,
+    has_miniature_tent,
+    lift_girya,
+    dig_relic,
+    format_rest_remove_choices,
+    rest_remove_card,
 )
 from game.node.node_event_0 import (
     create_event_state,
@@ -370,6 +382,14 @@ def enter_current_node(run_state, seed=DEBUG_SEED):
     run_state.pending_reward = None
     run_state.clear_pending_nodes()
 
+    pre_logs = []
+    if (
+        has_run_relic(run_state, "relic.maw_bank")
+        and not getattr(run_state, "maw_bank_disabled", False)
+        and len(getattr(run_state, "completed_node_ids", []) or []) > 0
+    ):
+        pre_logs.extend(gain_gold_with_relics(run_state, 12, source="巨口储蓄罐"))
+
     if node.node_type in ("starting", "normal_enemy", "elite", "boss"):
         result = enter_battle_node(
             run_state,
@@ -409,6 +429,9 @@ def enter_current_node(run_state, seed=DEBUG_SEED):
             node.node_type
         )
 
+    if pre_logs:
+        result = "\n".join(pre_logs + ["", result])
+
     run_state.node_entry_snapshot = make_node_entry_snapshot(run_state)
     return result
 
@@ -422,8 +445,7 @@ def run_has_relic(run_state, relic_id):
 def enter_mystery_node(run_state, node, seed=DEBUG_SEED):
     pre_logs = []
     if run_has_relic(run_state, "relic.ssserpent_head"):
-        run_state.gold += 50
-        pre_logs.append("【蛇的头】生效：进入 ? 房间时获得 50 金币。当前金币：{}。".format(run_state.gold))
+        pre_logs.extend(gain_gold_with_relics(run_state, 50, source="蛇的头"))
 
     result_type = roll_mystery_result(run_state, node, seed=seed)
 
@@ -584,11 +606,26 @@ def enter_shop_node(run_state, node, seed=DEBUG_SEED, source_node_type="shop"):
         source_node_type=source_node_type
     )
 
-    return "\n".join([
+    relic_logs = []
+    for relic in getattr(run_state, "relics", []) or []:
+        handler = getattr(relic, "on_enter_shop", None)
+        if handler is None:
+            continue
+        result = handler(run_state)
+        if result:
+            relic_logs.extend(result)
+
+    lines = [
         "进入路线节点：{} ({})".format(node.name, node.node_type),
+    ]
+    if relic_logs:
+        lines.append("")
+        lines.extend(relic_logs)
+    lines.extend([
         "",
         format_shop(run_state)
     ])
+    return "\n".join(lines)
 
 
 def enter_event_node(run_state, node, seed=DEBUG_SEED, source_node_type="event"):
@@ -610,11 +647,31 @@ def enter_rest_node(run_state, node, source_node_type="rest"):
         source_node_type=source_node_type
     )
 
-    return "\n".join([
+    logs = []
+    if has_run_relic(run_state, "relic.eternal_feather"):
+        deck_count = len(getattr(run_state, "master_deck", []) or [])
+        heal = (deck_count // 5) * 3
+        if heal > 0:
+            old_hp = run_state.hp
+            run_state.hp = min(run_state.max_hp, run_state.hp + heal)
+            logs.append("【永恒羽毛】触发：牌组 {} 张，回复 {} 点生命。HP：{} -> {}。".format(deck_count, run_state.hp - old_hp, old_hp, run_state.hp))
+        else:
+            logs.append("【永恒羽毛】触发：牌组不足 5 张，没有回复生命。")
+    if has_run_relic(run_state, "relic.ancient_tea_set"):
+        run_state.ancient_tea_set_ready = True
+        logs.append("【古茶具套装】准备就绪：下一场战斗开始时获得 2 点能量。")
+
+    lines = [
         "进入路线节点：{} ({})".format(node.name, node.node_type),
+    ]
+    if logs:
+        lines.append("")
+        lines.extend(logs)
+    lines.extend([
         "",
         format_rest(run_state)
     ])
+    return "\n".join(lines)
 
 
 def enter_ancient_node(run_state, node, seed=DEBUG_SEED):
@@ -671,6 +728,7 @@ def enter_battle_node(run_state, node, seed=DEBUG_SEED, effective_node_type=None
     mark_encounter_seen(run_state, effective_node_type, encounter_id)
     rng = random.Random(make_node_seed(run_state, node, seed=seed, offset=17))
     enemy_ids = resolve_encounter_enemy_ids(encounter_id, rng)
+    run_state.current_battle_node_type = effective_node_type
     player = create_player_for_battle(run_state)
     game_state, battle_reply = start_battle_with_player(
         session_id=run_state.session_id,
@@ -714,6 +772,7 @@ def start_forced_event_battle(
     mark_encounter_seen(run_state, effective_node_type, encounter_id)
     rng = random.Random(make_node_seed(run_state, node, seed=seed, offset=917))
     enemy_ids = resolve_encounter_enemy_ids(encounter_id, rng)
+    run_state.current_battle_node_type = effective_node_type
     player = create_player_for_battle(run_state)
     game_state, battle_reply = start_battle_with_player(
         session_id=run_state.session_id,
@@ -851,8 +910,7 @@ def process_post_battle_effects(run_state, rng=None):
             logs.append("击败回来的怪物后，你拿走了尸体上还没搜到的东西。")
             for reward in rewards:
                 if reward == "gold":
-                    run_state.gold += 30
-                    logs.append("尸体奖励：获得 30 金币。当前金币：{}。".format(run_state.gold))
+                    logs.extend(gain_gold_with_relics(run_state, 30, source="尸体奖励"))
                 elif reward == "relic":
                     from game.reward import get_available_relic_ids
                     available = get_available_relic_ids(run_state)
@@ -1135,6 +1193,31 @@ def choose_reward_card(run_state, choice_index):
         run_state.pending_reward.reward_text()
     ])
 
+
+def choose_singing_bowl_reward(run_state):
+    if run_state.pending_reward is None:
+        return "当前没有待领取奖励。"
+
+    reply = take_singing_bowl_reward(
+        run_state=run_state,
+        reward_state=run_state.pending_reward
+    )
+
+    if run_state.pending_reward.all_done():
+        run_state.pending_reward = None
+        return "\n".join([
+            reply,
+            "",
+            get_after_reward_text(run_state)
+        ])
+
+    return "\n".join([
+        reply,
+        "",
+        run_state.pending_reward.reward_text()
+    ])
+
+
 def skip_reward(run_state):
     if run_state.pending_reward is None:
         return "当前没有待领取奖励。"
@@ -1187,6 +1270,7 @@ def create_player_for_battle(run_state):
         max_cost=run_state.max_cost,
         cost=run_state.max_cost,
         relics=run_state.relics,
+        max_potion_slots=getattr(run_state, "max_potion_slots", 3),
         potions=run_state.potions,
         draw_pile=copy.deepcopy(run_state.master_deck),
         discard_pile=[],
@@ -1194,6 +1278,7 @@ def create_player_for_battle(run_state):
         hand=[],
         statuses=StatusContainer()
     )
+    player.run_state = run_state
 
     apply_persistent_statuses_to_player(run_state, player)
 
@@ -1299,31 +1384,98 @@ def handle_random_remove_card(run_state, seed=DEBUG_SEED):
     ])
 
 
+def _finish_or_continue_rest(run_state, text):
+    if has_miniature_tent(run_state):
+        return "\n".join([
+            text,
+            "",
+            format_rest(run_state)
+        ])
+    return "\n".join([
+        text,
+        "",
+        complete_current_node(run_state)
+    ])
+
+
 def handle_rest_option(run_state, choice_index):
-    if choice_index == 0:
+    if run_state.pending_rest is None:
+        return "当前不在火堆。"
+    options = get_rest_options(run_state)
+    if choice_index < 0 or choice_index >= len(options):
+        return "火堆选项编号无效。"
+    action, _name = options[choice_index]
+
+    if action == "leave":
+        run_state.pending_rest = None
+        return complete_current_node(run_state)
+
+    if action == "rest":
         done, text = rest_heal(run_state)
         if done:
-            return "\n".join([
-                text,
-                "",
-                complete_current_node(run_state)
-            ])
+            if has_run_relic(run_state, "relic.dream_catcher"):
+                node = run_state.get_current_node()
+                rng = random.Random(make_node_seed(run_state, node, DEBUG_SEED, offset=812))
+                cards = roll_card_rewards(
+                    count=3 + (1 if has_run_relic(run_state, "relic.question_card") else 0),
+                    rng=rng,
+                    upgrade_chance=get_card_reward_upgrade_chance(run_state),
+                    run_state=run_state
+                )
+                reward_state = RewardState(
+                    node_type="dream_catcher",
+                    options=[RewardOption(
+                        option_type="card",
+                        title="捕梦网：卡牌（三选一）",
+                        payload={"cards": cards}
+                    )]
+                )
+                run_state.pending_reward = reward_state
+                run_state.pending_rest = None
+                return "\n".join([
+                    text,
+                    "",
+                    "【捕梦网】触发：休息后可以选择一张牌加入牌组。",
+                    "",
+                    reward_state.reward_text()
+                ])
+            return _finish_or_continue_rest(run_state, text)
         return text
-    if choice_index == 1:
+
+    if action == "smith":
         return format_smith_choices(run_state)
-    return "火堆选项编号无效。"
+
+    if action == "girya":
+        done, text = lift_girya(run_state)
+        if done:
+            return _finish_or_continue_rest(run_state, text)
+        return text
+
+    if action == "pipe":
+        return format_rest_remove_choices(run_state)
+
+    if action == "shovel":
+        node = run_state.get_current_node()
+        done, text = dig_relic(run_state, seed=make_node_seed(run_state, node, DEBUG_SEED, offset=813))
+        if done:
+            return _finish_or_continue_rest(run_state, text)
+        return text
+
+    return "火堆选项暂未实现：{}。".format(action)
 
 
 def handle_smith_card(run_state, choice_index):
     done, text = smith_card(run_state, choice_index)
     if done:
-        return "\n".join([
-            text,
-            "",
-            complete_current_node(run_state)
-        ])
+        return _finish_or_continue_rest(run_state, text)
     return text
 
+
+def handle_rest_remove_card(run_state, card_index):
+    done, text = rest_remove_card(run_state, card_index)
+    if done:
+        return _finish_or_continue_rest(run_state, text)
+    return text
 
 def handle_event_option(run_state, choice_index, seed=DEBUG_SEED):
     node = run_state.get_current_node()

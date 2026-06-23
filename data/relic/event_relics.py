@@ -90,3 +90,34 @@ class SpiritPoopRelic(RelicTemplate):
             owner_character_id="",
             allow_duplicate=False
         )
+
+
+class RedMaskRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.red_mask",
+            name="红面具",
+            description="在每场战斗开始时，给予所有敌人 1 层虚弱。",
+            story="这副看起来十分帅气的面具属于红面具强盗团的头子，这么说来，现在你应该是他们的老大了？",
+            quantity="event",
+            owner_character_id="",
+            allow_duplicate=False
+        )
+
+    def on_event(self, event_name, context):
+        from game.constants import EVENT_BATTLE_START
+        if event_name != EVENT_BATTLE_START:
+            return []
+        from game.status.status_gain import format_status_gain_log
+        logs = ["【{}】触发。".format(self.name)]
+        for enemy in getattr(context.game_state, "enemies", []) or []:
+            if not enemy.is_alive():
+                continue
+            if hasattr(enemy, "gain_status_with_result"):
+                result = enemy.gain_status_with_result("weak", 1)
+                logs.append(format_status_gain_log(enemy, "weak", 1, result))
+            else:
+                current = enemy.gain_status("weak", 1)
+                logs.append("{} 获得 1 点虚弱。当前虚弱：{}。".format(enemy.name, current))
+        return logs

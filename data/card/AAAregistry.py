@@ -23,6 +23,7 @@ from data.card.colorless_cards import(
     create_amplify,
     create_burst,
     create_soul,
+    create_shiv,
 )
 
 from data.card.character.test_character_cards import (
@@ -161,6 +162,7 @@ CARD_REGISTRY = {
     "card.curse.decay": create_decay,
 
     "card.soul": create_soul,
+    "card.shiv": create_shiv,
     "card.burst": create_burst,
     "card.amplify": create_amplify,
 

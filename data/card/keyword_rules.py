@@ -202,8 +202,19 @@ def can_play_card(game_state, card, play_reason="normal"):
         ):
             return False, "你受到缠身影响，本回合不能打出攻击牌。"
 
-    # 兼容之前给“伤口”预留的不可打出关键词。
-    # 如果你已经定义了 KEYWORD_UNPLAYABLE，也可以替换成常量。
+    # 遗物 / 状态等可以覆盖“不能被打出”，例如蓝蜡烛、医药箱。
+    for source in iter_card_play_permission_sources(game_state):
+        checker = getattr(source, "can_play_card", None)
+        if checker is None:
+            continue
+        result = normalize_card_play_permission_result(checker(game_state, card, play_reason))
+        if result is None:
+            continue
+        allowed_by_source, source_message = result
+        if allowed_by_source:
+            return True, source_message
+        return False, source_message or "【{}】不能被打出。".format(card.name)
+
     if card.has_keyword("unplayable"):
         return False, "【{}】不能被打出。".format(card.name)
 

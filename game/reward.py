@@ -13,6 +13,14 @@ from data.potion.AAAregistry import create_potion
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
 from game.constants import DEBUG_SEED
+from game.relic_logic.run_relic_utils import (
+    add_card_to_master_deck_with_relics,
+    gain_gold_with_relics,
+    is_relic_available_by_floor,
+    has_run_relic,
+    increase_max_hp,
+    apply_card_gain_preview_relics,
+)
 
 
 # =========================
@@ -140,32 +148,47 @@ CARD_REWARD_POOL = [
 POTION_REWARD_POOL = [
     "potion.test_strength",
     "potion.test_fire",
-    "potion.test_dexterity"
+    "potion.test_dexterity",
+    "potion.fairy_in_a_bottle"
 ]
 
 # 当前只有占位符石头。
 # 如果不希望重复获得已有遗物，可以在 roll_relic_reward() 里过滤。
 
-RELIC_REWARD_POOL = [
-    "relic.homunculus_prototype",
-    "relic.placeholder_stone",
-    "relic.ether_medium",
-    "relic.charon_ashes",
-    "relic.calipers",
-    "relic.keystone_of_the_tomb",
-    "relic.juzu_bracelet",
-    "relic.tiny_chest",
-    "relic.bottled_lightning",
-    "relic.bottled_flame",
-    "relic.bottled_tornado",
-]
-SHOP_RELIC_POOL = [
-    "relic.x_potion",
-]
-
 COMMON_RELIC_POOL = [
     "relic.juzu_bracelet",
     "relic.tiny_chest",
+    "relic.bag_of_marbles",
+    "relic.blood_vial",
+    "relic.bronze_scales",
+    "relic.centennial_puzzle",
+    "relic.the_boot",
+    "relic.dream_catcher",
+    "relic.happy_flower",
+    "relic.lantern",
+    "relic.oddly_smooth_stone",
+    "relic.vajra",
+    "relic.omamori",
+    "relic.orichalcum",
+    "relic.red_skull",
+    "relic.regal_pillow",
+    "relic.smiling_mask",
+    "relic.snake_skull",
+    "relic.strawberry",
+    "relic.potion_belt",
+    "relic.meal_ticket",
+    "relic.whetstone",
+    "relic.maw_bank",
+    "relic.nunchaku",
+    "relic.preserved_insect",
+    "relic.ceramic_fish",
+    "relic.akabeko",
+    "relic.pen_nib",
+    "relic.toy_ornithopter",
+    "relic.bag_of_preparation",
+    "relic.ancient_tea_set",
+    "relic.art_of_war",
+    "relic.anchor",
 ]
 
 UNCOMMON_RELIC_POOL = [
@@ -173,6 +196,36 @@ UNCOMMON_RELIC_POOL = [
     "relic.bottled_lightning",
     "relic.bottled_flame",
     "relic.bottled_tornado",
+    "relic.pear",
+    "relic.war_paint",
+    "relic.the_courier",
+    "relic.horn_cleat",
+    "relic.blue_candle",
+    "relic.eternal_feather",
+    "relic.frozen_egg",
+    "relic.toxic_egg",
+    "relic.molten_egg",
+    "relic.darkstone_periapt",
+    "relic.gremlin_horn",
+    "relic.kunai",
+    "relic.shuriken",
+    "relic.ornamental_fan",
+    "relic.letter_opener",
+    "relic.matryoshka",
+    "relic.meat_on_the_bone",
+    "relic.mercury_hourglass",
+    "relic.mummified_hand",
+    "relic.ninja_scroll",
+    "relic.pantograph",
+    "relic.paper_crane",
+    "relic.paper_frog",
+    "relic.question_card",
+    "relic.self_forming_clay",
+    "relic.singing_bowl",
+    "relic.white_beast_statue",
+    "relic.ink_bottle",
+    "relic.strike_dummy",
+    "relic.sundial",
 ]
 
 RARE_RELIC_POOL = [
@@ -180,6 +233,36 @@ RARE_RELIC_POOL = [
     "relic.placeholder_stone",
     "relic.calipers",
     "relic.keystone_of_the_tomb",
+    "relic.mango",
+    "relic.captains_wheel",
+    "relic.ice_cream",
+    "relic.incense_burner",
+    "relic.stone_calendar",
+    "relic.pocketwatch",
+    "relic.fossilized_helix",
+    "relic.cloak_clasp",
+    "relic.tungsten_rod",
+    "relic.gambling_chip",
+    "relic.bird_faced_urn",
+    "relic.champion_belt",
+    "relic.du_vu_doll",
+    "relic.dead_branch",
+    "relic.ginger",
+    "relic.turnip",
+    "relic.cabbage",
+    "relic.girya",
+    "relic.peace_pipe",
+    "relic.shovel",
+    "relic.lizard_tail",
+    "relic.magic_flower",
+    "relic.old_coin",
+    "relic.prayer_wheel",
+    "relic.the_specimen",
+    "relic.thread_and_needle",
+    "relic.tingsha",
+    "relic.torii",
+    "relic.tough_bandages",
+    "relic.unceasing_top",
 ]
 
 EVENT_RELIC_POOL = [
@@ -188,7 +271,21 @@ EVENT_RELIC_POOL = [
     "relic.ssserpent_head",
     "relic.warped_tongs",
     "relic.spirit_poop",
+    "relic.red_mask",
 ]
+
+SHOP_RELIC_POOL = [
+    "relic.x_potion",
+    "relic.twisted_funnel",
+    "relic.membership_card",
+    "relic.dragon_fruit",
+    "relic.medical_kit",
+    "relic.miniature_tent",
+]
+
+RELIC_REWARD_POOL = [
+    "relic.homunculus_prototype",
+] + COMMON_RELIC_POOL + UNCOMMON_RELIC_POOL + RARE_RELIC_POOL + EVENT_RELIC_POOL
 
 MYTH_RELIC_POOL = [
 ]
@@ -347,7 +444,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
         ))
 
     # 3. 药水奖励，没roll到就不显示
-    potion = roll_potion_reward(rng)
+    potion = roll_potion_reward(rng, run_state=run_state)
     if potion is not None:
         reward_state.options.append(RewardOption(
             option_type="potion",
@@ -360,7 +457,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
     # 4. 卡牌奖励
     upgrade_chance = get_card_reward_upgrade_chance(run_state)
     card_choices = roll_card_rewards(
-        count=3,
+        count=3 + (1 if has_run_relic(run_state, "relic.question_card") else 0),
         rng=rng,
         upgrade_chance=upgrade_chance,
         run_state=run_state
@@ -373,6 +470,19 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
             "cards": card_choices
         }
     ))
+
+    if node_type == "normal_enemy" and has_run_relic(run_state, "relic.prayer_wheel"):
+        extra_card_choices = roll_card_rewards(
+            count=3 + (1 if has_run_relic(run_state, "relic.question_card") else 0),
+            rng=rng,
+            upgrade_chance=upgrade_chance,
+            run_state=run_state
+        )
+        reward_state.options.append(RewardOption(
+            option_type="card",
+            title="转经轮：额外卡牌奖励（选择以查看具体选项）",
+            payload={"cards": extra_card_choices}
+        ))
 
     record_reward_options_offered(run_state, reward_state)
     return reward_state
@@ -458,8 +568,8 @@ def roll_gold_reward(node_type, rng):
     return rng.randint(gold_range[0], gold_range[1])
 
 
-def roll_potion_reward(rng):
-    if rng.random() >= POTION_DROP_CHANCE:
+def roll_potion_reward(rng, run_state=None):
+    if not (run_state is not None and has_run_relic(run_state, "relic.white_beast_statue")) and rng.random() >= POTION_DROP_CHANCE:
         return None
 
     potion_id = rng.choice(POTION_REWARD_POOL)
@@ -506,6 +616,8 @@ def get_available_relic_ids(run_state):
         if relic_id == FALLBACK_RELIC_ID:
             continue
         relic = create_relic(relic_id)
+        if not is_relic_available_by_floor(run_state, relic):
+            continue
         # 商店遗物不进入战斗 / 宝箱等普通遗物奖励池。
         if getattr(relic, "quantity", "") == "shop":
             continue
@@ -571,6 +683,8 @@ def roll_card_rewards(count, rng, upgrade_chance, run_state=None):
 
     for card_id in card_ids:
         card = create_card(card_id)
+        if run_state is not None:
+            card = apply_card_gain_preview_relics(run_state, card)
 
         if has_upgrade(card) and rng.random() < upgrade_chance:
             card = upgrade_card(card)
@@ -777,10 +891,12 @@ def take_reward_option(run_state, reward_state, option_index):
         return "该奖励已经放弃。"
     if option.option_type == "gold":
         amount = option.payload.get("amount", 0)
-        run_state.gold += amount
         option.claimed = True
         record_reward_taken(run_state, "gold")
-        return "获得 {} 金币。当前金币：{}。".format(amount, run_state.gold)
+        logs = gain_gold_with_relics(run_state, amount, source="奖励")
+        if not logs:
+            logs = ["获得 0 金币。当前金币：{}。".format(run_state.gold)]
+        return "\n".join(logs)
 
     if option.option_type == "relic":
         relic = option.payload.get("relic")
@@ -815,7 +931,10 @@ def take_reward_option(run_state, reward_state, option_index):
         run_state.potions.append(potion)
         option.claimed = True
         record_reward_taken(run_state, "potion")
-        return "获得药水：【{}】。".format(potion.name)
+        extra = ""
+        if getattr(potion, "potion_id", "") == "potion.fairy_in_a_bottle" and getattr(run_state, "character_id", "") == "character.yoirine":
+            extra = "\nYoirine：“我没见过这个。但本能地……不太喜欢它。”"
+        return "获得药水：【{}】。{}".format(potion.name, extra)
     if option.option_type == "card":
         reward_state.active_card_option_index = option_index
         return format_card_choices(option.payload.get("cards", []))
@@ -836,9 +955,31 @@ def format_card_choices(cards):
     lines.append("")
     lines.append("格式：稀有度 / 牌类型 / 伤害类型 / 属性。没有对应标注时显示 -。")
     lines.append(command_tip("pick", "使用 /card pick 0 选择卡牌。"))
+    lines.append(command_tip("bowl", "若拥有颂钵，可使用 /card bowl 将本次卡牌奖励转为 +2 最大生命值。"))
     lines.append(command_tip("deck", "选入牌库后，可使用 /card deck 编号 查看完整说明。"))
     lines.append(command_tip("skip", "使用 /card skip 放弃剩余奖励。"))
     return "\n".join(lines)
+
+
+def take_singing_bowl_reward(run_state, reward_state):
+    """颂钵：把当前打开的卡牌奖励转为 +2 最大生命值。"""
+    if reward_state is None:
+        return "当前没有待领取奖励。"
+    if not has_run_relic(run_state, "relic.singing_bowl"):
+        return "你没有【颂钵】，不能将卡牌奖励转为最大生命。"
+    option_index = reward_state.active_card_option_index
+    if option_index < 0 or option_index >= len(reward_state.options):
+        return "当前没有打开卡牌奖励。请先使用 /card take 对应编号查看卡牌选项。"
+    option = reward_state.options[option_index]
+    if option.option_type != "card":
+        return "当前打开的奖励不是卡牌奖励。"
+    if option.claimed:
+        return "该卡牌奖励已经领取过。"
+    option.claimed = True
+    reward_state.active_card_option_index = -1
+    record_reward_taken(run_state, "card")
+    return "【颂钵】触发：放弃本次卡牌奖励，获得 +2 最大生命值。\n" + "\n".join(increase_max_hp(run_state, 2, "颂钵"))
+
 
 def skip_remaining_rewards(run_state, reward_state):
     """
@@ -877,11 +1018,11 @@ def pick_card_from_reward(run_state, reward_state, card_index):
     if card_index < 0 or card_index >= len(cards):
         return "卡牌编号无效。"
     card = copy.deepcopy(cards[card_index])
-    run_state.master_deck.append(card)
+    add_logs = add_card_to_master_deck_with_relics(run_state, card, source="获得卡牌")
     option.claimed = True
     reward_state.active_card_option_index = -1
     record_reward_taken(run_state, "card")
-    return "获得卡牌：【{}】。".format(card.name)
+    return "\n".join(add_logs)
 
 def format_card_full_effect(card):
     keyword_text = format_keywords(card)
@@ -969,9 +1110,13 @@ def replace_potion_reward(run_state, reward_state, option_index, potion_index):
     potions[potion_index] = potion
     option.claimed = True
     record_reward_taken(run_state, "potion")
-    return "丢弃【{}】，获得药水：【{}】。".format(
+    extra = ""
+    if getattr(potion, "potion_id", "") == "potion.fairy_in_a_bottle" and getattr(run_state, "character_id", "") == "character.yoirine":
+        extra = "\n昼·里辛塔法：“我没见过这个。但本能地……不太喜欢它。”"
+    return "丢弃【{}】，获得药水：【{}】。{}".format(
         old_potion.name,
-        potion.name
+        potion.name,
+        extra
     )
 
 def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=False):

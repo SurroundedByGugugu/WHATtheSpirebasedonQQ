@@ -36,6 +36,7 @@ from game.run_engine import (
     take_reward,
     take_rewards,
     choose_reward_card,
+    choose_singing_bowl_reward,
     skip_reward,
     replace_reward_potion,
     handle_shop_buy,
@@ -45,6 +46,7 @@ from game.run_engine import (
     leave_shop,
     handle_rest_option,
     handle_smith_card,
+    handle_rest_remove_card,
     handle_event_option,
     handle_ancient_option,
     handle_shop_item_detail,
@@ -309,6 +311,13 @@ class GameService(object):
                 self.clear_run(session_id)
             return reply
                 
+
+        if command in ("bowl", "singing_bowl", "颂钵", "唱歌碗"):
+            reply = choose_singing_bowl_reward(run_state)
+            if run_state.run_over:
+                self.clear_run(session_id)
+            return reply
+        
         if command in ("skip", "skip_reward", "跳过", "跳过奖励"):
             reply = skip_reward(run_state)
             if run_state.run_over:
@@ -355,6 +364,20 @@ class GameService(object):
             return handle_random_remove_card(run_state, seed=DEBUG_SEED)
 
         if command in ("leave", "离开"):
+            if run_state.pending_rest is not None:
+                # 微型帐篷火堆专用离开；普通火堆若还没使用选项，会在 run_engine 里正常完成当前节点。
+                from game.node.node_rest import has_miniature_tent
+                if has_miniature_tent(run_state):
+                    # 找到 leave 选项编号并调用统一处理。
+                    from game.node.node_rest import get_rest_options
+                    options = get_rest_options(run_state)
+                    for idx, item in enumerate(options):
+                        if item[0] == "leave":
+                            reply = handle_rest_option(run_state, idx)
+                            if run_state.run_over:
+                                self.clear_run(session_id)
+                            return reply
+                return "当前在火堆。请选择火堆选项；拥有【微型帐篷】时可使用 leave 离开。"
             reply = leave_shop(run_state)
             if run_state.run_over:
                 self.clear_run(session_id)
@@ -382,6 +405,18 @@ class GameService(object):
             except ValueError:
                 return "锻造编号必须是数字。"
             reply = handle_smith_card(run_state, choice_index)
+            if run_state.run_over:
+                self.clear_run(session_id)
+            return reply
+
+        if command in ("rest_remove", "pipe", "peace_pipe", "烟斗", "宁静烟斗"):
+            if len(parts) < 3:
+                return "用法：/card rest_remove 0"
+            try:
+                card_index = int(parts[2])
+            except ValueError:
+                return "卡牌编号必须是数字。"
+            reply = handle_rest_remove_card(run_state, card_index)
             if run_state.run_over:
                 self.clear_run(session_id)
             return reply

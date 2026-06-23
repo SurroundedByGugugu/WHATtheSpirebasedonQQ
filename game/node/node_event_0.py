@@ -13,6 +13,7 @@ from game.command_help import command_tip
 from game.deck_utils import remove_card_from_master_deck, transform_card_in_master_deck
 from game.node.node_rest import get_upgradable_cards
 from game.relic_logic.bottle_utils import copy_bottled_flags, strip_bottled_flags
+from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics, gain_gold_with_relics, try_block_curse_with_omamori
 from game.reward import get_available_relic_ids
 
 
@@ -112,8 +113,12 @@ def add_random_relic(run_state, rng):
 
 def add_curse(run_state, card_id):
     card = create_card(card_id)
-    run_state.master_deck.append(card)
-    return "获得诅咒：【{}】。".format(card.name)
+    logs = add_card_to_master_deck_with_relics(run_state, card, source="获得诅咒")
+    if not logs:
+        return "没有获得诅咒。"
+    if logs and logs[0].startswith("【御守】"):
+        return "\n".join(logs)
+    return "\n".join(["获得诅咒：【{}】。".format(card.name)] + logs)
 
 
 def heal_by_max_hp_fraction(run_state, numerator, denominator):
@@ -131,6 +136,13 @@ def lose_hp(run_state, amount):
     amount = int(amount)
     if amount < 0:
         amount = 0
+    if amount > 0:
+        try:
+            from game.relic_logic.run_relic_utils import has_run_relic
+            if has_run_relic(run_state, "relic.tungsten_rod"):
+                amount = max(0, amount - 1)
+        except Exception:
+            pass
     old_hp = run_state.hp
     run_state.hp = max(0, run_state.hp - amount)
     return old_hp, run_state.hp
@@ -657,13 +669,21 @@ def choose_event_option(run_state, choice_index, seed=None):
         if not has_damage_10_card(run_state):
             return False, "你没有伤害等于或超过 10 的牌，无法砸开雕像。"
         amount = rng.randint(50, 80)
-        run_state.gold += amount
-        return True, "你使出浑身的力气开始砸雕像。\n很快它就彻底裂开，里面是一大堆金币。你把钱尽可能收集起来，重新上路。\n获得 {} 金币。当前金币：{}。".format(amount, run_state.gold)
+        logs = [
+            "你使出浑身的力气开始砸雕像。",
+            "很快它就彻底裂开，里面是一大堆金币。你把钱尽可能收集起来，重新上路。",
+        ]
+        logs.extend(gain_gold_with_relics(run_state, amount, source="砸碎雕像"))
+        return True, "\n".join(logs)
 
     if effect == "slime_world_collect":
-        run_state.gold += 75
         old_hp, new_hp = lose_hp(run_state, 11)
-        return True, "在长时间与黏液接触而导致你的皮肤被烧走之前，你成功地捞出了不少金币。\n获得 75 金币，HP：{} -> {}。当前金币：{}。".format(old_hp, new_hp, run_state.gold)
+        logs = [
+            "在长时间与黏液接触而导致你的皮肤被烧走之前，你成功地捞出了不少金币。",
+            "HP：{} -> {}。".format(old_hp, new_hp),
+        ]
+        logs.extend(gain_gold_with_relics(run_state, 75, source="黏液世界"))
+        return True, "\n".join(logs)
 
     if effect == "slime_world_let_go":
         amount = rng.randint(20, 50)
@@ -673,15 +693,14 @@ def choose_event_option(run_state, choice_index, seed=None):
         return True, "你决定这样做不值得。\n失去 {} 金币：{} -> {}。".format(actual, old_gold, run_state.gold)
 
     if effect == "serpent_agree":
-        run_state.gold += 175
         logs = [
             "“对～！\n这会很值～得的。\n嘶……嘶～嘶……”",
             "蛇抬起头，往上喷出了一堆金币！",
             "这令人震惊又有点可怕。",
             "你把金币收好，谢过蛇后，重新上路。",
-            "获得 175 金币。当前金币：{}。".format(run_state.gold),
-            add_curse(run_state, "card.curse.doubt"),
         ]
+        logs.extend(gain_gold_with_relics(run_state, 175, source="蛇"))
+        logs.append(add_curse(run_state, "card.curse.doubt"))
         return True, "\n".join(logs)
 
     if effect == "serpent_disagree":
@@ -806,8 +825,8 @@ def choose_event_option(run_state, choice_index, seed=None):
 
         logs = []
         if reward == "gold":
-            run_state.gold += 30
-            logs.append("你找到了一些金币！获得 30 金币。当前金币：{}。".format(run_state.gold))
+            logs.append("你找到了一些金币！")
+            logs.extend(gain_gold_with_relics(run_state, 30, source="冒险者尸体"))
         elif reward == "relic":
             logs.append("你找到一件遗物！")
             logs.extend(add_random_relic(run_state, rng))
@@ -1064,17 +1083,17 @@ def choose_event_option(run_state, choice_index, seed=None):
         return True, "\n".join(logs)
 
     if effect == "golden_shrine_pray":
-        run_state.gold += 100
-        return True, "当你的手触碰神龛时，天空中开始掉落金币，赚钱了！\n获得 100 金币。当前金币：{}。".format(run_state.gold)
+        logs = ["当你的手触碰神龛时，天空中开始掉落金币，赚钱了！"]
+        logs.extend(gain_gold_with_relics(run_state, 100, source="黄金神龛"))
+        return True, "\n".join(logs)
 
     if effect == "golden_shrine_desecrate":
-        run_state.gold += 250
         logs = [
             "你每攻击一次神龛，就有更多的金币掉落出来！",
             "当你收起所有钱时，心中有了一种沉重的感觉。",
-            "获得 250 金币。当前金币：{}。".format(run_state.gold),
-            add_curse(run_state, "card.curse.regret"),
         ]
+        logs.extend(gain_gold_with_relics(run_state, 250, source="亵渎黄金神龛"))
+        logs.append(add_curse(run_state, "card.curse.regret"))
         return True, "\n".join(logs)
 
     if effect == "lab_search":
@@ -1118,8 +1137,9 @@ def choose_event_option(run_state, choice_index, seed=None):
         if prize == "gold":
             amount_map = {1: 100, 2: 200, 3: 300}
             amount = amount_map.get(get_current_act_for_reward(run_state), 100)
-            run_state.gold += amount
-            return True, "“你赢得了一些金币！\n噢耶！！！”\n获得 {} 金币。当前金币：{}。".format(amount, run_state.gold)
+            logs = ["“你赢得了一些金币！", "噢耶！！！”"]
+            logs.extend(gain_gold_with_relics(run_state, amount, source="命运转盘"))
+            return True, "\n".join(logs)
         if prize == "relic":
             logs = ["“啊，一件礼物！\n请收下吧！”"]
             logs.extend(add_random_relic(run_state, rng))

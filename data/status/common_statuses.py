@@ -529,3 +529,47 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+register_status_def(StatusDef(
+    key="intangible",
+    name="无实体",
+    description="受到未被格挡的伤害时，该伤害降低为 1。",
+    category="buff",
+    display_mode="turns",
+    order=49,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
+
+register_status_def(StatusDef(
+    key="vigor",
+    name="活力",
+    description="下一张攻击牌造成的攻击伤害增加等同于层数的数值。多段攻击每段均受到加成。",
+    category="buff",
+    display_mode="stack",
+    order=18,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+
+register_status_def(StatusDef(
+    key="buffer",
+    name="缓冲",
+    description="阻止下 X 次受到的生命值损伤。被格挡完全抵消的伤害不会消耗缓冲。",
+    category="buff",
+    display_mode="stack",
+    order=48,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="plated_armor",
+    name="多层护甲",
+    description="每个玩家回合开始时获得等同于层数的格挡；受到来源敌人的未被格挡伤害后层数减少 1。",
+    category="buff",
+    display_mode="stack",
+    order=47,
+    decay_timing="none",
+    decay_amount=0,
+))

@@ -21,6 +21,7 @@ STATUS_EVENT_PRIORITY = {
     "poison_thorns": 49,
     "curl_up": 48,
     "spore_cloud": 45,
+    "plated_armor": 46,
     "god_in_hand": 40,
     "mirage_shadows": 35,
     "demon_form": 30,
@@ -41,6 +42,7 @@ STATUS_EVENT_PRIORITY = {
     "anger": 12,
     "enrage": 12,
     "sharp_hide": 12,
+    "vigor": 12,
     "flex": 11,
     "temporary_dexterity_loss": 10,
     "crystal_cocoon": 10,
@@ -282,6 +284,18 @@ def handle_poison_thorns(event_name, context, owner, value):
     poison = int(value)
     if poison <= 0:
         return logs
+    if owner is context.game_state.player:
+        from game.relic_logic.combat_relic_utils import apply_status_with_player_relics
+        logs.append("{} 的毒荆棘触发。".format(owner.name))
+        logs.extend(apply_status_with_player_relics(
+            game_state=context.game_state,
+            source=owner,
+            target=source,
+            status_key="poison",
+            amount=poison
+        ))
+        return logs
+
     current = source.gain_status("poison", poison)
     logs.append("{} 的毒荆棘使 {} 获得 {} 层中毒。当前中毒：{}。".format(
         owner.name,
@@ -939,13 +953,22 @@ def handle_regeneration(event_name, context, owner, value):
     amount = int(value)
     if amount <= 0:
         return logs
+    try:
+        from game.relic_logic.combat_relic_utils import apply_magic_flower_heal_amount
+        heal_amount = apply_magic_flower_heal_amount(owner, amount)
+    except Exception:
+        heal_amount = amount
     old_hp = owner.hp
-    owner.hp += amount
+    owner.hp += heal_amount
     if owner.hp > owner.max_hp:
         owner.hp = owner.max_hp
     real_heal = owner.hp - old_hp
-    logs.append("{} 的再生触发，恢复 {} 点生命。当前 HP：{}/{}。".format(
+    flower_text = ""
+    if heal_amount != amount:
+        flower_text = "【魔法花】使回复量 {} -> {}。".format(amount, heal_amount)
+    logs.append("{} 的再生触发，{}恢复 {} 点生命。当前 HP：{}/{}。".format(
         owner.name,
+        flower_text,
         real_heal,
         owner.hp,
         owner.max_hp
@@ -1477,6 +1500,20 @@ def handle_anger(event_name, context, owner, value):
     ))
     return logs
 
+def handle_vigor(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_CARD_PLAY_AFTER:
+        return logs
+    if owner is None or context.player is not owner:
+        return logs
+    card = context.card
+    if getattr(card, "card_type", "") != "attack":
+        return logs
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("vigor")
+    logs.append("{} 的活力被【{}】消耗。".format(owner.name, getattr(card, "name", "攻击牌")))
+    return logs
+
 def handle_crystal_cocoon(event_name, context, owner, value):
     logs = []
 
@@ -1508,12 +1545,45 @@ def handle_crystal_cocoon(event_name, context, owner, value):
 
     return logs
 
+
+def handle_plated_armor(event_name, context, owner, value):
+    logs = []
+    if owner is None or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    if event_name == EVENT_TURN_START and owner is context.game_state.player:
+        logs.extend(gain_block_without_modifiers(
+            game_state=context.game_state,
+            source=owner,
+            target=owner,
+            amount=amount,
+            block_source="plated_armor",
+            card=None,
+            message="{} 的多层护甲触发，获得 {} 点格挡。当前格挡：{}。".format(owner.name, amount, owner.block + amount)
+        ))
+        return logs
+    if event_name == EVENT_DAMAGE_AFTER:
+        if context.target is not owner:
+            return logs
+        if int(context.extra.get("real_damage", 0)) <= 0:
+            return logs
+        source = getattr(context, "source", None)
+        if source is None or not hasattr(source, "enemy_id"):
+            return logs
+        new_value = owner.statuses.add("plated_armor", -1)
+        logs.append("{} 的多层护甲受到攻击后减少 1 层。当前多层护甲：{}。".format(owner.name, new_value))
+        return logs
+    return logs
+
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "temporary_thorns": handle_temporary_thorns,
     "poison_thorns": handle_poison_thorns,
     "curl_up": handle_curl_up,
     "spore_cloud": handle_spore_cloud,
+    "plated_armor": handle_plated_armor,
     "poison": handle_poison,
     "burn": handle_burn,
     "demon_form": handle_demon_form,
@@ -1544,5 +1614,6 @@ STATUS_EVENT_HANDLERS = {
     "anger": handle_anger,
     "enrage": handle_enrage,
     "sharp_hide": handle_sharp_hide,
+    "vigor": handle_vigor,
     "crystal_cocoon": handle_crystal_cocoon,
 }

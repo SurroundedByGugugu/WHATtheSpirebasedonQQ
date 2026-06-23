@@ -9,6 +9,7 @@ from data.card.AAAregistry import create_card
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
 from game.reward import CARD_REWARD_POOL, get_available_relic_ids
+from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics, gain_gold_with_relics
 
 
 @dataclass
@@ -87,17 +88,12 @@ def choose_ancient_option(run_state, choice_index, seed=None):
         return True, "继续前进。"
 
     if choice.effect_type == "gain_gold":
-        run_state.gold += choice.amount
-        return True, "获得 {} 金币。当前金币：{}。".format(
-            choice.amount,
-            run_state.gold
-        )
+        return True, "\n".join(gain_gold_with_relics(run_state, choice.amount, source="先古之民"))
 
     if choice.effect_type == "gain_random_card":
         card_id = rng.choice(CARD_REWARD_POOL)
         card = create_card(card_id)
-        run_state.master_deck.append(card)
-        return True, "获得卡牌：【{}】。".format(card.name)
+        return True, "\n".join(add_card_to_master_deck_with_relics(run_state, card, source="先古之民"))
 
     if choice.effect_type == "gain_random_relic":
         relic_ids = get_available_relic_ids(run_state)

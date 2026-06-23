@@ -3,6 +3,13 @@
 from game.status.status_defs import get_status_def, get_status_name
 
 
+def _owner_has_relic(owner, relic_id):
+    for relic in getattr(owner, "relics", []) or []:
+        if getattr(relic, "relic_id", "") == relic_id:
+            return True
+    return False
+
+
 def is_debuff_status(status_key):
     status_def = get_status_def(status_key)
     if status_def is None:
@@ -31,6 +38,37 @@ def add_status_with_artifact(owner, key, amount):
             "status_name": status_name,
         }
 
+    if amount > 0:
+        if key == "weak" and _owner_has_relic(owner, "relic.ginger"):
+            return {
+                "current": statuses.get(key),
+                "applied": False,
+                "blocked": False,
+                "prevented_by_relic": "生姜",
+                "artifact_left": statuses.get("artifact"),
+                "status_name": status_name,
+            }
+        if key == "frail" and _owner_has_relic(owner, "relic.turnip"):
+            return {
+                "current": statuses.get(key),
+                "applied": False,
+                "blocked": False,
+                "prevented_by_relic": "萝卜",
+                "artifact_left": statuses.get("artifact"),
+                "status_name": status_name,
+            }
+        if key == "vulnerable" and _owner_has_relic(owner, "relic.cabbage"):
+            amount -= 1
+            if amount <= 0:
+                return {
+                    "current": statuses.get(key),
+                    "applied": False,
+                    "blocked": False,
+                    "prevented_by_relic": "白菜",
+                    "artifact_left": statuses.get("artifact"),
+                    "status_name": status_name,
+                }
+
     if amount > 0 and key != "artifact" and is_debuff_status(key):
         artifact = statuses.get("artifact")
         if artifact > 0:
@@ -56,6 +94,13 @@ def add_status_with_artifact(owner, key, amount):
 def format_status_gain_log(entity, key, amount, result):
     status_name = result.get("status_name", get_status_name(key))
     amount = int(amount)
+
+    if result.get("prevented_by_relic"):
+        return "{} 的【{}】抵消了{}。".format(
+            entity.name,
+            result.get("prevented_by_relic"),
+            status_name
+        )
 
     if result.get("blocked"):
         return "{} 的人工制品抵挡了 {}。剩余人工制品：{}。".format(

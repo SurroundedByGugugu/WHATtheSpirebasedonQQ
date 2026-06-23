@@ -105,3 +105,29 @@ def create_soul():
             },
         }
     )
+
+
+def create_shiv():
+    return CardTemplate(
+        card_id="card.shiv",
+        name="小刀",
+        card_type="attack",
+        cost=0,
+        target="enemy",
+        description="造成 4 点伤害。",
+        quantity="event",
+        owner_character_id="",
+        card_vars={"damage": 4},
+        effects=[{
+            "op": "deal_damage",
+            "target": "selected_enemy",
+            "amount": {"base_var": "damage", "modifier_profile": "attack_damage"}
+        }],
+        upgraded=False,
+        upgrade_patch={
+            "name": "小刀+",
+            "description": "造成 6 点伤害。",
+            "card_vars": {"damage": 6}
+        }
+    )
+

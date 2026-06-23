@@ -19,6 +19,13 @@ from game.reward import (
     format_potion_slots,
     format_card_reward_choice,
 )
+from game.relic_logic.run_relic_utils import (
+    add_card_to_master_deck_with_relics,
+    has_run_relic,
+    is_relic_available_by_floor,
+    spend_gold_in_shop,
+    apply_card_gain_preview_relics,
+)
 
 CARD_RARITY_WEIGHTS = [
     ("common", 8),
@@ -72,6 +79,56 @@ SHOP_RANDOM_REMOVE_PRICE = 25
 SHOP_REMOVE_PRICE_STEP = 25
 
 
+def has_membership_card(run_state):
+    return has_run_relic(run_state, "relic.membership_card")
+
+
+def has_courier(run_state):
+    return has_run_relic(run_state, "relic.the_courier")
+
+
+def get_shop_price_multiplier(run_state):
+    multiplier = 1.0
+    if has_membership_card(run_state):
+        multiplier *= 0.5
+    if has_courier(run_state):
+        multiplier *= 0.8
+    return multiplier
+
+
+def apply_shop_price_modifiers(run_state, items):
+    multiplier = get_shop_price_multiplier(run_state)
+    if multiplier >= 0.999:
+        return
+    for item in items:
+        old_price = int(item.price)
+        item.price = max(1, int(old_price * multiplier))
+        tags = []
+        if has_membership_card(run_state):
+            tags.append("会员卡")
+        if has_courier(run_state):
+            tags.append("送货员")
+        tag_text = "+".join(tags)
+        if tag_text and tag_text not in item.title:
+            item.title = item.title + "（{}折扣）".format(tag_text)
+
+
+def get_effective_remove_price(run_state):
+    base_price = int(getattr(run_state, "card_remove_price", 50))
+    discounted_price = max(0, int(base_price * get_shop_price_multiplier(run_state)))
+    if has_run_relic(run_state, "relic.smiling_mask"):
+        return min(50, discounted_price)
+    return discounted_price
+
+
+def get_effective_random_remove_price(run_state):
+    return max(0, int(SHOP_RANDOM_REMOVE_PRICE * get_shop_price_multiplier(run_state)))
+
+
+def should_mark_item_sold(run_state):
+    return not has_courier(run_state)
+
+
 @dataclass
 class ShopItem:
     item_type: str
@@ -109,7 +166,8 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
                 rng=rng,
                 owner_character_id=character_id,
                 card_type=card_type,
-                used_card_ids=used_card_ids
+                used_card_ids=used_card_ids,
+                run_state=run_state
             )
             if item is not None:
                 card = item.payload.get("card")
@@ -128,7 +186,8 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
     colorless_uncommon = create_colorless_card_shop_item(
         rng=rng,
         target_quantity="uncommon",
-        used_card_ids=used_card_ids
+        used_card_ids=used_card_ids,
+        run_state=run_state
     )
     if colorless_uncommon is not None:
         card = colorless_uncommon.payload.get("card")
@@ -139,7 +198,8 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
     colorless_rare = create_colorless_card_shop_item(
         rng=rng,
         target_quantity="rare",
-        used_card_ids=used_card_ids
+        used_card_ids=used_card_ids,
+        run_state=run_state
     )
     if colorless_rare is not None:
         card = colorless_rare.payload.get("card")
@@ -181,6 +241,8 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
                 "potion": potion
             }
         ))
+
+    apply_shop_price_modifiers(run_state, items)
 
     return ShopState(
         items=items,
@@ -267,7 +329,7 @@ def remove_used_ids(card_ids, used_card_ids):
     return card_ids
 
 
-def create_colored_card_shop_item(rng, owner_character_id, card_type, used_card_ids=None):
+def create_colored_card_shop_item(rng, owner_character_id, card_type, used_card_ids=None, run_state=None):
     target_quantity = weighted_choice(rng, CARD_RARITY_WEIGHTS)
 
     card_ids = get_card_shop_pool(
@@ -299,6 +361,8 @@ def create_colored_card_shop_item(rng, owner_character_id, card_type, used_card_
 
     card_id = rng.choice(card_ids)
     card = create_card(card_id)
+    if run_state is not None:
+        card = apply_card_gain_preview_relics(run_state, card)
 
     return ShopItem(
         item_type="card",
@@ -317,7 +381,7 @@ def create_colored_card_shop_item(rng, owner_character_id, card_type, used_card_
     )
 
 
-def create_colorless_card_shop_item(rng, target_quantity, used_card_ids=None):
+def create_colorless_card_shop_item(rng, target_quantity, used_card_ids=None, run_state=None):
     card_ids = get_card_shop_pool(
         unowned_only=True,
         quantity=target_quantity,
@@ -343,6 +407,8 @@ def create_colorless_card_shop_item(rng, target_quantity, used_card_ids=None):
 
     card_id = rng.choice(card_ids)
     card = create_card(card_id)
+    if run_state is not None:
+        card = apply_card_gain_preview_relics(run_state, card)
 
     return ShopItem(
         item_type="card",
@@ -424,6 +490,10 @@ def get_normal_shop_relic_ids(run_state, rng, count):
         relic = create_relic(relic_id)
         if getattr(relic, "quantity", "") == "shop":
             continue
+        if getattr(relic, "can_appear_in_shop", True) is False:
+            continue
+        if not is_relic_available_by_floor(run_state, relic):
+            continue
 
         normal_relic_ids.append(relic_id)
 
@@ -478,6 +548,9 @@ def get_shop_exclusive_relic_id(run_state, rng):
 
         relic_owner = getattr(relic, "owner_character_id", "")
         if relic_owner and relic_owner != current_character_id:
+            continue
+
+        if not is_relic_available_by_floor(run_state, relic):
             continue
 
         allow_duplicate = getattr(relic, "allow_duplicate", False)
@@ -597,10 +670,10 @@ def format_shop(run_state):
         lines.append("[已使用] 本商店已经使用过删牌服务。")
     else:
         lines.append("定向删除一张牌：{} 金币。使用 /card remove 查看牌组。".format(
-            getattr(run_state, "card_remove_price", 50)
+            get_effective_remove_price(run_state)
         ))
         lines.append("随机删除一张牌：{} 金币。使用 /card random_remove。".format(
-            SHOP_RANDOM_REMOVE_PRICE
+            get_effective_random_remove_price(run_state)
         ))
 
     lines.append("")
@@ -708,27 +781,32 @@ def buy_shop_item(run_state, item_index):
     if item.item_type == "card":
         card = copy.deepcopy(item.payload.get("card"))
         run_state.gold -= item.price
-        run_state.master_deck.append(card)
-        item.sold = True
-        return "购买卡牌：【{}】。当前金币：{}。".format(
-            card.name,
-            run_state.gold
-        )
+        item.sold = should_mark_item_sold(run_state)
+        logs = []
+        logs.append("购买卡牌：【{}】。当前金币：{}。".format(card.name, run_state.gold))
+        logs.extend(spend_gold_in_shop(run_state, item.price))
+        logs.extend(add_card_to_master_deck_with_relics(run_state, card, source="购买卡牌"))
+        if has_courier(run_state):
+            logs.append("【送货员】使该商品没有售罄。")
+        return "\n".join(logs)
 
     if item.item_type == "relic":
         relic = item.payload.get("relic")
         run_state.gold -= item.price
         run_state.relics.append(relic)
-        item.sold = True
+        item.sold = should_mark_item_sold(run_state)
 
         logs = []
         logs.append("购买遗物：【{}】。当前金币：{}。".format(
             relic.name,
             run_state.gold
         ))
+        logs.extend(spend_gold_in_shop(run_state, item.price))
 
         if hasattr(relic, "on_obtained"):
             logs.extend(relic.on_obtained(run_state))
+        if has_courier(run_state):
+            logs.append("【送货员】使该商品没有售罄。")
 
         return "\n".join(logs)
 
@@ -745,11 +823,13 @@ def buy_shop_item(run_state, item_index):
 
         run_state.gold -= item.price
         run_state.potions.append(potion)
-        item.sold = True
-        return "购买药水：【{}】。当前金币：{}。".format(
-            potion.name,
-            run_state.gold
-        )
+        item.sold = should_mark_item_sold(run_state)
+        logs = []
+        logs.append("购买药水：【{}】。当前金币：{}。".format(potion.name, run_state.gold))
+        logs.extend(spend_gold_in_shop(run_state, item.price))
+        if has_courier(run_state):
+            logs.append("【送货员】使该商品没有售罄。")
+        return "\n".join(logs)
 
     return "未知商品类型：{}。".format(item.item_type)
 
@@ -802,14 +882,15 @@ def buy_shop_items(run_state, item_indices):
             ))
             break
 
+        before_gold = int(run_state.gold)
         before_sold = item.sold
         reply = buy_shop_item(run_state, item_index)
         logs.append("批量购买第 {} 项：[{}]".format(seen_step, item_index))
         logs.append(reply)
 
-        # 药水栏满等情况会返回提示，但不会把 item.sold 改成 True。
-        # 这种视为购买失败，中止后续购买。
-        if not before_sold and not item.sold:
+        # 药水栏满等情况会返回提示且不扣金币。送货员存在时商品不会售罄，
+        # 因而用金币变化辅助判断是否购买成功。
+        if int(run_state.gold) == before_gold and not before_sold and not item.sold:
             logs.append("该商品未成功购买，批量购买中止。")
             break
 
@@ -829,7 +910,7 @@ def format_remove_card_choices(run_state):
     if not deck:
         return "当前牌组为空，无法删除。"
 
-    price = getattr(run_state, "card_remove_price", 50)
+    price = get_effective_remove_price(run_state)
 
     lines = []
     lines.append("=== 定向删除牌 ===")
@@ -865,7 +946,7 @@ def remove_card_by_index(run_state, card_index):
     if card_index < 0 or card_index >= len(deck):
         return "卡牌编号无效。"
 
-    price = getattr(run_state, "card_remove_price", 50)
+    price = get_effective_remove_price(run_state)
 
     if run_state.gold < price:
         return "金币不足。当前金币：{}，需要：{}。".format(
@@ -877,17 +958,19 @@ def remove_card_by_index(run_state, card_index):
     if removed_card is None:
         return "\n".join(remove_logs)
 
+    old_base_price = int(getattr(run_state, "card_remove_price", 50))
     run_state.gold -= price
-    run_state.card_remove_price = price + SHOP_REMOVE_PRICE_STEP
+    run_state.card_remove_price = old_base_price + SHOP_REMOVE_PRICE_STEP
     shop_state.remove_used = True
 
     logs = []
-    logs.append("定向删除【{}】。花费 {} 金币，当前金币：{}。下次定向删除价格：{}。".format(
+    logs.append("定向删除【{}】。花费 {} 金币，当前金币：{}。下次定向删除基础价格：{}。".format(
         removed_card.name,
         price,
         run_state.gold,
         run_state.card_remove_price
     ))
+    logs.extend(spend_gold_in_shop(run_state, price))
     logs.extend(remove_logs[1:])
     return "\n".join(logs)
 
@@ -905,10 +988,12 @@ def random_remove_card(run_state, seed=None):
     if not deck:
         return "当前牌组为空，无法删除。"
 
-    if run_state.gold < SHOP_RANDOM_REMOVE_PRICE:
+    price = get_effective_random_remove_price(run_state)
+
+    if run_state.gold < price:
         return "金币不足。当前金币：{}，需要：{}。".format(
             run_state.gold,
-            SHOP_RANDOM_REMOVE_PRICE
+            price
         )
 
     rng = random.Random(seed)
@@ -917,15 +1002,16 @@ def random_remove_card(run_state, seed=None):
     if removed_card is None:
         return "\n".join(remove_logs)
 
-    run_state.gold -= SHOP_RANDOM_REMOVE_PRICE
+    run_state.gold -= price
     shop_state.remove_used = True
 
     logs = []
     logs.append("你支付了 {} 金币。商人随手抽走了一张【{}】。当前金币：{}。定向删除价格仍为 {}。".format(
-        SHOP_RANDOM_REMOVE_PRICE,
+        price,
         removed_card.name,
         run_state.gold,
-        getattr(run_state, "card_remove_price", 50)
+        get_effective_remove_price(run_state)
     ))
+    logs.extend(spend_gold_in_shop(run_state, price))
     logs.extend(remove_logs[1:])
     return "\n".join(logs)
