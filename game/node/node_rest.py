@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from data.card.upgrade_rules import has_upgrade, upgrade_card
 from game.command_help import command_tip
 from game.relic_logic.bottle_utils import copy_bottled_flags
-from game.relic_logic.run_relic_utils import has_run_relic
+from game.relic_logic.run_relic_utils import has_run_relic, heal_run_hp_with_relics
 
 
 REST_HEAL_RATIO = 0.30
@@ -37,6 +37,10 @@ def get_girya_relic(run_state):
 def is_action_available(run_state, action):
     rest_state = run_state.pending_rest
     if rest_state is None:
+        return False
+    if action == "rest" and has_run_relic(run_state, "relic.coffee_dripper"):
+        return False
+    if action == "smith" and has_run_relic(run_state, "relic.fusion_hammer"):
         return False
     if has_miniature_tent(run_state):
         return action not in getattr(rest_state, "used_actions", set())
@@ -89,8 +93,12 @@ def format_rest(run_state):
         if action != "leave" and not is_action_available(run_state, action):
             suffix = "（已使用）"
         if action == "rest":
+            if has_run_relic(run_state, "relic.coffee_dripper"):
+                suffix = "（咖啡滤杯：不可休息）"
             lines.append("[{}] 休息：恢复最大生命值 {}% ({}) 的生命。{}".format(index, int(REST_HEAL_RATIO*100), heal_amount, suffix))
         elif action == "smith":
+            if has_run_relic(run_state, "relic.fusion_hammer"):
+                suffix = "（融合之锤：不可锻造）"
             lines.append("[{}] 锻造：升级一张可升级的牌。{}".format(index, suffix))
         elif action == "girya":
             girya = get_girya_relic(run_state)
@@ -116,6 +124,8 @@ def rest_heal(run_state):
     if rest_state is None:
         return False, "当前不在火堆。"
     if not is_action_available(run_state, "rest"):
+        if has_run_relic(run_state, "relic.coffee_dripper"):
+            return False, "【咖啡滤杯】限制：你无法在火堆休息。"
         return False, "本次火堆不能再次休息。"
 
     heal_amount = int(run_state.max_hp * REST_HEAL_RATIO)
@@ -128,12 +138,13 @@ def rest_heal(run_state):
         extra_text = "【皇家枕头】额外回复 15 点生命。"
 
     old_hp = run_state.hp
-    run_state.hp = min(run_state.max_hp, run_state.hp + heal_amount)
+    heal_logs = heal_run_hp_with_relics(run_state, heal_amount, source="休息")
     consume_rest_action(run_state, "rest")
 
+    prefix = "你在火堆旁休息。"
     if extra_text:
-        return True, "你在火堆旁休息。{} HP：{} -> {}。".format(extra_text, old_hp, run_state.hp)
-    return True, "你在火堆旁休息。HP：{} -> {}。".format(old_hp, run_state.hp)
+        prefix += extra_text
+    return True, prefix + "\n" + "\n".join(heal_logs)
 
 
 def get_upgradable_cards(run_state):
@@ -150,6 +161,8 @@ def format_smith_choices(run_state):
     if run_state.pending_rest is None:
         return "当前不在火堆。"
     if not is_action_available(run_state, "smith"):
+        if has_run_relic(run_state, "relic.fusion_hammer"):
+            return "【融合之锤】限制：你无法在火堆锻造。"
         return "本次火堆不能再次锻造。"
     upgradable = get_upgradable_cards(run_state)
     lines = ["=== 锻造 ==="]
@@ -171,6 +184,8 @@ def smith_card(run_state, choice_index):
     if run_state.pending_rest is None:
         return False, "当前不在火堆。"
     if not is_action_available(run_state, "smith"):
+        if has_run_relic(run_state, "relic.fusion_hammer"):
+            return False, "【融合之锤】限制：你无法在火堆锻造。"
         return False, "本次火堆不能再次锻造。"
     upgradable = get_upgradable_cards(run_state)
     if not upgradable:

@@ -264,6 +264,29 @@ def deal_damage(
     if blocked < 0:
         blocked = 0
 
+    if (
+        damage_kind == "attack"
+        and source is getattr(game_state, "player", None)
+        and hasattr(target, "enemy_id")
+        and _entity_has_relic(source, "relic.hand_drill")
+        and int(old_block) > 0
+        and int(getattr(target, "block", 0)) <= 0
+        and int(blocked) > 0
+    ):
+        logs.append("【手钻】触发：突破了{}的格挡，给予 2 层易伤。".format(getattr(target, "name", "敌人")))
+        try:
+            from game.relic_logic.combat_relic_utils import apply_status_with_player_relics
+            logs.extend(apply_status_with_player_relics(
+                game_state=game_state,
+                source=source,
+                target=target,
+                status_key="vulnerable",
+                amount=2
+            ))
+        except Exception:
+            current = target.gain_status("vulnerable", 2)
+            logs.append("{} 获得 2 点易伤。当前易伤：{}。".format(getattr(target, "name", "敌人"), current))
+
     if target is game_state.player and real_damage > 0:
         game_state.player_life_loss_count_this_battle = int(
             getattr(game_state, "player_life_loss_count_this_battle", 0)

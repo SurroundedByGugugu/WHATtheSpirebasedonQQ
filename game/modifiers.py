@@ -163,6 +163,21 @@ def apply_attack_damage_modifiers(
     if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
         value += get_status_value(source, "vigor")
 
+    # 袖剑：费用为 0 的攻击牌额外造成 4 点伤害。战斗中临时变 0 费也生效。
+    if (
+        damage_source == DAMAGE_SOURCE_PLAYED_CARD
+        and card is not None
+        and getattr(card, "card_type", "") == "attack"
+        and entity_has_relic(source, "relic.wrist_blade")
+    ):
+        try:
+            from game.card_cost import get_card_current_cost
+            current_cost = int(get_card_current_cost(game_state, card))
+        except Exception:
+            current_cost = int(getattr(card, "cost", 0) or 0)
+        if current_cost == 0:
+            value += 4
+
     # 2. 状态乘区
     status_multiplier = get_attack_status_multiplier(
         source=source,

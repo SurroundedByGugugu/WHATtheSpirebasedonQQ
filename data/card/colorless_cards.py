@@ -131,3 +131,29 @@ def create_shiv():
         }
     )
 
+
+
+def create_jax():
+    from game.constants import KEYWORD_EXHAUST
+    return CardTemplate(
+        card_id="card.jax",
+        name="J.A.X.",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="失去 3 点生命。获得 2 点力量。消耗。",
+        quantity="event",
+        owner_character_id="",
+        card_vars={"hp_loss": 3, "strength": 2},
+        effects=[
+            {"op": "lose_hp", "amount": {"var": "hp_loss"}},
+            {"op": "gain_status", "target": "self", "status": "strength", "amount": {"var": "strength"}},
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "J.A.X.+",
+            "description": "失去 3 点生命。获得 3 点力量。消耗。",
+            "card_vars": {"strength": 3}
+        }
+    )

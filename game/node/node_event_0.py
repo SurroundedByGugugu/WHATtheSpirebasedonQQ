@@ -13,7 +13,7 @@ from game.command_help import command_tip
 from game.deck_utils import remove_card_from_master_deck, transform_card_in_master_deck
 from game.node.node_rest import get_upgradable_cards
 from game.relic_logic.bottle_utils import copy_bottled_flags, strip_bottled_flags
-from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics, gain_gold_with_relics, try_block_curse_with_omamori
+from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics, gain_gold_with_relics, try_block_curse_with_omamori, heal_run_hp_with_relics
 from game.reward import get_available_relic_ids
 
 
@@ -60,6 +60,10 @@ EVENT_TRANSFORM_SHRINE = "event.transform_shrine"
 EVENT_UPGRADE_SHRINE = "event.upgrade_shrine"
 EVENT_WHEEL_GAME = "event.wheel_game"
 EVENT_BLUE_WOMAN = "event.blue_woman"
+EVENT_CURSED_TOME = "event.cursed_tome"
+EVENT_MIND_BLOOM = "event.mind_bloom"
+EVENT_FACE_TRADER = "event.face_trader"
+EVENT_AUGMENTER = "event.augmenter"
 
 
 def get_current_floor(run_state):
@@ -128,8 +132,9 @@ def heal_by_max_hp_fraction(run_state, numerator, denominator):
     if amount < 1:
         amount = 1
     old_hp = run_state.hp
-    run_state.hp = min(run_state.max_hp, run_state.hp + amount)
-    return amount, old_hp, run_state.hp
+    heal_run_hp_with_relics(run_state, amount, source="事件回复")
+    actual = max(0, run_state.hp - old_hp)
+    return actual, old_hp, run_state.hp
 
 
 def lose_hp(run_state, amount):
@@ -270,16 +275,14 @@ def copy_card_for_master_deck(card):
 
 def add_random_potion_to_run(run_state, rng):
     from data.potion.AAAregistry import create_potion
-    from game.reward import POTION_REWARD_POOL
+    from game.reward import roll_potion_id_by_rarity
+    from game.relic_logic.run_relic_utils import try_gain_potion_with_relics
 
-    max_slots = int(getattr(run_state, "max_potion_slots", 3) or 3)
-    if len(getattr(run_state, "potions", []) or []) >= max_slots:
-        return "药水栏已满，无法获得新的药水。"
-
-    potion_id = rng.choice(POTION_REWARD_POOL)
+    potion_id = roll_potion_id_by_rarity(rng, run_state=run_state, include_event=False)
+    if not potion_id:
+        return "没有可获得的药水。"
     potion = create_potion(potion_id)
-    run_state.potions.append(potion)
-    return "获得药水：【{}】。".format(potion.name)
+    return "\n".join(try_gain_potion_with_relics(run_state, potion, source="事件"))
 
 
 def add_random_potions_to_run(run_state, rng, count):
@@ -460,6 +463,110 @@ def get_event_builders_for_current_node(run_state, seed=None, source_node_type="
         ))
 
     return builders
+
+
+def _pick_random_book_relic(rng):
+    return rng.choice([
+        "relic.necronomicon",
+        "relic.nilrys_codex",
+        "relic.enchiridion",
+    ])
+
+
+def _get_removable_transformable_card_indices(run_state):
+    result = []
+    for index, card in enumerate(getattr(run_state, "master_deck", []) or []):
+        if getattr(card, "unremovable", False) or getattr(card, "untransformable", False):
+            continue
+        result.append(index)
+    return result
+
+
+def _upgrade_all_cards(run_state):
+    logs = []
+    deck = getattr(run_state, "master_deck", []) or []
+    for index, card in enumerate(list(deck)):
+        if getattr(card, "upgraded", False) and not getattr(card, "multi_upgrade", False):
+            continue
+        if not has_upgrade(card):
+            continue
+        upgraded_card = upgrade_card(card)
+        upgraded_card = copy_bottled_flags(card, upgraded_card)
+        deck[index] = upgraded_card
+        logs.append("升级：【{}】 -> 【{}】。".format(card.name, upgraded_card.name))
+    if not logs:
+        logs.append("没有可以升级的牌。")
+    return logs
+
+
+def build_cursed_tome_event(run_state, rng=None, seed=None, source_node_type="event"):
+    return EventState(
+        title="诅咒书本",
+        event_id=EVENT_CURSED_TOME,
+        description=(
+            "在一所被遗弃的神庙里，你找到一本翻开着的巨大书本，里面满是神秘的文字。\n"
+            "你刚试着想要解读这些复杂的文本，它就自己开始移动变化成了你熟悉的文字。"
+        ),
+        choices=[
+            EventChoice("阅读。", "cursed_tome_read"),
+            EventChoice("离开。", "leave"),
+        ],
+        data={"step": 0},
+    )
+
+
+def build_mind_bloom_event(run_state, rng=None, seed=None, source_node_type="event"):
+    floor = get_current_floor(run_state)
+    rich_choice = EventChoice("我将富有。获得 999 金币。被诅咒——2 张凡庸。", "mind_bloom_rich")
+    if floor >= 40:
+        rich_choice = EventChoice("我无伤痛。恢复所有生命。被诅咒——疑虑。", "mind_bloom_no_pain")
+    return EventState(
+        title="心灵绽放",
+        event_id=EVENT_MIND_BLOOM,
+        description=(
+            "你在高塔的混沌深处不断攀行，不知不觉间，你愕然发现自己的思绪开始变得非常……真实……\n"
+            "各种怪物和财宝的影响开始有了实体。这些感觉稍纵即逝，你准备怎么做？"
+        ),
+        choices=[
+            EventChoice("我必凯旋。与一名第一阶段的 BOSS 战斗，胜利后获得一件稀有遗物。", "mind_bloom_victory"),
+            EventChoice("我已觉醒。升级所有牌。获得绽放印记。", "mind_bloom_awakened"),
+            rich_choice,
+        ],
+    )
+
+
+def build_face_trader_event(run_state, rng=None, seed=None, source_node_type="event"):
+    return EventState(
+        title="换脸商",
+        event_id=EVENT_FACE_TRADER,
+        description=(
+            "你经过一尊举着许多不同面具的奇怪雕像，但没走几步，就听见身后传来一个轻柔的声音：\n"
+            "“请留步。”\n"
+            "那尊雕像转向了你。仔细一看，这并不是雕像，只是一个肤色如同雕像的消瘦男人……\n"
+            "“你的脸，让我碰碰？或者，想要交易？”"
+        ),
+        choices=[
+            EventChoice("触碰。失去 10% 最大生命值的生命，获得 75 金币。", "face_touch"),
+            EventChoice("交易。50% 获得好脸，50% 获得坏脸。", "face_trade"),
+            EventChoice("离开。", "leave"),
+        ],
+    )
+
+
+def build_augmenter_event(run_state, rng=None, seed=None, source_node_type="event"):
+    return EventState(
+        title="增益研究者",
+        event_id=EVENT_AUGMENTER,
+        description=(
+            "一个戴着眼罩、邪笑着的男人大摇大摆地走到你面前：\n"
+            "“嘿陌生人，想不想试试高端的科技吗？可会让你变得比任何训练和祝福都要强哦。”"
+        ),
+        choices=[
+            EventChoice("来点猛药。获得 J.A.X.。", "augmenter_jax"),
+            EventChoice("当一下实验对象。选择两张牌进行变化。", "augmenter_transform"),
+            EventChoice("喝下突变剂。获得突变之力。", "augmenter_mutagen"),
+        ],
+    )
 
 
 def create_empty_event_state(run_state, seed=None, source_node_type="event"):
@@ -1176,6 +1283,172 @@ def choose_event_option(run_state, choice_index, seed=None):
 
     if effect == "blue_woman_leave":
         return True, "砰\n她戴着手套的拳头狠狠打在了你的脸上，差点就把你打翻在地。\n“在我把你打得满地找牙之前给我滚出去。”你觉得她有可能说到做到，趁着牙齿还没事赶紧离开了这家店。"
+
+    if effect == "nloth_relic":
+        relic_index = int(payload.get("relic_index", -1))
+        relics = getattr(run_state, "relics", []) or []
+        if relic_index < 0 or relic_index >= len(relics):
+            return False, "当前没有可交出的遗物。"
+        relic = relics.pop(relic_index)
+        logs = [
+            "你把遗物递给恩洛斯，他用触手一把将东西抓过去，大张开嘴，一口就啊呜吞了下去。",
+            "失去遗物：【{}】。".format(getattr(relic, "name", "遗物")),
+            "恩洛斯露齿一笑，塞给你一个整洁的小盒子。",
+        ]
+        logs.extend(add_specific_relic(run_state, "relic.nloths_gift"))
+        return True, "\n".join(logs)
+
+    if effect == "cursed_tome_read":
+        state.description = (
+            "真奇怪。这本书的内容似乎是关于一名叫做涅奥的先古之民。\n"
+            "这引起了你的兴趣，但你总觉得这本书有点让你不适。"
+        )
+        state.data["step"] = 0
+        state.choices = [
+            EventChoice("继续。失去 1 生命。", "cursed_tome_continue", amount=1),
+            EventChoice("离开。", "leave"),
+        ]
+        return False, format_event(run_state)
+
+    if effect == "cursed_tome_continue":
+        step = int(state.data.get("step", 0))
+        losses = [1, 2, 3]
+        texts = [
+            "涅奥是司管复活的先古之民，他被放逐到了高塔的底端。\n你觉得自己必须要读下去，可是你的身体开始觉得有一点疼痛。",
+            "寻求复仇的涅奥会给予外来人祝福，利用他们来达成自己的目的。\n你开始觉得自己非常虚弱和疲劳……",
+            "那些被涅奥复活的人们只能零碎想起自己过去人生的记忆，他们被诅咒要永远战斗下去。\n当你快要翻到最后一页时，你的旧伤口似乎要绽开了！",
+        ]
+        loss = losses[min(step, len(losses)-1)]
+        old_hp, new_hp = lose_hp(run_state, loss)
+        prefix = "失去 {} 点生命：{} -> {}。\n".format(loss, old_hp, new_hp)
+        state.data["step"] = step + 1
+        state.description = prefix + texts[min(step, len(texts)-1)]
+        if step + 1 >= 3:
+            state.choices = [
+                EventChoice("停止。失去 3 生命。", "cursed_tome_stop"),
+                EventChoice("拿走。得到书。失去 10 生命。", "cursed_tome_take"),
+            ]
+        else:
+            next_loss = losses[min(step + 1, len(losses)-1)]
+            state.choices = [EventChoice("继续。失去 {} 生命。".format(next_loss), "cursed_tome_continue", amount=next_loss)]
+        return False, format_event(run_state)
+
+    if effect == "cursed_tome_stop":
+        old_hp, new_hp = lose_hp(run_state, 3)
+        return True, "你顶着极大的压力，强行用意志力抵抗住书本的魔力，砰地一下使劲把书合上了。\n失去 3 点生命：{} -> {}。".format(old_hp, new_hp)
+
+    if effect == "cursed_tome_take":
+        old_hp, new_hp = lose_hp(run_state, 10)
+        relic_id = _pick_random_book_relic(rng)
+        logs = [
+            "看完书后，你决定把它带上。或许手握证据的现在，你会有可能取回你的记忆？",
+            "失去 10 点生命：{} -> {}。".format(old_hp, new_hp),
+        ]
+        logs.extend(add_specific_relic(run_state, relic_id))
+        return True, "\n".join(logs)
+
+    if effect == "mind_bloom_victory":
+        from game.run_engine import start_forced_event_battle
+        return False, start_forced_event_battle(
+            run_state,
+            encounter_id="encounter.boss.slime_boss",
+            effective_node_type="event_boss",
+            seed=seed,
+            post_battle_effects=[{"type": "gain_rare_relic"}],
+            intro_text="思维凝成实体。你必须击败曾经的强敌。",
+        )
+
+    if effect == "mind_bloom_awakened":
+        logs = [
+            "一切都明白了。失去的记忆、不断地攀登、那个先古之民。",
+            "你的牌组被全部唤醒。",
+        ]
+        logs.extend(_upgrade_all_cards(run_state))
+        logs.extend(add_specific_relic(run_state, "relic.mark_of_the_bloom"))
+        return True, "\n".join(logs)
+
+    if effect == "mind_bloom_rich":
+        logs = ["真的有这么简单的事吗？"]
+        logs.extend(gain_gold_with_relics(run_state, 999, source="心灵绽放"))
+        logs.append(add_curse(run_state, "card.curse.normality"))
+        logs.append(add_curse(run_state, "card.curse.normality"))
+        return True, "\n".join(logs)
+
+    if effect == "mind_bloom_no_pain":
+        logs = ["真的有这么简单的事吗？"]
+        logs.extend(heal_run_hp_with_relics(run_state, int(getattr(run_state, "max_hp", 0)), source="心灵绽放"))
+        logs.append(add_curse(run_state, "card.curse.doubt"))
+        return True, "\n".join(logs)
+
+    if effect == "face_touch":
+        amount, old_hp, new_hp = lose_hp_percent_of_max(run_state, 0.10)
+        logs = [
+            "“补偿吗？当然了。”他机械地伸出手，将一叠金币放进了你的钱袋里。",
+            "失去 {} 点生命：{} -> {}。".format(amount, old_hp, new_hp),
+        ]
+        logs.extend(gain_gold_with_relics(run_state, 75, source="换脸商"))
+        return True, "\n".join(logs)
+
+    if effect == "face_trade":
+        if rng.random() < 0.5:
+            relic_id = rng.choice(["relic.face_of_cleric", "relic.ssserpent_head", "relic.cultist_mask"])
+            mood = "好脸"
+        else:
+            relic_id = rng.choice(["relic.gremlin_mask", "relic.nloths_mask"])
+            mood = "坏脸"
+        logs = ["你的脸和面具交换了。你获得了{}。".format(mood)]
+        logs.extend(add_specific_relic(run_state, relic_id))
+        return True, "\n".join(logs)
+
+    if effect == "augmenter_jax":
+        logs = ["男人递给你一个看起来很危险的、装着发光液体的针筒。"]
+        logs.extend(add_card_to_master_deck_with_relics(run_state, create_card("card.jax"), source="增益研究者"))
+        return True, "\n".join(logs)
+
+    if effect == "augmenter_transform":
+        indices = _get_removable_transformable_card_indices(run_state)
+        if len(indices) < 2:
+            return False, "牌组中可变化的牌不足 2 张。"
+        ok, text = build_filtered_deck_selection(
+            state,
+            run_state,
+            "增益研究者拿出笔记本。请选择第 1 张要变化的牌。",
+            "augmenter_transform_first",
+            predicate=lambda card: not getattr(card, "unremovable", False) and not getattr(card, "untransformable", False),
+            payload={},
+        )
+        return False, text if ok else text
+
+    if effect == "augmenter_transform_first":
+        first = int(payload.get("deck_index", -1))
+        if first < 0 or first >= len(getattr(run_state, "master_deck", []) or []):
+            return False, "卡牌编号无效。"
+        state.data["augmenter_first_index"] = first
+        ok, text = build_filtered_deck_selection(
+            state,
+            run_state,
+            "请选择第 2 张要变化的牌。",
+            "augmenter_transform_second",
+            predicate=lambda card: not getattr(card, "unremovable", False) and not getattr(card, "untransformable", False),
+            payload={"first_index": first},
+        )
+        return False, text if ok else text
+
+    if effect == "augmenter_transform_second":
+        first = int(payload.get("first_index", state.data.get("augmenter_first_index", -1)))
+        second = int(payload.get("deck_index", -1))
+        if first == second:
+            return False, "需要选择两张不同的牌。"
+        logs = ["“太棒了。”你感觉自己有点飘忽，他则飞快地记起了笔记。"]
+        for deck_index in sorted([first, second], reverse=True):
+            old_card, new_card, transform_logs = transform_card_in_master_deck(run_state, deck_index, rng=rng)
+            logs.extend(transform_logs)
+        return True, "\n".join(logs)
+
+    if effect == "augmenter_mutagen":
+        logs = ["你喝下神秘液体，立即感觉肌肉纤维仿佛抖动了起来！"]
+        logs.extend(add_specific_relic(run_state, "relic.mutagenic_strength"))
+        return True, "\n".join(logs)
 
     if effect == "select_remove_card":
         deck_index = int(payload.get("deck_index", -1))

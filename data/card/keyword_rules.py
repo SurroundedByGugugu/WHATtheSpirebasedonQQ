@@ -202,7 +202,15 @@ def can_play_card(game_state, card, play_reason="normal"):
         ):
             return False, "你受到缠身影响，本回合不能打出攻击牌。"
 
+        if any(getattr(hand_card, "card_id", "") == "card.curse.normality" for hand_card in getattr(player, "hand", []) or []):
+            counts = getattr(game_state, "player_card_type_played_counts_this_turn", {}) or {}
+            total = sum(int(v) for v in counts.values())
+            if total >= 3:
+                return False, "【凡庸】限制：本回合已经打出 3 张牌，不能继续打出。"
+
     # 遗物 / 状态等可以覆盖“不能被打出”，例如蓝蜡烛、医药箱。
+    # 禁止类效果优先级更高：例如天鹅绒颈圈应能压过蓝蜡烛/医药箱的允许打出。
+    allowed_override_message = None
     for source in iter_card_play_permission_sources(game_state):
         checker = getattr(source, "can_play_card", None)
         if checker is None:
@@ -212,8 +220,12 @@ def can_play_card(game_state, card, play_reason="normal"):
             continue
         allowed_by_source, source_message = result
         if allowed_by_source:
-            return True, source_message
+            allowed_override_message = source_message
+            continue
         return False, source_message or "【{}】不能被打出。".format(card.name)
+
+    if allowed_override_message is not None:
+        return True, allowed_override_message
 
     if card.has_keyword("unplayable"):
         return False, "【{}】不能被打出。".format(card.name)

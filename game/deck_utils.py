@@ -49,6 +49,12 @@ def remove_card_from_master_deck(run_state, card_index, reason=""):
     if card_index < 0 or card_index >= len(deck):
         return None, ["卡牌编号无效。"]
 
+    target_card = deck[card_index]
+    if getattr(target_card, "card_id", "") == "card.curse.bell":
+        return None, ["【铃铛的诅咒】无法从牌组中移除。"]
+    if getattr(target_card, "card_id", "") == "card.curse.necronomicurse":
+        return None, ["【死灵诅咒】无法从牌组中移除。"]
+
     removed_card = deck.pop(card_index)
     logs = ["移除卡牌：【{}】。".format(getattr(removed_card, "name", "未知卡牌"))]
     logs.extend(apply_card_removed_or_transformed_side_effects(
@@ -104,6 +110,8 @@ def transform_card_in_master_deck(run_state, card_index, rng=None):
         return None, None, ["卡牌编号无效。"]
 
     old_card = deck[card_index]
+    if getattr(old_card, "card_id", "") == "card.curse.necronomicurse":
+        return None, None, ["【死灵诅咒】无法被变化。"]
     if getattr(old_card, "card_type", "") == "curse":
         pool = get_curse_transform_candidate_ids()
     else:

@@ -13,6 +13,7 @@ from game.command_help import command_tip
 from game.deck_utils import remove_card_from_master_deck
 from game.reward import (
     POTION_REWARD_POOL,
+    roll_potion_id_by_rarity,
     SHOP_RELIC_POOL,
     FALLBACK_RELIC_ID,
     get_available_relic_ids,
@@ -25,6 +26,7 @@ from game.relic_logic.run_relic_utils import (
     is_relic_available_by_floor,
     spend_gold_in_shop,
     apply_card_gain_preview_relics,
+    try_gain_potion_with_relics,
 )
 
 CARD_RARITY_WEIGHTS = [
@@ -228,7 +230,7 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
 
     # 4. 三瓶药水。
     for _ in range(3):
-        potion_id = pick_potion_id_by_weighted_rarity(rng)
+        potion_id = pick_potion_id_by_weighted_rarity(rng, run_state=run_state)
         if potion_id is None:
             continue
 
@@ -565,22 +567,8 @@ def get_shop_exclusive_relic_id(run_state, rng):
     return FALLBACK_RELIC_ID
 
 
-def pick_potion_id_by_weighted_rarity(rng):
-    if not POTION_REWARD_POOL:
-        return None
-
-    target_quantity = weighted_choice(rng, CARD_RARITY_WEIGHTS)
-
-    matching = []
-    for potion_id in POTION_REWARD_POOL:
-        potion = create_potion(potion_id)
-        if getattr(potion, "quantity", "common") == target_quantity:
-            matching.append(potion_id)
-
-    if matching:
-        return rng.choice(matching)
-
-    return rng.choice(POTION_REWARD_POOL)
+def pick_potion_id_by_weighted_rarity(rng, run_state=None):
+    return roll_potion_id_by_rarity(rng, run_state=run_state, include_event=False)
 
 
 def _sample_or_choices(rng, pool, count):
@@ -814,6 +802,9 @@ def buy_shop_item(run_state, item_index):
         potion = item.payload.get("potion")
         max_slots = getattr(run_state, "max_potion_slots", 3)
 
+        if has_run_relic(run_state, "relic.sozu"):
+            return "【添水】限制：你无法获得药水【{}】。".format(potion.name)
+
         if len(run_state.potions) >= max_slots:
             return "\n".join([
                 "药水栏已满，无法购买【{}】。".format(potion.name),
@@ -822,11 +813,11 @@ def buy_shop_item(run_state, item_index):
             ])
 
         run_state.gold -= item.price
-        run_state.potions.append(potion)
         item.sold = should_mark_item_sold(run_state)
         logs = []
         logs.append("购买药水：【{}】。当前金币：{}。".format(potion.name, run_state.gold))
         logs.extend(spend_gold_in_shop(run_state, item.price))
+        logs.extend(try_gain_potion_with_relics(run_state, potion, source="购买药水"))
         if has_courier(run_state):
             logs.append("【送货员】使该商品没有售罄。")
         return "\n".join(logs)

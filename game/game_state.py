@@ -54,6 +54,17 @@ class GameState:
     pending_exhume_source: str = ""
     pending_exhume_options: List[Any] = field(default_factory=list)
 
+    # 药水带来的选择流程：攻击/技能/能力药水、液态记忆、万灵药水。
+    pending_potion_card_selection: bool = False
+    pending_potion_card_source: str = ""
+    pending_potion_card_options: List[Any] = field(default_factory=list)
+    pending_potion_card_copy_count: int = 1
+    pending_potion_card_mode: str = ""
+
+    pending_elixir_selection: bool = False
+    pending_elixir_source: str = ""
+    pending_elixir_options: List[Any] = field(default_factory=list)
+
     # 先占位，后续 zone / field 系统接这里
     active_zone: Any = None
     active_fields: List[Any] = field(default_factory=list)

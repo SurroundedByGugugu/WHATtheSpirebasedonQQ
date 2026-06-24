@@ -22,10 +22,20 @@ from game.engine import (
     choose_pending_upgrade_hand_card,
     choose_pending_duplicate_hand_card,
     choose_pending_exhume_card,
+    choose_pending_potion_card,
+    choose_pending_elixir_cards,
+    choose_pending_nilrys_card,
+    choose_pending_toolbox_card,
     get_pending_player_choice_hint,
 )
 
 from game.relic_logic.bottle_utils import choose_pending_bottle_card, format_pending_bottle, has_pending_bottle_selection
+from game.relic_logic.run_relic_utils import (
+    format_pending_astrolabe, has_pending_astrolabe_selection,
+    format_pending_empty_cage, has_pending_empty_cage_selection,
+    format_pending_orrery, has_pending_orrery_selection, choose_pending_orrery_card,
+    format_pending_dollys_mirror, has_pending_dollys_mirror_selection, choose_pending_dollys_mirror_card,
+)
 
 from game.run_engine import (
     start_run,
@@ -51,6 +61,11 @@ from game.run_engine import (
     handle_ancient_option,
     handle_shop_item_detail,
     reset_current_node_from_snapshot,
+    handle_treasure_open,
+    handle_treasure_take,
+    leave_treasure,
+    choose_astrolabe_cards,
+    choose_empty_cage_cards,
     
 )
 from game.route import format_route_text
@@ -229,6 +244,16 @@ class GameService(object):
         if command in ("reward", "rewards", "奖励", "查看奖励"):
             return get_reward_view(run_state)
 
+        if command in ("chest", "treasure", "宝箱", "查看宝箱"):
+            if getattr(run_state, "pending_treasure", None) is None:
+                return "当前不在宝箱房间。"
+            return get_reward_view(run_state)
+
+        if command in ("open", "open_chest", "打开", "开宝箱", "打开宝箱"):
+            if getattr(run_state, "pending_treasure", None) is None:
+                return "当前没有可打开的宝箱。"
+            return handle_treasure_open(run_state)
+
         if command in ("relics", "relic", "遗物", "查看已有遗物", "查看遗物"):
             return self.get_run_relics(run_state)
         
@@ -268,6 +293,68 @@ class GameService(object):
                 "",
                 format_pending_bottle(run_state)
             ])
+
+        if command in ("astrolabe", "星盘"):
+            if len(parts) < 3:
+                return format_pending_astrolabe(run_state)
+            indices = self.parse_index_list(parts[2])
+            if indices is None:
+                return "卡牌编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card astrolabe 0,1,2。"
+            return choose_astrolabe_cards(run_state, indices)
+
+        if has_pending_astrolabe_selection(run_state):
+            return "\n".join([
+                "当前需要先处理【星盘】选择。",
+                "",
+                format_pending_astrolabe(run_state)
+            ])
+
+        if command in ("cage", "empty_cage", "鸟笼", "空鸟笼"):
+            if len(parts) < 3:
+                return format_pending_empty_cage(run_state)
+            indices = self.parse_index_list(parts[2])
+            if indices is None:
+                return "卡牌编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card cage 0,1。"
+            return choose_empty_cage_cards(run_state, indices)
+
+        if has_pending_empty_cage_selection(run_state):
+            return "\n".join([
+                "当前需要先处理【空鸟笼】选择。",
+                "",
+                format_pending_empty_cage(run_state)
+            ])
+
+        if command in ("orrery", "星系仪"):
+            if len(parts) < 3:
+                return format_pending_orrery(run_state)
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "星系仪选择编号必须是数字。"
+            return choose_pending_orrery_card(run_state, choice_index)
+
+        if has_pending_orrery_selection(run_state):
+            return "\n".join([
+                "当前需要先处理【星系仪】选择。",
+                "",
+                format_pending_orrery(run_state)
+            ])
+
+        if command in ("mirror", "dolly", "dollys_mirror", "镜子", "多利之镜"):
+            if len(parts) < 3:
+                return format_pending_dollys_mirror(run_state)
+            try:
+                card_index = int(parts[2])
+            except ValueError:
+                return "多利之镜牌组编号必须是数字。"
+            return choose_pending_dollys_mirror_card(run_state, card_index)
+
+        if has_pending_dollys_mirror_selection(run_state):
+            return "\n".join([
+                "当前需要先处理【多利之镜】选择。",
+                "",
+                format_pending_dollys_mirror(run_state)
+            ])
         
         if command in ("pick", "choose", "选择奖励", "选牌"):
             if len(parts) < 3:
@@ -283,14 +370,23 @@ class GameService(object):
         
         if command in ("take", "claim", "领取", "拿取"):
             if len(parts) < 3:
+                if getattr(run_state, "pending_treasure", None) is not None:
+                    return "用法：/card take 宝箱内容编号，例如 /card take 0"
                 return "用法：/card take 奖励编号，例如 /card take 0 或 /card take 0,1,2"
             option_indices = self.parse_index_list(parts[2])
             if option_indices is None:
-                return "奖励编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card take 0,1,2。"
-            if len(option_indices) == 1:
-                reply = take_reward(run_state, option_indices[0])
+                return "编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card take 0,1,2。"
+            if run_state.pending_reward is not None:
+                if len(option_indices) == 1:
+                    reply = take_reward(run_state, option_indices[0])
+                else:
+                    reply = take_rewards(run_state, option_indices)
+            elif getattr(run_state, "pending_treasure", None) is not None:
+                if len(option_indices) != 1:
+                    return "宝箱内容暂不支持批量拿取，请使用 /card take 0。"
+                reply = handle_treasure_take(run_state, option_indices[0])
             else:
-                reply = take_rewards(run_state, option_indices)
+                return "当前没有待领取奖励或宝箱内容。"
             if run_state.run_over:
                 self.clear_run(session_id)
             return reply
@@ -364,6 +460,11 @@ class GameService(object):
             return handle_random_remove_card(run_state, seed=DEBUG_SEED)
 
         if command in ("leave", "离开"):
+            if getattr(run_state, "pending_treasure", None) is not None:
+                reply = leave_treasure(run_state)
+                if run_state.run_over:
+                    self.clear_run(session_id)
+                return reply
             if run_state.pending_rest is not None:
                 # 微型帐篷火堆专用离开；普通火堆若还没使用选项，会在 run_engine 里正常完成当前节点。
                 from game.node.node_rest import has_miniature_tent
@@ -471,6 +572,20 @@ class GameService(object):
 
         if game_state is None:
             return "当前不在战斗中。可以使用 /card route 查看路线，或 /card next 0 进入下一节点。"
+
+        if command in ("toolbox", "工具箱"):
+            if not getattr(game_state, "pending_toolbox_selection", False):
+                return "当前没有需要处理的【工具箱】选择。"
+            if len(parts) < 3:
+                return "用法：/card toolbox 0"
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "工具箱选择编号必须是数字。"
+            reply = choose_pending_toolbox_card(game_state, choice_index)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if getattr(game_state, "pending_toolbox_selection", False):
+            return get_pending_player_choice_hint(game_state)
         
         if command in ("drop", "drop_hand", "丢弃手牌", "选择丢弃"):
             game_state = run_state.current_battle
@@ -550,6 +665,42 @@ class GameService(object):
             return self.append_run_progress_after_battle(session_id, run_state, reply)
 
         if game_state.pending_exhume_selection:
+            return get_pending_player_choice_hint(game_state)
+
+        if command in ("potion_pick", "potion_card", "药水选牌", "选择药水牌"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not getattr(game_state, "pending_potion_card_selection", False):
+                return "当前没有需要处理的药水选牌。"
+            reply = self.handle_potion_pick(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
+        if getattr(game_state, "pending_potion_card_selection", False):
+            return get_pending_player_choice_hint(game_state)
+
+        if command in ("elixir", "万灵", "万灵药水"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not getattr(game_state, "pending_elixir_selection", False):
+                return "当前没有需要处理的万灵药水选择。"
+            reply = self.handle_elixir(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
+        if getattr(game_state, "pending_elixir_selection", False):
+            return get_pending_player_choice_hint(game_state)
+
+        if command in ("codex", "nilry", "nilrys", "宝典", "尼利"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not getattr(game_state, "pending_nilrys_selection", False):
+                return "当前没有需要处理的尼利的宝典选择。"
+            reply = self.handle_codex(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
+        if getattr(game_state, "pending_nilrys_selection", False):
             return get_pending_player_choice_hint(game_state)
 
         if command in ("potion", "use_potion", "useitem", "item", "使用药水", "使用道具"):
@@ -1127,11 +1278,74 @@ class GameService(object):
 
         return choose_pending_exhume_card(game_state, choice_index)
 
+    def handle_potion_pick(self, game_state, parts):
+        """
+        /card potion_pick 0
+        用于攻击/技能/能力药水与液态记忆。
+        """
+        if not getattr(game_state, "pending_potion_card_selection", False):
+            return "当前没有需要处理的药水选牌。"
+
+        if len(parts) < 3:
+            return "用法：/card potion_pick 0。"
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "选择编号必须是数字。"
+
+        return choose_pending_potion_card(game_state, choice_index)
+
+    def handle_elixir(self, game_state, parts):
+        """
+        /card elixir 0,1,2
+        /card elixir none
+        用于万灵药水：选择任意张手牌消耗。
+        """
+        if not getattr(game_state, "pending_elixir_selection", False):
+            return "当前没有需要处理的万灵药水选择。"
+
+        if len(parts) < 3:
+            return "用法：/card elixir 0,1,2；不消耗则 /card elixir none。"
+
+        raw = parts[2].strip().lower()
+        if raw in ("none", "no", "skip", "不消耗", "无"):
+            return choose_pending_elixir_cards(game_state, [])
+
+        indices = self.parse_index_list(parts[2])
+        if indices is None:
+            return "手牌编号必须是数字列表，或使用 none 表示不消耗。"
+
+        return choose_pending_elixir_cards(game_state, indices)
+
+    def handle_codex(self, game_state, parts):
+        """
+        /card codex 0
+        /card codex skip
+        用于尼利的宝典：选择 1 张牌随机洗入抽牌堆。
+        """
+        if not getattr(game_state, "pending_nilrys_selection", False):
+            return "当前没有需要处理的尼利的宝典选择。"
+
+        if len(parts) < 3:
+            return "用法：/card codex 0；跳过则 /card codex skip。"
+
+        raw = parts[2].strip().lower()
+        if raw in ("skip", "none", "no", "跳过", "不选"):
+            return choose_pending_nilrys_card(game_state, skip=True)
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "选择编号必须是数字，或使用 skip 跳过。"
+
+        return choose_pending_nilrys_card(game_state, choice_index=choice_index)
+
     def help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.23",
-            "- 添加了大量遗物",
+            "当前版本：v26.06.24",
+            "- 添加了更多遗物",
             "",
             "/card characters 查看可选角色",
             "/card new 0      选择 0 号测试角色并开始测试战斗",

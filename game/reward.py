@@ -9,17 +9,19 @@ from typing import List, Any
 
 from data.card.AAAregistry import create_card
 from data.card.upgrade_rules import upgrade_card, has_upgrade
-from data.potion.AAAregistry import create_potion
+from data.potion.AAAregistry import create_potion, POTION_REGISTRY
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
 from game.constants import DEBUG_SEED
 from game.relic_logic.run_relic_utils import (
     add_card_to_master_deck_with_relics,
+    can_upgrade_starting_relic,
     gain_gold_with_relics,
     is_relic_available_by_floor,
     has_run_relic,
     increase_max_hp,
     apply_card_gain_preview_relics,
+    try_gain_potion_with_relics,
 )
 
 
@@ -145,15 +147,28 @@ CARD_REWARD_POOL = [
     "card.ok_next",
 ]
 
-POTION_REWARD_POOL = [
-    "potion.test_strength",
-    "potion.test_fire",
-    "potion.test_dexterity",
-    "potion.fairy_in_a_bottle"
-]
 
-# 当前只有占位符石头。
-# 如果不希望重复获得已有遗物，可以在 roll_relic_reward() 里过滤。
+COMMON_POTION_POOL=[
+    "potion.attack",
+    "potion.skill",
+    "potion.power",
+    "potion.forges_blessing",
+    ]
+UNCOMMON_POTION_POOL=[
+    "potion.duplication",
+    "potion.liquid_memories",
+    "potion.cunning",
+    "potion.elixir",
+    ]
+RARE_POTION_POOL=[
+    "potion.fairy_in_a_bottle",
+    "potion.chaos",
+    "potion.smoke_bomb",
+    ]
+EVENT_POTION_POOL=[]
+
+POTION_REWARD_POOL = COMMON_POTION_POOL + UNCOMMON_POTION_POOL + RARE_POTION_POOL + EVENT_POTION_POOL
+
 
 COMMON_RELIC_POOL = [
     "relic.juzu_bracelet",
@@ -266,6 +281,17 @@ RARE_RELIC_POOL = [
 ]
 
 EVENT_RELIC_POOL = [
+    "relic.bloody_idol",
+    "relic.enchiridion",
+    "relic.necronomicon",
+    "relic.nilrys_codex",
+    "relic.nloths_gift",
+    "relic.mark_of_the_bloom",
+    "relic.nloths_mask",
+    "relic.face_of_cleric",
+    "relic.cultist_mask",
+    "relic.gremlin_mask",
+    "relic.mutagenic_strength",
     "relic.golden_idol",
     "relic.odd_mushroom",
     "relic.ssserpent_head",
@@ -287,6 +313,34 @@ RELIC_REWARD_POOL = [
     "relic.homunculus_prototype",
 ] + COMMON_RELIC_POOL + UNCOMMON_RELIC_POOL + RARE_RELIC_POOL + EVENT_RELIC_POOL
 
+BOSS_RELIC_POOL = [
+    "relic.astrolabe",
+    "relic.xanthosis",
+    "relic.black_star",
+    "relic.white_star",
+    "relic.calling_bell",
+    "relic.cursed_key",
+    "relic.mark_of_pain",
+    "relic.pandoras_box",
+    "relic.philosophers_stone",
+    "relic.runic_cube",
+    "relic.runic_dome",
+    "relic.runic_pyramid",
+    "relic.snecko_eye",
+    "relic.sozu",
+    "relic.ectoplasm",
+    "relic.tiny_house",
+    "relic.velvet_choker",
+    "relic.busted_crown",
+    "relic.empty_cage",
+    "relic.fusion_hammer",
+    "relic.coffee_dripper",
+    "relic.hovering_kite",
+    "relic.wrist_blade",
+    "relic.sacred_bark",
+    "relic.slavers_collar",
+]
+
 MYTH_RELIC_POOL = [
 ]
 
@@ -296,6 +350,13 @@ MYTH_RELIC_POOL = [
 # =========================
 
 POTION_DROP_CHANCE = 0.30
+
+# 原作近似：先判定药水掉落，再按稀有度抽取。
+POTION_RARITY_WEIGHTS = [
+    ("common", 65),
+    ("uncommon", 25),
+    ("rare", 10),
+]
 
 # 卡牌升级概率：
 # 已完成节点数 * 每节点基础概率 * 系数
@@ -329,6 +390,7 @@ class RewardOption:
     - relic
     - potion
     - card
+    - boss_relic
     """
 
     option_type: str
@@ -433,15 +495,32 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
     run_state.pending_stolen_gold_rewards = []
 
     # 2. 遗物奖励
-    relic = roll_relic_reward(run_state, node_type, rng)
-    if relic is not None:
-        reward_state.options.append(RewardOption(
-            option_type="relic",
-            title="遗物：【{}】".format(relic.name),
-            payload={
-                "relic": relic
-            }
-        ))
+    if node_type == "boss":
+        boss_relics = roll_boss_relic_choices(run_state, rng, count=3)
+        for relic in boss_relics:
+            reward_state.options.append(RewardOption(
+                option_type="boss_relic",
+                title="Boss 遗物：【{}】".format(relic.name),
+                payload={"relic": relic, "group": "boss_relic"}
+            ))
+    else:
+        relic = roll_relic_reward(run_state, node_type, rng)
+        if relic is not None:
+            reward_state.options.append(RewardOption(
+                option_type="relic",
+                title="遗物：【{}】".format(relic.name),
+                payload={
+                    "relic": relic
+                }
+            ))
+        if node_type in ("elite", "event_elite") and has_run_relic(run_state, "relic.black_star"):
+            extra_relic = roll_relic_reward_force(run_state, rng)
+            if extra_relic is not None:
+                reward_state.options.append(RewardOption(
+                    option_type="relic",
+                    title="黑星：额外遗物：【{}】".format(extra_relic.name),
+                    payload={"relic": extra_relic}
+                ))
 
     # 3. 药水奖励，没roll到就不显示
     potion = roll_potion_reward(rng, run_state=run_state)
@@ -456,8 +535,9 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
 
     # 4. 卡牌奖励
     upgrade_chance = get_card_reward_upgrade_chance(run_state)
+    reward_card_count = get_card_reward_choice_count(run_state)
     card_choices = roll_card_rewards(
-        count=3 + (1 if has_run_relic(run_state, "relic.question_card") else 0),
+        count=reward_card_count,
         rng=rng,
         upgrade_chance=upgrade_chance,
         run_state=run_state
@@ -473,7 +553,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
 
     if node_type == "normal_enemy" and has_run_relic(run_state, "relic.prayer_wheel"):
         extra_card_choices = roll_card_rewards(
-            count=3 + (1 if has_run_relic(run_state, "relic.question_card") else 0),
+            count=reward_card_count,
             rng=rng,
             upgrade_chance=upgrade_chance,
             run_state=run_state
@@ -482,6 +562,20 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
             option_type="card",
             title="转经轮：额外卡牌奖励（选择以查看具体选项）",
             payload={"cards": extra_card_choices}
+        ))
+
+
+    if node_type in ("elite", "event_elite") and has_run_relic(run_state, "relic.white_star"):
+        rare_card_choices = roll_rare_card_rewards(
+            count=reward_card_count,
+            rng=rng,
+            upgrade_chance=upgrade_chance,
+            run_state=run_state
+        )
+        reward_state.options.append(RewardOption(
+            option_type="card",
+            title="白星：额外稀有卡牌奖励（选择以查看具体选项）",
+            payload={"cards": rare_card_choices}
         ))
 
     record_reward_options_offered(run_state, reward_state)
@@ -493,7 +587,7 @@ def record_reward_options_offered(run_state, reward_state):
     for option in reward_state.options:
         if option.option_type == "gold":
             run_state.reward_stats["gold_offered"] += 1
-        elif option.option_type == "relic":
+        elif option.option_type in ("relic", "boss_relic"):
             run_state.reward_stats["relic_offered"] += 1
         elif option.option_type == "potion":
             run_state.reward_stats["potion_offered"] += 1
@@ -522,6 +616,8 @@ def record_reward_skipped(run_state, option_type):
 def _reward_stat_prefix(option_type):
     if option_type == "card":
         return "card_reward"
+    if option_type == "boss_relic":
+        return "relic"
 
     return option_type
 
@@ -568,11 +664,65 @@ def roll_gold_reward(node_type, rng):
     return rng.randint(gold_range[0], gold_range[1])
 
 
+def _weighted_choice_quantity(rng, weights):
+    total = sum(int(weight) for _, weight in weights)
+    if total <= 0:
+        return weights[0][0]
+    roll = rng.uniform(0, total)
+    upto = 0
+    for quantity, weight in weights:
+        upto += int(weight)
+        if roll <= upto:
+            return quantity
+    return weights[-1][0]
+
+
+def get_available_potion_ids_by_quantity(run_state=None, include_event=False, include_test=False):
+    current_character_id = getattr(run_state, "character_id", "") if run_state is not None else ""
+    result = {"common": [], "uncommon": [], "rare": [], "event": []}
+    for potion_id in POTION_REGISTRY.keys():
+        if potion_id.startswith("potion.test_") and not include_test:
+            continue
+        potion = create_potion(potion_id)
+        owner = getattr(potion, "owner_character_id", "")
+        if owner and owner != current_character_id:
+            continue
+        quantity = getattr(potion, "quantity", "common")
+        if quantity == "test" and not include_test:
+            continue
+        if quantity == "event" and not include_event:
+            continue
+        if quantity not in result:
+            if not include_test:
+                continue
+            result.setdefault(quantity, [])
+        result.setdefault(quantity, []).append(potion_id)
+    return result
+
+
+def roll_potion_id_by_rarity(rng, run_state=None, include_event=False):
+    by_quantity = get_available_potion_ids_by_quantity(run_state=run_state, include_event=include_event)
+    available_all = []
+    for ids in by_quantity.values():
+        available_all.extend(ids)
+    if not available_all:
+        return None
+    target_quantity = _weighted_choice_quantity(rng, POTION_RARITY_WEIGHTS)
+    candidates = by_quantity.get(target_quantity, [])
+    if candidates:
+        return rng.choice(candidates)
+    return rng.choice(available_all)
+
+
 def roll_potion_reward(rng, run_state=None):
     if not (run_state is not None and has_run_relic(run_state, "relic.white_beast_statue")) and rng.random() >= POTION_DROP_CHANCE:
         return None
 
-    potion_id = rng.choice(POTION_REWARD_POOL)
+    if run_state is not None and has_run_relic(run_state, "relic.sozu"):
+        return None
+    potion_id = roll_potion_id_by_rarity(rng, run_state=run_state, include_event=False)
+    if potion_id is None:
+        return None
     return create_potion(potion_id)
 
 
@@ -590,6 +740,79 @@ def roll_relic_reward(run_state, node_type, rng):
     relic_id = rng.choice(available_relic_ids)
     return create_relic(relic_id)
 
+
+
+
+def roll_relic_reward_force(run_state, rng):
+    available_relic_ids = get_available_relic_ids(run_state)
+    if not available_relic_ids:
+        return None
+    return create_relic(rng.choice(available_relic_ids))
+
+
+def get_available_boss_relic_ids(run_state):
+    owned = {getattr(relic, "relic_id", "") for relic in getattr(run_state, "relics", []) or []}
+    result = []
+    current_character_id = getattr(run_state, "character_id", "")
+    for relic_id in BOSS_RELIC_POOL:
+        if relic_id in owned:
+            continue
+        relic = create_relic(relic_id)
+        if not is_relic_available_by_floor(run_state, relic):
+            continue
+        owner = getattr(relic, "owner_character_id", "")
+        if owner and owner != current_character_id:
+            continue
+        if relic_id == "relic.xanthosis" and not can_upgrade_starting_relic(run_state):
+            continue
+        result.append(relic_id)
+    return result
+
+
+def roll_boss_relic_choices(run_state, rng, count=3):
+    ids = get_available_boss_relic_ids(run_state)
+    if not ids:
+        return []
+    if len(ids) <= count:
+        chosen = list(ids)
+    else:
+        chosen = rng.sample(ids, count)
+    return [create_relic(relic_id) for relic_id in chosen]
+
+
+def get_card_reward_choice_count(run_state):
+    count = 3
+    if has_run_relic(run_state, "relic.question_card"):
+        count += 1
+    if has_run_relic(run_state, "relic.busted_crown"):
+        count -= 2
+    if count < 1:
+        count = 1
+    return count
+
+
+def roll_rare_card_rewards(count, rng, upgrade_chance, run_state=None):
+    pool = get_card_reward_pool(run_state) if run_state is not None else list(CARD_REWARD_POOL)
+    rare_pool = []
+    for card_id in pool:
+        card = create_card(card_id)
+        if getattr(card, "quantity", "") == "rare":
+            rare_pool.append(card_id)
+    if not rare_pool:
+        rare_pool = pool
+    if count <= len(rare_pool):
+        card_ids = rng.sample(rare_pool, count)
+    else:
+        card_ids = [rng.choice(rare_pool) for _ in range(count)]
+    cards = []
+    for card_id in card_ids:
+        card = create_card(card_id)
+        if run_state is not None:
+            card = apply_card_gain_preview_relics(run_state, card)
+        if has_upgrade(card) and rng.random() < upgrade_chance:
+            card = upgrade_card(card)
+        cards.append(card)
+    return cards
 
 FALLBACK_RELIC_ID = "relic.homunculus_prototype"
 
@@ -671,7 +894,21 @@ def roll_card_rewards(count, rng, upgrade_chance, run_state=None):
     else:
         pool = get_card_reward_pool(run_state)
 
-    if count <= len(pool):
+    if run_state is not None and has_run_relic(run_state, "relic.nloths_gift"):
+        rare_pool = []
+        non_rare_pool = []
+        for cid in pool:
+            c = create_card(cid)
+            if getattr(c, "quantity", "") == "rare":
+                rare_pool.append(cid)
+            else:
+                non_rare_pool.append(cid)
+        card_ids = []
+        for _ in range(count):
+            # 简化实现：恩洛斯的礼物使稀有牌被抽中的权重约 3 倍。
+            weighted_pool = list(non_rare_pool) + rare_pool * 3
+            card_ids.append(rng.choice(weighted_pool or pool))
+    elif count <= len(pool):
         card_ids = rng.sample(pool, count)
     else:
         card_ids = [
@@ -716,6 +953,7 @@ def format_card_quantity_name(quantity):
         "special": "特殊",
         "status": "状态",
         "curse": "诅咒",
+        "boss": "Boss",
     }
     return mapping.get(str(quantity), str(quantity))
 
@@ -727,6 +965,7 @@ def format_card_type_name(card_type):
         "power": "能力",
         "status": "状态",
         "curse": "诅咒",
+        "boss": "Boss",
     }
     return mapping.get(str(card_type), str(card_type))
 
@@ -898,13 +1137,19 @@ def take_reward_option(run_state, reward_state, option_index):
             logs = ["获得 0 金币。当前金币：{}。".format(run_state.gold)]
         return "\n".join(logs)
 
-    if option.option_type == "relic":
+    if option.option_type in ("relic", "boss_relic"):
         relic = option.payload.get("relic")
         if relic is None:
             option.claimed = True
             return "遗物奖励异常，已跳过。"
         run_state.relics.append(relic)
         option.claimed = True
+        if option.option_type == "boss_relic":
+            for other in reward_state.options:
+                if other is option:
+                    continue
+                if other.option_type == "boss_relic" and not other.claimed:
+                    other.skipped = True
         record_reward_taken(run_state, "relic")
         logs = []
         logs.append("获得遗物：【{}】。".format(relic.name))
@@ -928,13 +1173,10 @@ def take_reward_option(run_state, reward_state, option_index):
                 "例如：/card replace_potion {} 0".format(option_index),
                 "也可以使用 /card skip 放弃剩余奖励。"
             ])
-        run_state.potions.append(potion)
+        logs = try_gain_potion_with_relics(run_state, potion, source="奖励")
         option.claimed = True
         record_reward_taken(run_state, "potion")
-        extra = ""
-        if getattr(potion, "potion_id", "") == "potion.fairy_in_a_bottle" and getattr(run_state, "character_id", "") == "character.yoirine":
-            extra = "\nYoirine：“我没见过这个。但本能地……不太喜欢它。”"
-        return "获得药水：【{}】。{}".format(potion.name, extra)
+        return "\n".join(logs)
     if option.option_type == "card":
         reward_state.active_card_option_index = option_index
         return format_card_choices(option.payload.get("cards", []))
@@ -1119,7 +1361,7 @@ def replace_potion_reward(run_state, reward_state, option_index, potion_index):
         extra
     )
 
-def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=False):
+def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=False, ignore_prismatic=False):
     """
     获取当前角色可用的战斗卡牌奖励池。
 
@@ -1144,6 +1386,12 @@ def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=F
             continue
 
         if quantity == "test" and not include_test_cards:
+            continue
+
+        has_prismatic = (not ignore_prismatic) and has_run_relic(run_state, "relic.prismatic_shard")
+
+        if has_prismatic:
+            result.append(card_id)
             continue
 
         if owner == current_character_id:

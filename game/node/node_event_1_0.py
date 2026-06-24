@@ -19,6 +19,8 @@ from game.node.node_event_0 import (
     EVENT_UPGRADE_SHRINE,
     EVENT_WHEEL_GAME,
     EVENT_BLUE_WOMAN,
+    EVENT_FACE_TRADER,
+    build_face_trader_event,
     get_ascension_level,
     has_removable_curse,
     get_non_basic_non_curse_card_indices,
@@ -42,6 +44,7 @@ def get_event_builders(run_state, seed=None, source_node_type="event"):
         build_purifier_shrine_event,
         build_transform_shrine_event,
         build_wheel_game_event,
+        build_face_trader_event,
     ]
 
     if has_removable_curse(run_state):
@@ -65,52 +68,40 @@ def build_nloth_event(run_state, rng=None, seed=None, source_node_type="event"):
     if rng is None:
         rng = random.Random(seed)
 
-    potions = getattr(run_state, "potions", []) or []
-    if potions:
-        potion_index = rng.randrange(len(potions))
-        potion = potions[potion_index]
-        potion_text = "给他药水。失去【{}】。获得一件遗物。".format(potion.name)
-        potion_payload = {"potion_index": potion_index}
-    else:
-        potion_text = "给他药水。需要：至少有一瓶药水。［锁定］"
-        potion_payload = {"potion_index": -1}
+    relics = list(getattr(run_state, "relics", []) or [])
+    indices = list(range(len(relics)))
+    rng.shuffle(indices)
+    chosen = indices[:2]
 
-    gold = int(getattr(run_state, "gold", 0) or 0)
-    if gold >= 50:
-        gold_amount = rng.randint(50, gold)
-        gold_text = "给他金币。失去 {} 金币。获得一件遗物。".format(gold_amount)
-        gold_payload = {"gold_amount": gold_amount}
-    else:
-        gold_text = "给他金币。需要：至少 50 金币。［锁定］"
-        gold_payload = {"gold_amount": 0}
+    choices = []
+    for relic_index in chosen:
+        relic = relics[relic_index]
+        choices.append(EventChoice(
+            "交出：【{}】。失去这件遗物。获得一件特别的遗物。".format(getattr(relic, "name", "遗物")),
+            "nloth_relic",
+            payload={"relic_index": relic_index},
+        ))
+    choices.append(EventChoice("离开。", "leave"))
 
-    card_indices = get_non_basic_non_curse_card_indices(run_state)
-    if card_indices:
-        deck_index = rng.choice(card_indices)
-        card = run_state.master_deck[deck_index]
-        card_text = "给他卡牌。失去【{}】。获得一件遗物。".format(card.name)
-        card_payload = {"deck_index": deck_index}
+    if not chosen:
+        description = (
+            "一个驼着背、背后长出几条触手的奇怪生物正在你面前的垃圾堆和废墟里翻找。\n"
+            "“恩洛斯好饿，喂喂恩洛斯。”\n"
+            "但你身上没有能喂给他的遗物。"
+        )
     else:
-        card_text = "给他卡牌。需要：牌组中有非基础、非诅咒牌。［锁定］"
-        card_payload = {"deck_index": -1}
+        description = (
+            "一个驼着背、背后长出几条触手的奇怪生物正在你面前的垃圾堆和废墟里翻找。\n"
+            "当你靠近时，他可怜巴巴地拖着脚走到了你面前。\n"
+            "“恩洛斯好饿，喂喂恩洛斯。”"
+        )
 
     return EventState(
-        title="我们又见面了！",
+        title="恩洛斯",
         event_id=EVENT_NLOTH,
-        description=(
-            "“我们又见面了！”\n"
-            "一个蓬头垢面的男子欢快地出现在你面前向你问好，你不认识这个男人。\n"
-            "“是我，兰伟德啊！所以今天有什么好东西给我吗？和往常一样？哎呀呀，像我这样的人，独自一个可实在不好混啊，对不对？”\n"
-            "你满腹狐疑地打量着他，开始思考应该怎么做……"
-        ),
-        choices=[
-            EventChoice(potion_text, "nloth_potion", payload=potion_payload),
-            EventChoice(gold_text, "nloth_gold", payload=gold_payload),
-            EventChoice(card_text, "nloth_card", payload=card_payload),
-            EventChoice("攻击。调出地图界面，继续行进。", "nloth_attack"),
-        ]
+        description=description,
+        choices=choices,
     )
-
 
 def build_holy_water_event(run_state, rng=None, seed=None, source_node_type="event"):
     return EventState(

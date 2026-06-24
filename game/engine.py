@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import random
+import copy
 from game.block import gain_block_without_modifiers
 from data.character.AAAregistry import create_character
 from data.card.AAAregistry import create_deck
@@ -125,6 +126,22 @@ def get_opening_draw_bonus(game_state):
     return bonus
 
 
+def get_turn_draw_bonus(game_state):
+    player = game_state.player
+    bonus = 0
+    for relic in getattr(player, "relics", []) or []:
+        getter = getattr(relic, "get_turn_draw_bonus", None)
+        if getter is None:
+            continue
+        try:
+            bonus += int(getter(game_state=game_state, player=player))
+        except TypeError:
+            bonus += int(getter(game_state, player))
+    if bonus < 0:
+        bonus = 0
+    return bonus
+
+
 def apply_card_play_start_relics(game_state, card):
     """打出卡牌、正式结算效果前触发的遗物。当前用于钢笔尖。"""
     logs = []
@@ -238,7 +255,7 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
     logs.append(player.hand_text(game_state))
     return game_state, "\n".join(logs)
 
-def start_battle_with_player(session_id, character_id, player, enemy_ids=None, seed=DEBUG_SEED):
+def start_battle_with_player(session_id, character_id, player, enemy_ids=None, seed=DEBUG_SEED, run_state=None):
     """
     使用外部传入的 PlayerState 创建一场战斗。
     用于 RunState 流程：
@@ -267,6 +284,8 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
         enemies=enemies,
         turn_count=1
     )
+    if run_state is not None:
+        game_state.run_state = run_state
     logs = []
     logs.append("战斗开始。")
     context = BattleContext(
@@ -322,6 +341,10 @@ def has_pending_player_choice(game_state):
         getattr(game_state, "pending_upgrade_hand_selection", False),
         getattr(game_state, "pending_duplicate_hand_selection", False),
         getattr(game_state, "pending_exhume_selection", False),
+        getattr(game_state, "pending_potion_card_selection", False),
+        getattr(game_state, "pending_elixir_selection", False),
+        getattr(game_state, "pending_nilrys_selection", False),
+        getattr(game_state, "pending_toolbox_selection", False),
     ])
 
 
@@ -340,6 +363,14 @@ def get_pending_player_choice_hint(game_state):
         return "当前需要先处理复制手牌选择。用法：/card duplicate_hand 0。\nduplicate_hand 等效 dual_wield，复制手牌，双持。"
     if getattr(game_state, "pending_exhume_selection", False):
         return "当前需要先处理发掘选择。用法：/card exhume 0。\nexhume 等效 发掘，选择发掘。"
+    if getattr(game_state, "pending_potion_card_selection", False):
+        return "当前需要先处理药水选牌。用法：/card potion_pick 0。\npotion_pick 等效 potion_card，药水选牌。"
+    if getattr(game_state, "pending_elixir_selection", False):
+        return "当前需要先处理万灵药水选择。用法：/card elixir 0,1,2；不消耗则 /card elixir none。"
+    if getattr(game_state, "pending_nilrys_selection", False):
+        return "当前需要先处理尼利的宝典选择。用法：/card codex 0；跳过则 /card codex skip。"
+    if getattr(game_state, "pending_toolbox_selection", False):
+        return "当前需要先处理工具箱选择。用法：/card toolbox 0。"
     return ""
 
 def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
@@ -388,6 +419,17 @@ def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
 
             if game_state.battle_over:
                 break
+    if getattr(card, "card_id", "") == "card.curse.necronomicurse":
+        try:
+            player.exhaust_pile.remove(card)
+        except ValueError:
+            pass
+        if player.is_hand_full():
+            player.discard_pile.append(card)
+            logs.append("【死灵诅咒】无法逃脱，但手牌已满，回到弃牌堆。")
+        else:
+            player.hand.append(card)
+            logs.append("【死灵诅咒】无法逃脱，立刻回到你的手牌。")
     return logs
 
 
@@ -421,6 +463,13 @@ def move_played_card_to_destination(game_state, card):
         return logs
 
     if should_exhaust_after_play(card):
+        has_spoon = any(getattr(relic, "relic_id", "") == "relic.strange_spoon" for relic in getattr(player, "relics", []) or [])
+        if has_spoon:
+            import random
+            if random.random() < 0.5:
+                player.discard_pile.append(card)
+                logs.append("【奇怪的勺子】触发：【{}】没有被消耗，改为进入弃牌堆。".format(card.name))
+                return logs
         logs.extend(move_card_to_exhaust_pile(
             game_state=game_state,
             card=card,
@@ -501,6 +550,7 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
 
     player.discard_pile.append(card)
     logs.append("【{}】被{}，进入弃牌堆。".format(card.name, reason))
+    logs.extend(apply_card_discard_relics(game_state, card, reason=reason))
     return logs
 
 def resolve_pain_cards_after_card_play(game_state, played_card):
@@ -636,6 +686,11 @@ def end_player_turn_hand_cleanup(game_state):
         if should_retain_at_turn_end(card):
             retained_cards.append(card)
             logs.append("【{}】因保留留在手牌。".format(card.name))
+            continue
+
+        if any(getattr(relic, "relic_id", "") == "relic.runic_pyramid" for relic in getattr(player, "relics", []) or []):
+            retained_cards.append(card)
+            logs.append("【符文金字塔】保留【{}】。".format(card.name))
             continue
 
         logs.extend(resolve_discarded_card(
@@ -1090,6 +1145,8 @@ def try_prevent_player_death(game_state):
     player = game_state.player
     if player is None or player.is_alive():
         return []
+    if any(getattr(relic, "relic_id", "") == "relic.mark_of_the_bloom" for relic in getattr(player, "relics", []) or []):
+        return ["【绽放印记】阻止了濒死回复，无法免于死亡。"]
     # 瓶中精灵优先于蜥蜴尾巴。
     for index, potion in enumerate(list(getattr(player, "potions", []) or [])):
         if getattr(potion, "potion_id", "") == "potion.fairy_in_a_bottle":
@@ -1170,6 +1227,19 @@ def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
             card.name,
             remaining
         ))
+
+    # 死灵之书：每回合第一张当前耗能 >=2 的攻击牌额外结算 1 次。
+    if getattr(card, "card_type", "") == "attack":
+        has_book = any(getattr(relic, "relic_id", "") == "relic.necronomicon" for relic in getattr(player, "relics", []) or [])
+        used_turn = int(getattr(game_state, "necronomicon_used_turn", 0) or 0)
+        try:
+            current_cost = get_card_current_cost(game_state, card)
+        except Exception:
+            current_cost = getattr(card, "cost", 0)
+        if has_book and used_turn != int(getattr(game_state, "turn_count", 0)) and current_cost != "X" and _safe_int_card_cost(current_cost) >= 2:
+            effect_context["replay_extra"] = int(effect_context.get("replay_extra", 0)) + 1
+            game_state.necronomicon_used_turn = int(getattr(game_state, "turn_count", 0))
+            logs.append("【死灵之书】触发：【{}】将额外结算 1 次。".format(getattr(card, "name", "攻击牌")))
 
     return effect_context
 
@@ -1430,6 +1500,334 @@ def play_cards_by_original_indices(game_state, hand_indices, target_index=None):
             break
     return "\n".join(logs)
 
+
+def player_has_relic(player, relic_id):
+    return any(getattr(relic, "relic_id", "") == relic_id for relic in getattr(player, "relics", []) or [])
+
+
+def potion_has_sacred_bark(player, potion):
+    if not player_has_relic(player, "relic.sacred_bark"):
+        return False
+    sacred_bark_excluded = {
+        "potion.fairy_in_a_bottle",
+        "potion.chaos",
+        "potion.smoke_bomb",
+        "potion.forges_blessing",
+        "potion.elixir",
+        "potion.stance",
+        "potion.ambrosia",
+    }
+    return getattr(potion, "potion_id", "") not in sacred_bark_excluded
+
+
+def add_temporary_card_to_hand_or_discard(game_state, card, source_name="药水", temporary_cost_zero=False):
+    player = game_state.player
+    logs = []
+    new_card = copy.deepcopy(card)
+    setattr(new_card, "temporary", True)
+    setattr(new_card, "created_in_battle", True)
+    if temporary_cost_zero:
+        if getattr(new_card, "cost", None) == "X":
+            logs.append("【{}】是 X 费牌，暂不改变 X 费用。".format(new_card.name))
+        else:
+            setattr(new_card, "temporary_cost_override", 0)
+    if player.is_hand_full():
+        player.discard_pile.append(new_card)
+        if temporary_cost_zero and getattr(new_card, "cost", None) != "X":
+            logs.append("手牌已满，【{}】进入弃牌堆。本回合其费用变为 0。".format(new_card.name))
+        else:
+            logs.append("手牌已满，【{}】进入弃牌堆。".format(new_card.name))
+    else:
+        player.hand.append(new_card)
+        if temporary_cost_zero and getattr(new_card, "cost", None) != "X":
+            logs.append("【{}】将【{}】加入手牌。本回合其费用变为 0。".format(source_name, new_card.name))
+        else:
+            logs.append("【{}】将【{}】加入手牌。".format(source_name, new_card.name))
+    return logs
+
+
+def get_potion_card_pool(game_state, wanted_card_type):
+    from data.card.AAAregistry import create_card
+    from game.reward import get_card_reward_pool, CARD_REWARD_POOL
+    run_state = getattr(game_state, "run_state", None)
+    if run_state is not None:
+        pool_ids = get_card_reward_pool(run_state, ignore_prismatic=True)
+    else:
+        pool_ids = list(CARD_REWARD_POOL)
+    result = []
+    for card_id in pool_ids:
+        try:
+            card = create_card(card_id)
+        except Exception:
+            continue
+        if getattr(card, "card_type", "") != wanted_card_type:
+            continue
+        if getattr(card, "quantity", "") in ("status", "curse", "starting", "test"):
+            continue
+        if getattr(card, "cost", None) == "X":
+            continue
+        result.append(card_id)
+    return result
+
+
+def roll_potion_card_options(game_state, wanted_card_type, count=3):
+    from data.card.AAAregistry import create_card
+    pool = get_potion_card_pool(game_state, wanted_card_type)
+    if not pool:
+        return []
+    if len(pool) <= count:
+        selected = list(pool)
+    else:
+        selected = random.sample(pool, count)
+    cards = []
+    for card_id in selected:
+        card = create_card(card_id)
+        setattr(card, "temporary", True)
+        setattr(card, "created_in_battle", True)
+        setattr(card, "temporary_cost_override", 0)
+        cards.append(card)
+    return cards
+
+
+def format_pending_potion_card_selection(game_state):
+    if not getattr(game_state, "pending_potion_card_selection", False):
+        return "当前没有需要处理的药水选牌。"
+    source = getattr(game_state, "pending_potion_card_source", "药水")
+    options = getattr(game_state, "pending_potion_card_options", []) or []
+    copy_count = int(getattr(game_state, "pending_potion_card_copy_count", 1) or 1)
+    lines = ["=== {}：选择一张牌 ===".format(source)]
+    if copy_count > 1:
+        lines.append("神圣树皮：选中的牌会加入手牌 {} 次。".format(copy_count))
+    lines.append("")
+    for index, card in enumerate(options):
+        try:
+            text = card.summary_text()
+        except Exception:
+            text = "【{}】".format(getattr(card, "name", "未知卡牌"))
+        lines.append("[{}] {}".format(index, text))
+    lines.append("")
+    lines.append("使用 /card potion_pick 0 选择。")
+    return "\n".join(lines)
+
+
+def clear_pending_potion_card_selection(game_state):
+    game_state.pending_potion_card_selection = False
+    game_state.pending_potion_card_source = ""
+    game_state.pending_potion_card_options = []
+    game_state.pending_potion_card_copy_count = 1
+    game_state.pending_potion_card_mode = ""
+
+
+def choose_pending_potion_card(game_state, choice_index):
+    if not getattr(game_state, "pending_potion_card_selection", False):
+        return "当前没有需要处理的药水选牌。"
+    options = getattr(game_state, "pending_potion_card_options", []) or []
+    if not options:
+        clear_pending_potion_card_selection(game_state)
+        return "没有可选择的药水牌。"
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效。"
+    source = getattr(game_state, "pending_potion_card_source", "药水")
+    copy_count = int(getattr(game_state, "pending_potion_card_copy_count", 1) or 1)
+    mode = getattr(game_state, "pending_potion_card_mode", "")
+    chosen = options[choice_index]
+    logs = ["【{}】选择了【{}】。".format(source, chosen.name)]
+
+    if mode == "liquid_memories":
+        # 液态记忆：从弃牌堆中移除选中牌，再把该牌加入手牌。神圣树皮额外加入复制品。
+        removed = False
+        for i, pile_card in enumerate(list(game_state.player.discard_pile)):
+            if pile_card is chosen:
+                game_state.player.discard_pile.pop(i)
+                removed = True
+                break
+        if not removed:
+            clear_pending_potion_card_selection(game_state)
+            return "选中的牌已经不在弃牌堆中。"
+
+    for n in range(copy_count):
+        logs.extend(add_temporary_card_to_hand_or_discard(
+            game_state,
+            chosen,
+            source_name=source,
+            temporary_cost_zero=True,
+        ))
+    clear_pending_potion_card_selection(game_state)
+    result = check_battle_result(game_state)
+    if result:
+        logs.append(result)
+    return "\n".join(logs)
+
+
+def format_pending_elixir_selection(game_state):
+    if not getattr(game_state, "pending_elixir_selection", False):
+        return "当前没有需要处理的万灵药水选择。"
+    source = getattr(game_state, "pending_elixir_source", "万灵药水")
+    options = getattr(game_state, "pending_elixir_options", []) or []
+    lines = ["=== {}：选择要消耗的手牌 ===", "可以选择任意张。".format(source)]
+    lines = ["=== {}：选择要消耗的手牌 ===".format(source), "可以选择任意张。", ""]
+    for index, card in options:
+        try:
+            text = card.summary_text()
+        except Exception:
+            text = "【{}】".format(getattr(card, "name", "未知卡牌"))
+        lines.append("[{}] {}".format(index, text))
+    lines.append("")
+    lines.append("使用 /card elixir 0,1,2；不消耗则 /card elixir none。")
+    return "\n".join(lines)
+
+
+def clear_pending_elixir_selection(game_state):
+    game_state.pending_elixir_selection = False
+    game_state.pending_elixir_source = ""
+    game_state.pending_elixir_options = []
+
+
+def choose_pending_elixir_cards(game_state, indices):
+    if not getattr(game_state, "pending_elixir_selection", False):
+        return "当前没有需要处理的万灵药水选择。"
+    source = getattr(game_state, "pending_elixir_source", "万灵药水")
+    if not indices:
+        clear_pending_elixir_selection(game_state)
+        return "【{}】未选择消耗手牌。".format(source)
+    unique = []
+    for idx in indices:
+        if idx not in unique:
+            unique.append(idx)
+    hand = game_state.player.hand
+    for idx in unique:
+        if idx < 0 or idx >= len(hand):
+            return "手牌编号无效：{}。".format(idx)
+    indexed_cards = [(idx, hand[idx]) for idx in unique]
+    for idx in sorted(unique, reverse=True):
+        hand.pop(idx)
+    logs = ["【{}】消耗 {} 张手牌。".format(source, len(indexed_cards))]
+    for idx, card in indexed_cards:
+        logs.append("选择消耗手牌 [{}] 【{}】。".format(idx, card.name))
+        logs.extend(move_card_to_exhaust_pile(game_state, card, reason="elixir"))
+    clear_pending_elixir_selection(game_state)
+    result = check_battle_result(game_state)
+    if result:
+        logs.append(result)
+    return "\n".join(logs)
+
+
+
+
+def queue_nilrys_codex_selection(game_state, source_name="尼利的宝典"):
+    import random
+    from data.card.AAAregistry import create_card
+    from game.reward import get_card_reward_pool, CARD_REWARD_POOL
+    run_state = getattr(game_state, "run_state", None)
+    pool = get_card_reward_pool(run_state, ignore_prismatic=True) if run_state is not None else list(CARD_REWARD_POOL)
+    candidates = []
+    for card_id in pool:
+        try:
+            card = create_card(card_id)
+        except Exception:
+            continue
+        if getattr(card, "quantity", "") in ("starting", "status", "curse", "test"):
+            continue
+        if getattr(card, "card_type", "") in ("status", "curse"):
+            continue
+        candidates.append(card_id)
+    if not candidates:
+        return ["【{}】触发，但没有可生成的卡牌。".format(source_name)]
+    rng = random.Random(int(getattr(run_state, "run_seed", 0) or 0) + int(getattr(game_state, "turn_count", 1)) * 9173 + len(getattr(game_state.player, "draw_pile", []) or [])) if run_state is not None else random
+    if len(candidates) <= 3:
+        ids = list(candidates)
+    else:
+        ids = rng.sample(candidates, 3)
+    options = []
+    for card_id in ids:
+        card = create_card(card_id)
+        setattr(card, "created_by_nilrys_codex", True)
+        options.append(card)
+    entry = {"source": source_name, "options": options}
+    queue = list(getattr(game_state, "pending_nilrys_queue", []) or [])
+    if getattr(game_state, "pending_nilrys_selection", False):
+        queue.append(entry)
+        game_state.pending_nilrys_queue = queue
+        return ["【{}】触发：已加入尼利的宝典后续选择队列。".format(source_name)]
+    game_state.pending_nilrys_selection = True
+    game_state.pending_nilrys_source = source_name
+    game_state.pending_nilrys_options = options
+    game_state.pending_nilrys_queue = queue
+    return [format_pending_nilrys_selection(game_state)]
+
+
+def format_pending_nilrys_selection(game_state):
+    if not getattr(game_state, "pending_nilrys_selection", False):
+        return "当前没有需要处理的尼利的宝典选择。"
+    source = getattr(game_state, "pending_nilrys_source", "尼利的宝典")
+    options = getattr(game_state, "pending_nilrys_options", []) or []
+    lines = ["=== {}：选择一张牌洗入抽牌堆 ===".format(source), "可跳过。问号牌与三蛋不会影响本次选择。", ""]
+    for index, card in enumerate(options):
+        try:
+            text = card.summary_text()
+        except Exception:
+            text = "【{}】".format(getattr(card, "name", "未知卡牌"))
+        lines.append("[{}] {}".format(index, text))
+    lines.append("")
+    lines.append("使用 /card codex 0 选择；跳过则 /card codex skip。")
+    return "\n".join(lines)
+
+
+def _advance_pending_nilrys_selection(game_state):
+    queue = list(getattr(game_state, "pending_nilrys_queue", []) or [])
+    if queue:
+        entry = queue.pop(0)
+        game_state.pending_nilrys_queue = queue
+        game_state.pending_nilrys_selection = True
+        game_state.pending_nilrys_source = entry.get("source", "尼利的宝典")
+        game_state.pending_nilrys_options = entry.get("options", [])
+        return True
+    game_state.pending_nilrys_selection = False
+    game_state.pending_nilrys_source = ""
+    game_state.pending_nilrys_options = []
+    game_state.pending_nilrys_queue = []
+    return False
+
+
+def clear_pending_nilrys_selection(game_state):
+    _advance_pending_nilrys_selection(game_state)
+
+
+def choose_pending_nilrys_card(game_state, choice_index=None, skip=False):
+    if not getattr(game_state, "pending_nilrys_selection", False):
+        return "当前没有需要处理的尼利的宝典选择。"
+    source = getattr(game_state, "pending_nilrys_source", "尼利的宝典")
+    if skip:
+        clear_pending_nilrys_selection(game_state)
+        text = "【{}】未选择卡牌。".format(source)
+        if getattr(game_state, "pending_nilrys_selection", False):
+            text += "\n" + format_pending_nilrys_selection(game_state)
+        return text
+    options = getattr(game_state, "pending_nilrys_options", []) or []
+    if choice_index is None or choice_index < 0 or choice_index >= len(options):
+        return "卡牌编号无效。"
+    import random
+    card = copy.deepcopy(options[choice_index])
+    player = game_state.player
+    # 随机洗入抽牌堆。
+    pos = random.randint(0, len(player.draw_pile)) if player.draw_pile is not None else 0
+    player.draw_pile.insert(pos, card)
+    clear_pending_nilrys_selection(game_state)
+    text = "【{}】选择【{}】，随机洗入抽牌堆。".format(source, getattr(card, "name", "未知卡牌"))
+    if getattr(game_state, "pending_nilrys_selection", False):
+        text += "\n" + format_pending_nilrys_selection(game_state)
+    return text
+
+def add_upgraded_shivs_to_hand(game_state, count, source_name="狡诈药水"):
+    from data.card.AAAregistry import create_card
+    from data.card.upgrade_rules import upgrade_card
+    base = create_card("card.shiv")
+    shiv = upgrade_card(base)
+    logs = []
+    for _ in range(int(count)):
+        logs.extend(add_temporary_card_to_hand_or_discard(game_state, shiv, source_name=source_name, temporary_cost_zero=False))
+    return logs
+
 def use_potion(game_state, potion_index, target_index=None):
     """
     使用药水。
@@ -1439,12 +1837,17 @@ def use_potion(game_state, potion_index, target_index=None):
     if game_state.battle_over:
         return "战斗已经结束。"
 
+    if has_pending_player_choice(game_state):
+        return get_pending_player_choice_hint(game_state)
+
     player = game_state.player
 
     if potion_index < 0 or potion_index >= len(player.potions):
         return "药水编号无效。"
 
     potion = player.potions[potion_index]
+    potion_id = getattr(potion, "potion_id", "")
+
     target_index = resolve_auto_target_index(game_state, potion, target_index)
 
     if potion.target == "enemy":
@@ -1454,27 +1857,149 @@ def use_potion(game_state, potion_index, target_index=None):
         if not game_state.enemies[target_index].is_alive():
             return "目标敌人已经死亡。"
 
+    # 烟雾弹不能用于 Boss 战。这里在弹出药水前判断，避免误消耗。
+    if potion_id == "potion.smoke_bomb":
+        run_state = getattr(game_state, "run_state", None)
+        node_type = getattr(run_state, "current_battle_node_type", "") if run_state is not None else ""
+        if node_type == "boss":
+            return "【烟雾弹】不能从 Boss 战中逃离。"
+
     player.potions.pop(potion_index)
 
     logs.append("{} 使用了【{}】。".format(player.name, potion.name))
 
-    logs.extend(apply_card_effects(
-        game_state=game_state,
-        card=potion,
-        target_index=target_index
-    ))
+    def dispatch_potion_after():
+        context = BattleContext(
+            game_state=game_state,
+            player=player,
+            source=player,
+            target=None,
+            card=None,
+            extra={
+                "potion": potion
+            }
+        )
+        return dispatch_event(game_state, EVENT_POTION_USE_AFTER, context)
 
-    context = BattleContext(
-        game_state=game_state,
-        player=player,
-        source=player,
-        target=None,
-        card=None,
-        extra={
-            "potion": potion
-        }
-    )
-    logs.extend(dispatch_event(game_state, EVENT_POTION_USE_AFTER, context))
+    bark = potion_has_sacred_bark(player, potion)
+
+    # 攻击 / 技能 / 能力药水：只选择一次；神圣树皮使选中的牌加入两次。
+    potion_card_type = {
+        "potion.attack": "attack",
+        "potion.skill": "skill",
+        "potion.power": "power",
+    }.get(potion_id)
+    if potion_card_type:
+        options = roll_potion_card_options(game_state, potion_card_type, count=3)
+        logs.extend(dispatch_potion_after())
+        if not options:
+            logs.append("【{}】没有可生成的{}牌。".format(potion.name, potion_card_type))
+        else:
+            game_state.pending_potion_card_selection = True
+            game_state.pending_potion_card_source = potion.name
+            game_state.pending_potion_card_options = options
+            game_state.pending_potion_card_copy_count = 2 if bark else 1
+            game_state.pending_potion_card_mode = "generated_card"
+            if bark:
+                logs.append("【神圣树皮】触发：选中的牌将加入手牌 2 次。")
+            logs.append(format_pending_potion_card_selection(game_state))
+        return "\n".join(logs)
+
+    # 液态记忆：只选择一次；神圣树皮使选中的弃牌加入两次。
+    if potion_id == "potion.liquid_memories":
+        options = [(i, card) for i, card in enumerate(getattr(player, "discard_pile", []) or [])]
+        logs.extend(dispatch_potion_after())
+        if not options:
+            logs.append("【{}】没有可选择的弃牌堆卡牌。".format(potion.name))
+        else:
+            game_state.pending_potion_card_selection = True
+            game_state.pending_potion_card_source = potion.name
+            game_state.pending_potion_card_options = [card for _, card in options]
+            game_state.pending_potion_card_copy_count = 2 if bark else 1
+            game_state.pending_potion_card_mode = "liquid_memories"
+            if bark:
+                logs.append("【神圣树皮】触发：选中的牌将加入手牌 2 次。")
+            logs.append(format_pending_potion_card_selection(game_state))
+        return "\n".join(logs)
+
+    # 万灵药水：消耗任意张手牌。神圣树皮排除，不翻倍。
+    if potion_id == "potion.elixir":
+        logs.extend(dispatch_potion_after())
+        options = [(i, card) for i, card in enumerate(getattr(player, "hand", []) or [])]
+        if not options:
+            logs.append("【{}】当前没有可消耗的手牌。".format(potion.name))
+        else:
+            game_state.pending_elixir_selection = True
+            game_state.pending_elixir_source = potion.name
+            game_state.pending_elixir_options = options
+            logs.append(format_pending_elixir_selection(game_state))
+        return "\n".join(logs)
+
+    # 狡诈药水：3 张小刀+；神圣树皮改为 6 张。
+    if potion_id == "potion.cunning":
+        amount = 6 if bark else 3
+        if bark:
+            logs.append("【神圣树皮】触发：【{}】生成数量 3 -> 6。".format(potion.name))
+        logs.extend(add_upgraded_shivs_to_hand(game_state, amount, source_name=potion.name))
+        logs.extend(dispatch_potion_after())
+        result = check_battle_result(game_state)
+        if result:
+            logs.append(result)
+        return "\n".join(logs)
+
+    # 混沌药水：填满所有空药水栏；可产出混沌药水。神圣树皮排除，不翻倍。
+    if potion_id == "potion.chaos":
+        from data.potion.AAAregistry import create_potion
+        from game.reward import POTION_REWARD_POOL
+        from game.relic_logic.run_relic_utils import try_gain_potion_with_relics
+        empty_slots = int(getattr(player, "max_potion_slots", 3)) - len(getattr(player, "potions", []) or [])
+        if empty_slots <= 0:
+            logs.append("【{}】没有空药水栏位。".format(potion.name))
+        else:
+            logs.append("【{}】填充 {} 个空药水栏位。".format(potion.name, empty_slots))
+            for _ in range(empty_slots):
+                new_potion = create_potion(random.choice(POTION_REWARD_POOL))
+                logs.extend(try_gain_potion_with_relics(player, new_potion, source=potion.name))
+        logs.extend(dispatch_potion_after())
+        result = check_battle_result(game_state)
+        if result:
+            logs.append(result)
+        return "\n".join(logs)
+
+    # 烟雾弹：非 Boss 战逃离，不获得任何奖励；仍分发药水使用与战斗结束事件。
+    if potion_id == "potion.smoke_bomb":
+        logs.append("【{}】触发：你从战斗中逃离。".format(potion.name))
+        logs.extend(dispatch_potion_after())
+        game_state.battle_over = True
+        game_state.victory = True
+        game_state.smoke_bomb_escaped = True
+        return "\n".join(logs)
+
+    sacred_bark_excluded = {
+        "potion.fairy_in_a_bottle",
+        "potion.chaos",
+        "potion.smoke_bomb",
+        "potion.forges_blessing",
+        "potion.elixir",
+        "potion.stance",
+        "potion.ambrosia",
+    }
+    bark_multiplier = 1
+    if (
+        potion_id not in sacred_bark_excluded
+        and any(getattr(relic, "relic_id", "") == "relic.sacred_bark" for relic in getattr(player, "relics", []) or [])
+    ):
+        bark_multiplier = 2
+        logs.append("【神圣树皮】触发：药水效果结算 2 次。")
+
+    for _ in range(bark_multiplier):
+        logs.extend(apply_card_effects(
+            game_state=game_state,
+            card=potion,
+            target_index=target_index
+        ))
+
+    logs.extend(dispatch_potion_after())
 
     result = check_battle_result(game_state)
     if result:
@@ -1976,6 +2501,8 @@ def end_turn(game_state):
     clear_pending_hand_to_draw_top_selection(game_state)
     clear_pending_upgrade_hand_selection(game_state)
     clear_pending_exhume_selection(game_state)
+    clear_pending_potion_card_selection(game_state)
+    clear_pending_elixir_selection(game_state)
 
     player_turn_end_context = BattleContext(
         game_state=game_state,
@@ -2059,9 +2586,12 @@ def end_turn(game_state):
     # 进入下一回合
     game_state.turn_count += 1
     game_state.player_card_type_played_counts_this_turn = make_empty_player_card_type_played_counts()
+    cleared_temp_costs = clear_turn_temporary_card_costs(player)
     start_turn_block_logs = player.start_turn(game_state)
     if start_turn_block_logs:
         logs.extend(start_turn_block_logs)
+    if cleared_temp_costs:
+        logs.append("临时费用变化已清除：{} 张牌。".format(cleared_temp_costs))
     logs.append("")
     logs.append("进入第 {} 回合。".format(game_state.turn_count))
     context = BattleContext(
@@ -2075,8 +2605,9 @@ def end_turn(game_state):
     if result:
         logs.append(result)
         return "\n".join(logs)
+    turn_draw_count = 5 + get_turn_draw_bonus(game_state)
     logs.extend(player.draw_cards(
-        5,
+        turn_draw_count,
         game_state=game_state,
         draw_source="turn_start"
     ))
@@ -2254,3 +2785,86 @@ def get_exhaust_pile(game_state):
 
 def get_potions(game_state):
     return game_state.player.potions_text()
+
+# =========================
+# 工具箱：战斗内开局选无色牌
+# =========================
+
+def _get_toolbox_colorless_pool():
+    from data.card.AAAregistry import CARD_REGISTRY, create_card
+    result = []
+    for card_id in CARD_REGISTRY.keys():
+        try:
+            card = create_card(card_id)
+        except Exception:
+            continue
+        if getattr(card, "owner_character_id", "") != "":
+            continue
+        if getattr(card, "card_type", "") in ("status", "curse"):
+            continue
+        if getattr(card, "quantity", "") in ("starting", "status", "curse", "test"):
+            continue
+        result.append(card_id)
+    return result
+
+
+def queue_toolbox_selection(game_state, source_name="工具箱"):
+    import random
+    from data.card.AAAregistry import create_card
+    pool = _get_toolbox_colorless_pool()
+    if not pool:
+        return ["【{}】触发，但没有可选择的无色牌。".format(source_name)]
+    seed = int(getattr(getattr(game_state, "run_state", None), "run_seed", 0) or 0) + 5321 + int(getattr(game_state, "turn_count", 1))
+    rng = random.Random(seed)
+    ids = rng.sample(pool, 3) if len(pool) >= 3 else [rng.choice(pool) for _ in range(3)]
+    options = []
+    for card_id in ids:
+        card = create_card(card_id)
+        setattr(card, "temporary", True)
+        setattr(card, "created_in_battle", True)
+        options.append(card)
+    game_state.pending_toolbox_selection = True
+    game_state.pending_toolbox_source = source_name
+    game_state.pending_toolbox_options = options
+    return [format_pending_toolbox_selection(game_state)]
+
+
+def format_pending_toolbox_selection(game_state):
+    if not getattr(game_state, "pending_toolbox_selection", False):
+        return "当前没有需要处理的【工具箱】选择。"
+    source = getattr(game_state, "pending_toolbox_source", "工具箱")
+    options = getattr(game_state, "pending_toolbox_options", []) or []
+    lines = ["=== {}：选择 1 张无色牌加入手牌 ===".format(source), ""]
+    for index, card in enumerate(options):
+        try:
+            text = card.summary_text()
+        except Exception:
+            text = "【{}】".format(getattr(card, "name", "未知卡牌"))
+        lines.append("[{}] {}".format(index, text))
+    lines.append("")
+    lines.append("使用 /card toolbox 0 选择。")
+    return "\n".join(lines)
+
+
+def clear_pending_toolbox_selection(game_state):
+    game_state.pending_toolbox_selection = False
+    game_state.pending_toolbox_source = ""
+    game_state.pending_toolbox_options = []
+
+
+def choose_pending_toolbox_card(game_state, choice_index):
+    import copy
+    if not getattr(game_state, "pending_toolbox_selection", False):
+        return "当前没有需要处理的【工具箱】选择。"
+    options = getattr(game_state, "pending_toolbox_options", []) or []
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效。"
+    source = getattr(game_state, "pending_toolbox_source", "工具箱")
+    card = copy.deepcopy(options[choice_index])
+    player = game_state.player
+    clear_pending_toolbox_selection(game_state)
+    if player.is_hand_full():
+        player.discard_pile.append(card)
+        return "【{}】选择【{}】，但手牌已满，进入弃牌堆。".format(source, getattr(card, "name", "未知卡牌"))
+    player.hand.append(card)
+    return "【{}】选择【{}】，加入手牌。".format(source, getattr(card, "name", "未知卡牌"))

@@ -573,3 +573,15 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+
+register_status_def(StatusDef(
+    key="confusion",
+    name="混乱",
+    description="每当你抽到一张非 X 费用、非状态/诅咒牌时，将其本回合费用随机变为 0 到 3。",
+    category="debuff",
+    display_mode="stack",
+    order=98,
+    decay_timing="none",
+    decay_amount=0,
+))

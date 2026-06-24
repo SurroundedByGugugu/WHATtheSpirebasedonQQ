@@ -80,6 +80,8 @@ def heal_player_in_combat(game_state, amount, source_name="回复"):
     if player is None:
         return []
     base_amount = int(amount)
+    if _entity_has_relic(player, "relic.mark_of_the_bloom"):
+        return ["【绽放印记】阻止了【{}】的回复生命。".format(source_name)]
     heal_amount = apply_magic_flower_heal_amount(player, base_amount)
     old_hp = int(getattr(player, "hp", 0))
     max_hp = int(getattr(player, "max_hp", old_hp))

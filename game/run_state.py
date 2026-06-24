@@ -85,6 +85,7 @@ class RunState:
     seen_elite_encounter_ids: List[str] = field(default_factory=list)
     pending_rest: Any = None
     pending_ancient: Any = None
+    pending_treasure: Any = None
 
     # 商店定向删牌价格。
     # 初始 50，每次定向删除成功后 +25。
@@ -160,6 +161,7 @@ class RunState:
         self.pending_event = None
         self.pending_rest = None
         self.pending_ancient = None
+        self.pending_treasure = None
 
     def has_pending_node(self):
         return any([
@@ -167,4 +169,5 @@ class RunState:
             self.pending_event is not None,
             self.pending_rest is not None,
             self.pending_ancient is not None,
+            self.pending_treasure is not None,
         ])

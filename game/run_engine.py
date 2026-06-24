@@ -26,6 +26,10 @@ from game.engine import start_battle_with_player, get_combat_view
 from game.event_bus import dispatch_event
 from game.player_state import PlayerState
 from game.relic_logic.bottle_utils import format_pending_bottle, has_pending_bottle_selection
+from game.relic_logic.run_relic_utils import (
+    format_pending_astrolabe, has_pending_astrolabe_selection, choose_pending_astrolabe_cards,
+    format_pending_empty_cage, has_pending_empty_cage_selection, choose_pending_empty_cage_cards,
+)
 from game.route import build_route, find_next_node_by_column, get_next_nodes, format_route_text, get_reachable_columns_text
 from game.run_state import RunState
 from game.status.status_container import StatusContainer
@@ -42,7 +46,7 @@ from game.reward import (
     take_reward_option,
     take_singing_bowl_reward,
 )
-from game.relic_logic.run_relic_utils import gain_gold_with_relics, has_run_relic, increase_max_hp
+from game.relic_logic.run_relic_utils import gain_gold_with_relics, has_run_relic, increase_max_hp, heal_run_hp_with_relics
 from game.node.node_shop import (
     create_shop_state,
     format_shop,
@@ -108,7 +112,10 @@ from game.node.node_ancient import (
     format_ancient,
     choose_ancient_option as choose_ancient_option_impl,
 )
-from game.node.node_treasure import open_treasure
+from game.node.node_treasure import (
+    create_treasure_state, format_treasure, open_pending_treasure,
+    take_treasure_item, skip_unclaimed_treasure,
+)
 
 def start_run(session_id, character_id="character.test", seed=DEBUG_SEED):
     """
@@ -652,9 +659,8 @@ def enter_rest_node(run_state, node, source_node_type="rest"):
         deck_count = len(getattr(run_state, "master_deck", []) or [])
         heal = (deck_count // 5) * 3
         if heal > 0:
-            old_hp = run_state.hp
-            run_state.hp = min(run_state.max_hp, run_state.hp + heal)
-            logs.append("【永恒羽毛】触发：牌组 {} 张，回复 {} 点生命。HP：{} -> {}。".format(deck_count, run_state.hp - old_hp, old_hp, run_state.hp))
+            logs.append("【永恒羽毛】触发：牌组 {} 张，尝试回复 {} 点生命。".format(deck_count, heal))
+            logs.extend(heal_run_hp_with_relics(run_state, heal, source="永恒羽毛"))
         else:
             logs.append("【永恒羽毛】触发：牌组不足 5 张，没有回复生命。")
     if has_run_relic(run_state, "relic.ancient_tea_set"):
@@ -688,18 +694,44 @@ def enter_ancient_node(run_state, node, seed=DEBUG_SEED):
 
 
 def enter_treasure_node(run_state, node, seed=DEBUG_SEED):
-    text = open_treasure(
+    run_state.pending_treasure = create_treasure_state(
         run_state=run_state,
-        seed=make_node_seed(run_state, node, seed, offset=400)
+        seed=make_node_seed(run_state, node, seed, offset=400),
+        source_node_type=getattr(node, "node_type", "treasure")
     )
 
     return "\n".join([
         "进入路线节点：{} ({})".format(node.name, node.node_type),
         "",
-        text,
-        "",
-        complete_current_node(run_state)
+        format_treasure(run_state)
     ])
+
+
+def handle_treasure_open(run_state):
+    return open_pending_treasure(run_state)
+
+
+def handle_treasure_take(run_state, item_index):
+    reply = take_treasure_item(run_state, item_index)
+    treasure = getattr(run_state, "pending_treasure", None)
+    if treasure is not None and treasure.all_done():
+        return "\n".join([reply, "", complete_current_node(run_state)])
+    return "\n".join([reply, "", format_treasure(run_state)])
+
+
+def leave_treasure(run_state):
+    if getattr(run_state, "pending_treasure", None) is None:
+        return "当前不在宝箱房间。"
+    text = skip_unclaimed_treasure(run_state)
+    return "\n".join([text, "", complete_current_node(run_state)])
+
+
+def choose_astrolabe_cards(run_state, indices):
+    return choose_pending_astrolabe_cards(run_state, indices)
+
+
+def choose_empty_cage_cards(run_state, indices):
+    return choose_pending_empty_cage_cards(run_state, indices)
 
 def make_node_seed(run_state, node, seed=DEBUG_SEED, offset=0):
     base_seed = seed
@@ -735,7 +767,8 @@ def enter_battle_node(run_state, node, seed=DEBUG_SEED, effective_node_type=None
         character_id=run_state.character_id,
         player=player,
         enemy_ids=enemy_ids,
-        seed=seed
+        seed=seed,
+        run_state=run_state
     )
     game_state.run_state = run_state
     run_state.current_battle = game_state
@@ -779,7 +812,8 @@ def start_forced_event_battle(
         character_id=run_state.character_id,
         player=player,
         enemy_ids=enemy_ids,
-        seed=seed
+        seed=seed,
+        run_state=run_state
     )
     game_state.run_state = run_state
     run_state.current_battle = game_state
@@ -903,6 +937,31 @@ def process_post_battle_effects(run_state, rng=None):
                 logs.extend(relic.on_obtained(run_state))
             continue
 
+        if effect_type == "gain_rare_relic":
+            from game.reward import get_available_relic_ids, RewardOption
+            available = []
+            for relic_id in get_available_relic_ids(run_state):
+                try:
+                    relic = create_relic(relic_id)
+                except Exception:
+                    continue
+                if getattr(relic, "quantity", "") == "rare":
+                    available.append(relic_id)
+            relic_id = rng.choice(available) if available else ""
+            if relic_id:
+                relic = create_relic(relic_id)
+                injections = list(getattr(run_state, "pending_reward_injections", []) or [])
+                injections.append(RewardOption(
+                    option_type="relic",
+                    title="心灵绽放：稀有遗物：【{}】".format(relic.name),
+                    payload={"relic": relic, "source": "mind_bloom"},
+                ))
+                run_state.pending_reward_injections = injections
+                logs.append("事件奖励：稀有遗物已加入战斗奖励。")
+            else:
+                logs.append("事件奖励：没有可获得的稀有遗物。")
+            continue
+
         if effect_type == "adventurer_corpse_remaining_rewards":
             rewards = list(effect.get("remaining_rewards", []) or [])
             if not rewards:
@@ -970,8 +1029,7 @@ def finish_current_battle_if_needed(run_state):
         []
     ))
 
-    post_battle_rng = random.Random(int(getattr(run_state, "run_seed", 0) or 0) + 8800 + int(getattr(run_state, "reward_count", 0)))
-    post_battle_logs = process_post_battle_effects(run_state, rng=post_battle_rng)
+    escaped_by_smoke_bomb = bool(getattr(game_state, "smoke_bomb_escaped", False))
 
     current_node = run_state.get_current_node()
     node_type = getattr(run_state, "current_battle_node_type", "") or "normal_enemy"
@@ -980,6 +1038,19 @@ def finish_current_battle_if_needed(run_state):
     run_state.mark_current_node_completed()
     run_state.current_battle = None
     run_state.current_battle_node_type = ""
+
+    if escaped_by_smoke_bomb:
+        run_state.pending_stolen_gold_rewards = []
+        run_state.pending_post_battle_effects = []
+        lines = []
+        lines.append("使用【烟雾弹】逃离，当前节点已完成，不获得任何奖励。")
+        if battle_end_logs:
+            lines.append("")
+            lines.extend(battle_end_logs)
+        return "\n".join(lines)
+
+    post_battle_rng = random.Random(int(getattr(run_state, "run_seed", 0) or 0) + 8800 + int(getattr(run_state, "reward_count", 0)))
+    post_battle_logs = process_post_battle_effects(run_state, rng=post_battle_rng)
 
     base_seed = getattr(run_state, "run_seed", None)
     reward_index = getattr(run_state, "reward_count", 0)
@@ -994,6 +1065,11 @@ def finish_current_battle_if_needed(run_state):
         node_type=node_type,
         seed=reward_seed
     )
+
+    injections = list(getattr(run_state, "pending_reward_injections", []) or [])
+    if injections:
+        reward_state.options.extend(injections)
+        run_state.pending_reward_injections = []
 
     run_state.pending_reward = reward_state
 
@@ -1022,6 +1098,12 @@ def choose_next_node(run_state, choice_index, seed=DEBUG_SEED):
     """
     if has_pending_bottle_selection(run_state):
         return "当前还有待处理的瓶装遗物。请先使用 /card bottle 选择添加瓶装状态的牌。"
+
+    if has_pending_astrolabe_selection(run_state):
+        return "当前还有待处理的【星盘】选择。请先使用 /card astrolabe 0,1,2。"
+
+    if has_pending_empty_cage_selection(run_state):
+        return "当前还有待处理的【空鸟笼】选择。请先使用 /card cage 0,1。"
 
     if run_state.pending_reward is not None:
         return "当前还有待选择奖励。请先使用 /card reward 查看奖励，/card pick 0 选择卡牌，或 /card skip 跳过。"
@@ -1116,6 +1198,12 @@ def get_run_view(run_state):
     if has_pending_bottle_selection(run_state):
         lines.append("")
         lines.append(format_pending_bottle(run_state))
+    elif has_pending_astrolabe_selection(run_state):
+        lines.append("")
+        lines.append(format_pending_astrolabe(run_state))
+    elif has_pending_empty_cage_selection(run_state):
+        lines.append("")
+        lines.append(format_pending_empty_cage(run_state))
     elif run_state.pending_reward is not None:
         lines.append("")
         lines.append(run_state.pending_reward.reward_text())
@@ -1131,6 +1219,9 @@ def get_run_view(run_state):
     elif run_state.pending_ancient is not None:
         lines.append("")
         lines.append(format_ancient(run_state))
+    elif run_state.pending_treasure is not None:
+        lines.append("")
+        lines.append(format_treasure(run_state))
     else:
         lines.append("")
         lines.append(format_route_text(run_state))
@@ -1140,6 +1231,8 @@ def get_run_view(run_state):
 
 def get_reward_view(run_state):
     if run_state.pending_reward is None:
+        if getattr(run_state, "pending_treasure", None) is not None:
+            return format_treasure(run_state)
         return "当前没有待选择奖励。"
 
     return run_state.pending_reward.reward_text()

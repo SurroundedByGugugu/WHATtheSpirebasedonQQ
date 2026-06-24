@@ -173,3 +173,55 @@ def create_decay():
         upgraded=False,
         upgrade_patch={}
     )
+
+
+def create_curse_of_the_bell():
+    return CardTemplate(
+        card_id="card.curse.bell",
+        name="铃铛的诅咒",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。无法从牌组中移除。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )
+
+
+def create_normality():
+    return CardTemplate(
+        card_id="card.curse.normality",
+        name="凡庸",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。在手牌中时，你在此回合无法打出 3 张以上牌。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )
+
+
+def create_necronomicurse():
+    card = CardTemplate(
+        card_id="card.curse.necronomicurse",
+        name="死灵诅咒",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。无法逃脱：不能被移除或变化；被消耗后会回到手牌。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={}
+    )
+    setattr(card, "unremovable", True)
+    setattr(card, "untransformable", True)
+    setattr(card, "inescapable", True)
+    return card

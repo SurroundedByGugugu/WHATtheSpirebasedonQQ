@@ -199,12 +199,17 @@ class Enemy(object):
         )
 
     def status_text(self, game_state=None):
+        intent_text = self.get_intent_text(game_state)
+        if game_state is not None:
+            player = getattr(game_state, "player", None)
+            if any(getattr(relic, "relic_id", "") == "relic.runic_dome" for relic in getattr(player, "relics", []) or []):
+                intent_text = "？？？" if self.is_alive() else self.get_intent_text(game_state)
         return "{} HP：{}/{}；格挡：{}；意图：{}；状态：{}".format(
             self.name,
             self.hp,
             self.max_hp,
             self.block,
-            self.get_intent_text(game_state),
+            intent_text,
             get_status_display_text(self.statuses)
         )
     

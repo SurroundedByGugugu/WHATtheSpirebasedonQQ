@@ -16,7 +16,10 @@ from data.card.status_cards import (
     create_doubt,
     create_parasite,
     create_pain,
-    create_decay
+    create_decay,
+    create_curse_of_the_bell,
+    create_normality,
+    create_necronomicurse,
 )
 
 from data.card.colorless_cards import(
@@ -24,6 +27,7 @@ from data.card.colorless_cards import(
     create_burst,
     create_soul,
     create_shiv,
+    create_jax,
 )
 
 from data.card.character.test_character_cards import (
@@ -160,8 +164,12 @@ CARD_REGISTRY = {
     "card.curse.parasite": create_parasite,
     "card.curse.pain": create_pain,
     "card.curse.decay": create_decay,
+    "card.curse.bell": create_curse_of_the_bell,
+    "card.curse.normality": create_normality,
+    "card.curse.necronomicurse": create_necronomicurse,
 
     "card.soul": create_soul,
+    "card.jax": create_jax,
     "card.shiv": create_shiv,
     "card.burst": create_burst,
     "card.amplify": create_amplify,
