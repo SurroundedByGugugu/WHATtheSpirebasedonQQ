@@ -177,6 +177,10 @@ def resolve_amount(
 
     if amount_spec.get("current_block", False):
         value += int(getattr(source, "block", 0))
+    if amount_spec.get("draw_pile_count", False):
+        player = getattr(game_state, "player", None)
+        draw_pile = getattr(player, "draw_pile", []) if player is not None else []
+        value += len(draw_pile)
 
     scaling_list = amount_spec.get("scaling", [])
     for scaling in scaling_list:
