@@ -365,7 +365,11 @@ class DeadBranchRelic(RelicTemplate):
         import random
         from game.reward import CARD_REWARD_POOL
         from data.card.AAAregistry import create_card
-        card = create_card(random.choice(CARD_REWARD_POOL))
+        from data.content_gate import filter_card_ids
+        pool = filter_card_ids(CARD_REWARD_POOL)
+        if not pool:
+            return ["【{}】触发，但没有可生成的卡牌。".format(self.name)]
+        card = create_card(random.choice(pool))
         setattr(card, "temporary", True)
         setattr(card, "created_in_battle", True)
         if context.player.is_hand_full():

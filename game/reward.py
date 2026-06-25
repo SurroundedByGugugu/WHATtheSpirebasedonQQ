@@ -9,6 +9,7 @@ from typing import List, Any
 
 from data.card.AAAregistry import create_card
 from data.card.upgrade_rules import upgrade_card, has_upgrade
+from data.content_gate import filter_card_ids, filter_relic_ids, is_content_enabled
 from data.potion.AAAregistry import create_potion, POTION_REGISTRY
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
@@ -755,7 +756,7 @@ def get_available_boss_relic_ids(run_state):
     owned = {getattr(relic, "relic_id", "") for relic in getattr(run_state, "relics", []) or []}
     result = []
     current_character_id = getattr(run_state, "character_id", "")
-    for relic_id in BOSS_RELIC_POOL:
+    for relic_id in filter_relic_ids(BOSS_RELIC_POOL):
         if relic_id in owned:
             continue
         relic = create_relic(relic_id)
@@ -793,7 +794,9 @@ def get_card_reward_choice_count(run_state):
 
 
 def roll_rare_card_rewards(count, rng, upgrade_chance, run_state=None):
-    pool = get_card_reward_pool(run_state) if run_state is not None else list(CARD_REWARD_POOL)
+    pool = get_card_reward_pool(run_state) if run_state is not None else filter_card_ids(CARD_REWARD_POOL)
+    if not pool:
+        return []
     rare_pool = []
     for card_id in pool:
         card = create_card(card_id)
@@ -835,7 +838,7 @@ def get_available_relic_ids(run_state):
 
     result = []
 
-    for relic_id in RELIC_REWARD_POOL:
+    for relic_id in filter_relic_ids(RELIC_REWARD_POOL):
         # 造物原型只作为兜底，不参与正常随机
         if relic_id == FALLBACK_RELIC_ID:
             continue
@@ -860,7 +863,9 @@ def get_available_relic_ids(run_state):
         return result
 
     # 没有其他可获取遗物时，才给造物原型
-    return [FALLBACK_RELIC_ID]
+    if is_content_enabled("relic", FALLBACK_RELIC_ID):
+        return [FALLBACK_RELIC_ID]
+    return []
 
 
 def get_card_reward_upgrade_chance(run_state):
@@ -891,9 +896,12 @@ def get_card_reward_upgrade_chance(run_state):
 
 def roll_card_rewards(count, rng, upgrade_chance, run_state=None):
     if run_state is None:
-        pool = list(CARD_REWARD_POOL)
+        pool = filter_card_ids(CARD_REWARD_POOL)
     else:
         pool = get_card_reward_pool(run_state)
+
+    if not pool:
+        return []
 
     if run_state is not None and has_run_relic(run_state, "relic.nloths_gift"):
         rare_pool = []
@@ -1374,7 +1382,7 @@ def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=F
     current_character_id = getattr(run_state, "character_id", "")
     result = []
 
-    for card_id in CARD_REWARD_POOL:
+    for card_id in filter_card_ids(CARD_REWARD_POOL):
         card = create_card(card_id)
         owner = getattr(card, "owner_character_id", "")
         quantity = getattr(card, "quantity", "")
@@ -1405,6 +1413,6 @@ def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=F
 
     # 小卡池兜底，防止测试角色没有奖励牌。
     if not result:
-        return list(CARD_REWARD_POOL)
+        return filter_card_ids(CARD_REWARD_POOL)
 
     return result

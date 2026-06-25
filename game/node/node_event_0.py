@@ -8,6 +8,7 @@ from typing import Any, List, Dict
 
 from data.card.AAAregistry import create_card
 from data.card.upgrade_rules import has_upgrade, upgrade_card
+from data.content_gate import is_content_enabled
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
 from game.deck_utils import remove_card_from_master_deck, transform_card_in_master_deck
@@ -590,6 +591,43 @@ def get_builder_event_id(builder):
     )
 
 
+def resolve_builder_event_id(builder, run_state, seed=None, source_node_type="event"):
+    event_id = getattr(builder, "event_id", "") or getattr(builder, "__event_id__", "")
+    if event_id:
+        return event_id
+
+    try:
+        probe_state = builder(
+            run_state,
+            rng=random.Random(seed),
+            seed=seed,
+            source_node_type=source_node_type,
+        )
+    except Exception:
+        return get_builder_event_id(builder)
+
+    event_id = getattr(probe_state, "event_id", "") or get_builder_event_id(builder)
+    try:
+        setattr(builder, "__event_id__", event_id)
+    except Exception:
+        pass
+    return event_id
+
+
+def filter_event_builders(builders, run_state, seed=None, source_node_type="event"):
+    result = []
+    for builder in builders:
+        event_id = resolve_builder_event_id(
+            builder,
+            run_state,
+            seed=seed,
+            source_node_type=source_node_type,
+        )
+        if is_content_enabled("event", event_id):
+            result.append(builder)
+    return result
+
+
 def get_seen_event_ids(run_state):
     seen = getattr(run_state, "seen_event_ids", None)
     if seen is None:
@@ -629,6 +667,12 @@ def choose_event_builder_with_seen_priority(run_state, builders, rng):
 def create_event_state(run_state, seed=None, source_node_type="event"):
     rng = random.Random(seed)
     builders = get_event_builders_for_current_node(
+        run_state,
+        seed=seed,
+        source_node_type=source_node_type,
+    )
+    builders = filter_event_builders(
+        builders,
         run_state,
         seed=seed,
         source_node_type=source_node_type,

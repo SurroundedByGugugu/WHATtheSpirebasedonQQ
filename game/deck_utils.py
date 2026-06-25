@@ -5,6 +5,7 @@ import random
 
 from data.card.AAAregistry import create_card
 from data.card.upgrade_rules import upgrade_card
+from data.content_gate import filter_card_ids, is_content_enabled
 from game.reward import CARD_REWARD_POOL
 
 
@@ -67,7 +68,7 @@ def remove_card_from_master_deck(run_state, card_index, reason=""):
 
 def get_transform_candidate_ids(run_state=None):
     result = []
-    for card_id in CARD_REWARD_POOL:
+    for card_id in filter_card_ids(CARD_REWARD_POOL):
         try:
             card = create_card(card_id)
         except Exception:
@@ -81,7 +82,7 @@ def get_transform_candidate_ids(run_state=None):
 
 def get_curse_transform_candidate_ids():
     result = []
-    for card_id in CARD_REWARD_POOL:
+    for card_id in filter_card_ids(CARD_REWARD_POOL):
         try:
             card = create_card(card_id)
         except Exception:
@@ -92,6 +93,8 @@ def get_curse_transform_candidate_ids():
     if not result:
         from data.card.AAAregistry import CARD_REGISTRY
         for card_id in CARD_REGISTRY.keys():
+            if not is_content_enabled("card", card_id):
+                continue
             try:
                 card = create_card(card_id)
             except Exception:

@@ -1583,12 +1583,13 @@ def add_temporary_card_to_hand_or_discard(game_state, card, source_name="药水"
 
 def get_potion_card_pool(game_state, wanted_card_type):
     from data.card.AAAregistry import create_card
+    from data.content_gate import filter_card_ids
     from game.reward import get_card_reward_pool, CARD_REWARD_POOL
     run_state = getattr(game_state, "run_state", None)
     if run_state is not None:
         pool_ids = get_card_reward_pool(run_state, ignore_prismatic=True)
     else:
-        pool_ids = list(CARD_REWARD_POOL)
+        pool_ids = filter_card_ids(CARD_REWARD_POOL)
     result = []
     for card_id in pool_ids:
         try:
@@ -1752,9 +1753,10 @@ def choose_pending_elixir_cards(game_state, indices):
 def queue_nilrys_codex_selection(game_state, source_name="尼利的宝典"):
     import random
     from data.card.AAAregistry import create_card
+    from data.content_gate import filter_card_ids
     from game.reward import get_card_reward_pool, CARD_REWARD_POOL
     run_state = getattr(game_state, "run_state", None)
-    pool = get_card_reward_pool(run_state, ignore_prismatic=True) if run_state is not None else list(CARD_REWARD_POOL)
+    pool = get_card_reward_pool(run_state, ignore_prismatic=True) if run_state is not None else filter_card_ids(CARD_REWARD_POOL)
     candidates = []
     for card_id in pool:
         try:
@@ -2828,8 +2830,11 @@ def get_potions(game_state):
 
 def _get_toolbox_colorless_pool():
     from data.card.AAAregistry import CARD_REGISTRY, create_card
+    from data.content_gate import is_content_enabled
     result = []
     for card_id in CARD_REGISTRY.keys():
+        if not is_content_enabled("card", card_id):
+            continue
         try:
             card = create_card(card_id)
         except Exception:

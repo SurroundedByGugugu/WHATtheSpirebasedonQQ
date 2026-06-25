@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, List
 
 from data.card.AAAregistry import create_card, CARD_REGISTRY
+from data.content_gate import filter_relic_ids, is_content_enabled
 from data.potion.AAAregistry import create_potion
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
@@ -218,6 +219,8 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
     relic_ids.append(get_shop_exclusive_relic_id(run_state, rng))
 
     for relic_id in relic_ids:
+        if not relic_id:
+            continue
         relic = create_relic(relic_id)
         items.append(ShopItem(
             item_type="relic",
@@ -444,6 +447,8 @@ def get_card_shop_pool(owner_character_id="", card_type=None, quantity=None, uno
     result = []
 
     for card_id in CARD_REGISTRY.keys():
+        if not is_content_enabled("card", card_id):
+            continue
         card = create_card(card_id)
         card_owner = getattr(card, "owner_character_id", "")
         current_card_type = getattr(card, "card_type", "")
@@ -545,7 +550,7 @@ def get_shop_exclusive_relic_id(run_state, rng):
     current_character_id = getattr(run_state, "character_id", "")
     candidates = []
 
-    for relic_id in SHOP_RELIC_POOL:
+    for relic_id in filter_relic_ids(SHOP_RELIC_POOL):
         relic = create_relic(relic_id)
 
         relic_owner = getattr(relic, "owner_character_id", "")
@@ -564,7 +569,9 @@ def get_shop_exclusive_relic_id(run_state, rng):
     if candidates:
         return rng.choice(candidates)
 
-    return FALLBACK_RELIC_ID
+    if is_content_enabled("relic", FALLBACK_RELIC_ID):
+        return FALLBACK_RELIC_ID
+    return ""
 
 
 def pick_potion_id_by_weighted_rarity(rng, run_state=None):

@@ -5,6 +5,7 @@ import copy
 from data.character.AAAregistry import create_character
 from data.card.AAAregistry import create_deck
 from data.card.AAAregistry import create_card
+from data.content_gate import filter_card_ids, filter_relic_ids, is_content_enabled
 from data.relic.AAAregistry import create_relics, create_relic
 from data.potion.AAAregistry import create_potions
 from game.command_help import command_tip
@@ -127,6 +128,8 @@ def start_run(session_id, character_id="character.test", seed=DEBUG_SEED):
         run_seed = int(seed)
     character = create_character(character_id)
     max_potion_slots = getattr(character, "max_potion_slots", 3)
+    starting_deck_ids = filter_card_ids(getattr(character, "starting_deck_ids", []))
+    starting_relic_ids = filter_relic_ids(getattr(character, "starting_relic_ids", []))
     starting_potions = create_potions(getattr(character, "starting_potion_ids", []))
     if len(starting_potions) > max_potion_slots:
         starting_potions = starting_potions[:max_potion_slots]
@@ -138,8 +141,8 @@ def start_run(session_id, character_id="character.test", seed=DEBUG_SEED):
         max_hp=character.max_hp,
         hp=character.max_hp,
         max_cost=character.max_cost,
-        master_deck=create_deck(character.starting_deck_ids),
-        relics=create_relics(character.starting_relic_ids),
+        master_deck=create_deck(starting_deck_ids),
+        relics=create_relics(starting_relic_ids),
         potions=starting_potions,
         max_potion_slots=max_potion_slots,
         gold=getattr(character, "starting_gold", 0),
@@ -798,6 +801,8 @@ def start_forced_event_battle(
     - 战斗胜利后由 finish_current_battle_if_needed 统一完成当前节点并生成奖励。
     """
     node = run_state.get_current_node()
+    if not is_content_enabled("encounter", encounter_id):
+        return "该遭遇当前被 private 内容开关过滤：{}。".format(encounter_id)
     encounter = ENCOUNTER_TABLE.get(encounter_id)
     if encounter is None:
         return "遭遇配置不存在：{}".format(encounter_id)
@@ -844,6 +849,25 @@ def resolve_encounter_id_for_node(run_state, node, seed=DEBUG_SEED):
         seed=seed
     )
 
+
+def get_pickable_encounter_node_type(effective_node_type):
+    if effective_node_type in ("starting", "normal_enemy", "elite", "boss"):
+        return effective_node_type
+    if effective_node_type == "event_elite":
+        return "elite"
+    if effective_node_type in ("event_normal", "event_boss"):
+        return "normal_enemy"
+    return "normal_enemy"
+
+
+def pick_replacement_encounter_id(run_state, effective_node_type, rng):
+    pick_type = get_pickable_encounter_node_type(effective_node_type)
+    seen = get_seen_encounter_ids(run_state, effective_node_type)
+    if pick_type == "boss":
+        return pick_encounter_id_by_node_type(pick_type, rng)
+    return pick_encounter_id_by_node_type(pick_type, rng, seen)
+
+
 def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_SEED):
     """
     根据实际战斗类型选择 encounter。
@@ -862,11 +886,15 @@ def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_S
 
     fixed_encounter_id = getattr(node, "fixed_encounter_id", "")
     if fixed_encounter_id:
-        return fixed_encounter_id
+        if is_content_enabled("encounter", fixed_encounter_id):
+            return fixed_encounter_id
+        return pick_replacement_encounter_id(run_state, effective_node_type, rng)
 
     if effective_node_type == "starting":
         if node.node_type != "mystery" and getattr(node, "encounter_id", ""):
-            return node.encounter_id
+            if is_content_enabled("encounter", node.encounter_id):
+                return node.encounter_id
+            return pick_encounter_id_by_node_type("starting", rng, get_seen_encounter_ids(run_state, effective_node_type))
         return pick_encounter_id_by_node_type("starting", rng, get_seen_encounter_ids(run_state, effective_node_type))
 
     if effective_node_type == "elite":
@@ -874,16 +902,21 @@ def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_S
 
     if effective_node_type == "boss":
         if getattr(node, "encounter_id", ""):
-            return node.encounter_id
+            if is_content_enabled("encounter", node.encounter_id):
+                return node.encounter_id
+            return pick_encounter_id_by_node_type("boss", rng)
         return pick_encounter_id_by_node_type("boss", rng)
 
     if effective_node_type == "normal_enemy":
         if node.node_type != "mystery" and getattr(node, "encounter_id", ""):
-            return node.encounter_id
+            if is_content_enabled("encounter", node.encounter_id):
+                return node.encounter_id
+            return pick_encounter_id_by_node_type("normal_enemy", rng, get_seen_encounter_ids(run_state, effective_node_type))
         return pick_encounter_id_by_node_type("normal_enemy", rng, get_seen_encounter_ids(run_state, effective_node_type))
 
     if getattr(node, "encounter_id", ""):
-        return node.encounter_id
+        if is_content_enabled("encounter", node.encounter_id):
+            return node.encounter_id
     return pick_encounter_id_by_node_type("normal_enemy", rng)
 
 def make_encounter_seed(run_state, node, effective_node_type, seed=DEBUG_SEED):

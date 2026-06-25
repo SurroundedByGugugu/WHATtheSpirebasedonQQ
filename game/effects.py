@@ -2240,10 +2240,13 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         exclude_card_ids = set(effect.get("exclude_card_ids", []))
 
         from data.card.AAAregistry import CARD_REGISTRY, create_card
+        from data.content_gate import is_content_enabled
 
         candidates = []
 
         for candidate_card_id in CARD_REGISTRY.keys():
+            if not is_content_enabled("card", candidate_card_id):
+                continue
             if candidate_card_id in exclude_card_ids:
                 continue
 

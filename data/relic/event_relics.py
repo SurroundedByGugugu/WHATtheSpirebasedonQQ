@@ -142,9 +142,10 @@ class EnchiridionRelic(RelicTemplate):
             return []
         import random, copy
         from data.card.AAAregistry import create_card
+        from data.content_gate import filter_card_ids
         from game.reward import get_card_reward_pool, CARD_REWARD_POOL
         run_state = getattr(context.game_state, "run_state", None)
-        pool = get_card_reward_pool(run_state, ignore_prismatic=True) if run_state is not None else list(CARD_REWARD_POOL)
+        pool = get_card_reward_pool(run_state, ignore_prismatic=True) if run_state is not None else filter_card_ids(CARD_REWARD_POOL)
         power_ids = []
         for card_id in pool:
             try:

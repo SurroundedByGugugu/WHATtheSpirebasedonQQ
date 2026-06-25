@@ -71,6 +71,10 @@ from game.run_engine import (
 from game.route import format_route_text
 from game.reward import format_card_reward_choice
 from game.pending_choice import pending_choice_is
+from data.content_gate import (
+    get_private_content_status_text,
+    set_private_content_enabled,
+)
 
 
 CHARACTER_CHOICES = [
@@ -164,6 +168,95 @@ class GameService(object):
 
         return full_reply
 
+    def has_active_runs(self):
+        return bool(self.sessions)
+
+    def handle_private_content_command(self, parts):
+        if len(parts) <= 2 or parts[2].lower() in ("status", "状态", "查看"):
+            return "private 内容开关：{}。".format(get_private_content_status_text())
+
+        action = parts[2].lower()
+
+        if action in ("on", "open", "enable", "enabled", "开", "开启"):
+            enabled = True
+        elif action in ("off", "close", "disable", "disabled", "关", "关闭"):
+            enabled = False
+        else:
+            return "用法：/card private on 或 /card private off。当前：{}。".format(
+                get_private_content_status_text()
+            )
+
+        if self.has_active_runs():
+            return "已有进行中的 Run，不能在 Run 过程中修改 private 内容开关。当前：{}。".format(
+                get_private_content_status_text()
+            )
+
+        set_private_content_enabled(enabled)
+        return "private 内容开关：已{}。".format(get_private_content_status_text())
+
+    def is_known_card_command(self, command):
+        return command in {
+            "help", "帮助",
+            "characters", "character", "chars", "角色", "角色选择", "查看角色",
+            "info", "说明", "查看说明", "buffinfo", "状态说明",
+            "private", "私货",
+            "new",
+            "yes", "y", "确认", "是",
+            "no", "cancel", "取消", "否",
+            "exit", "退出", "下一把",
+            "sl", "读档", "回档", "回退",
+            "hand", "view", "查看", "手牌", "查看战斗状态", "查看手牌", "run", "角色状态", "当前状态",
+            "status", "状态", "查看状态", "查看buff", "buff", "debuff",
+            "state", "zone", "field", "场地", "查看场地", "查看zone", "查看field",
+            "route", "map", "路线", "地图",
+            "reward", "rewards", "奖励", "查看奖励",
+            "chest", "treasure", "宝箱", "查看宝箱",
+            "open", "open_chest", "打开", "开宝箱", "打开宝箱",
+            "relics", "relic", "遗物", "查看已有遗物", "查看遗物",
+            "relic_story", "relicstory", "lore", "遗物故事", "查看遗物故事",
+            "potions", "potion_list", "药水", "查看药水",
+            "deck", "master_deck", "牌库", "查看牌库", "卡组", "查看卡组",
+            "bottle", "bottled", "瓶装", "选择瓶装",
+            "astrolabe", "星盘",
+            "cage", "empty_cage", "鸟笼", "空鸟笼",
+            "orrery", "星系仪",
+            "mirror", "dolly", "dollys_mirror", "镜子", "多利之镜",
+            "pick", "choose", "选择奖励", "选牌",
+            "take", "claim", "领取", "拿取",
+            "replace_potion", "replacepotion", "换药水", "替换药水",
+            "bowl", "singing_bowl", "颂钵", "唱歌碗",
+            "skip", "skip_reward", "跳过", "跳过奖励",
+            "shop", "商店",
+            "item", "goods", "商品", "查看商品", "shop_item", "detail", "详情",
+            "buy", "购买",
+            "remove", "remove_card", "删牌", "删除牌",
+            "random_remove", "randomremove", "随机删牌",
+            "leave", "离开",
+            "rest", "火堆", "休息",
+            "smith", "upgrade", "锻造", "升级",
+            "rest_remove", "pipe", "peace_pipe", "烟斗", "宁静烟斗",
+            "event", "事件",
+            "ancient", "先古", "先古之民",
+            "next", "go", "选择路线", "前进",
+            "toolbox", "工具箱",
+            "drop", "drop_hand", "丢弃手牌", "选择丢弃",
+            "top", "headbutt", "置顶", "选择弃牌置顶",
+            "exhaust_hand", "burn", "consume", "选择消耗", "消耗手牌",
+            "handtop", "hand_top", "warcry", "置顶手牌", "手牌置顶",
+            "upgrade_hand", "upgradehand", "armaments", "选择升级", "升级手牌",
+            "duplicate_hand", "dual_wield", "复制手牌", "双持",
+            "exhume", "发掘", "选择发掘",
+            "potion_pick", "potion_card", "药水选牌", "选择药水牌",
+            "elixir", "万灵", "万灵药水",
+            "codex", "nilry", "nilrys", "宝典", "尼利",
+            "potion", "use_potion", "useitem", "使用药水", "使用道具",
+            "draw", "drawpile", "draw_pile", "抽牌堆", "查看抽牌堆",
+            "discard", "discardpile", "discard_pile", "弃牌堆", "查看弃牌堆",
+            "exhaust", "exhaustpile", "exhaust_pile", "消耗牌堆", "消耗堆", "查看消耗牌堆", "查看消耗堆",
+            "play",
+            "end",
+        }
+
     def handle_message(self, session_id, user_id, raw_message):
         """
         处理一条文本命令。
@@ -178,13 +271,16 @@ class GameService(object):
         command = parts[1].lower()
 
         if command in ("help", "帮助"):
-            return self.help_text()
+            return self.opening_help_text()
 
         if command in ("characters", "character", "chars", "角色", "角色选择", "查看角色"):
             return self.character_choices_text()
 
         if command in ("info", "说明", "查看说明", "buffinfo", "状态说明"):
             return self.get_general_info(parts)
+
+        if command in ("private", "私货"):
+            return self.handle_private_content_command(parts)
 
         if command == "new":
             if self.get_run(session_id) is not None and self.is_owned_by_other_user(session_id, user_id):
@@ -204,6 +300,8 @@ class GameService(object):
         run_state = self.get_run(session_id)
 
         if run_state is None:
+            if not self.is_known_card_command(command):
+                return "无效的指令：{}".format(command)
             return "当前会话还没有路线。使用 /card new [角色序号] 开始。"
 
         # 只要 run 存在，就要检查 owner，不再依赖 current_battle
@@ -568,6 +666,8 @@ class GameService(object):
 
             return reply
         
+        if not self.is_known_card_command(command):
+            return "无效的指令：{}".format(command)
 
         game_state = run_state.current_battle
 
@@ -747,7 +847,7 @@ class GameService(object):
             reply = end_turn(game_state)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
 
-        return "未知命令：{}。\n{}".format(command, self.help_text())
+        return "无效的指令：{}".format(command)
 
     def request_exit_run(self, session_id, run_state):
         """
@@ -1362,12 +1462,22 @@ class GameService(object):
 
     def help_text(self):
         return "\n".join([
+            "/card view       查看战斗状态和手牌",
+            "/card run        查看角色 hp/金币/药水/遗物 总览",
+            "*目前全部指令过多，请使用(.help我超，塔)查看相关内容。",
+            "**可使用(.help塔指令等效)查看指令的其他等效写法，部分支持中文。",
+        ])
+
+    def opening_help_text(self):
+        return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
             "当前版本：v26.06.25",
             "- 底层框架优化",
             "- 修正武装抓不到的bug因为它没进池",
+            "- 添加了私货的小开关",
             "",
             "/card characters 查看可选角色",
+            "/card private on/off      控制是否启用私货内容，默认开启",
             "/card new 0      选择 0 号测试角色并开始测试战斗",
             "/card view       查看战斗状态和手牌",
             "/card run        查看角色 hp/金币/药水/遗物 总览",

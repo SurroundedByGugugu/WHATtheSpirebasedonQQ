@@ -7,6 +7,7 @@ from typing import Any, List
 
 from data.relic.AAAregistry import create_relic
 from data.card.AAAregistry import create_card, CARD_REGISTRY
+from data.content_gate import is_content_enabled
 from game.command_help import command_tip
 from game.reward import get_available_relic_ids
 from game.relic_logic.run_relic_utils import (
@@ -167,6 +168,8 @@ def create_treasure_state(run_state, seed=None, source_node_type="treasure"):
 def _roll_random_curse_id(rng):
     candidates = []
     for card_id in CARD_REGISTRY.keys():
+        if not is_content_enabled("card", card_id):
+            continue
         if card_id == "card.curse.bell":
             continue
         try:

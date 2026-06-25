@@ -1,9 +1,20 @@
 # -*- coding: utf-8 -*-
 
+from data.content_gate import is_content_enabled
+
+
 def pick_weighted(pool, rng):
     encounter_ids = [item[0] for item in pool]
     weights = [item[1] for item in pool]
     return rng.choices(encounter_ids, weights=weights, k=1)[0]
+
+
+def filter_encounter_pool(pool):
+    filtered = [
+        item for item in pool
+        if is_content_enabled("encounter", item[0])
+    ]
+    return filtered or pool
 
 
 ENCOUNTER_SEEN_ALIAS_MAP = {
@@ -128,13 +139,13 @@ def get_encounter_display_name(encounter_id):
 
 def pick_encounter_id_by_node_type(node_type, rng, seen_encounter_ids=None):
     if node_type == "starting":
-        return pick_weighted_with_seen_priority(STARTING_ENCOUNTER_POOL, rng, seen_encounter_ids)
+        return pick_weighted_with_seen_priority(filter_encounter_pool(STARTING_ENCOUNTER_POOL), rng, seen_encounter_ids)
     if node_type == "elite":
-        return pick_weighted_with_seen_priority(ELITE_ENCOUNTER_POOL, rng, seen_encounter_ids)
+        return pick_weighted_with_seen_priority(filter_encounter_pool(ELITE_ENCOUNTER_POOL), rng, seen_encounter_ids)
     if node_type == "boss":
-        return pick_weighted(BOSS_ENCOUNTER_POOL, rng)
+        return pick_weighted(filter_encounter_pool(BOSS_ENCOUNTER_POOL), rng)
 
-    return pick_weighted_with_seen_priority(NORMAL_ENCOUNTER_POOL, rng, seen_encounter_ids)
+    return pick_weighted_with_seen_priority(filter_encounter_pool(NORMAL_ENCOUNTER_POOL), rng, seen_encounter_ids)
 
 def pick_enemy_spec(enemy_spec, rng):
     """

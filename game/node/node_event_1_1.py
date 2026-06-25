@@ -232,7 +232,13 @@ def build_adventurer_corpse_event(run_state, rng=None, seed=None, source_node_ty
         },
     ]
     try:
+        from data.content_gate import is_content_enabled
         from data.route.encounters import get_encounter_seen_key
+        enabled_variants = [
+            variant for variant in variants
+            if is_content_enabled("encounter", variant["encounter_id"])
+        ]
+        variants = enabled_variants or variants
         seen_elites = set(getattr(run_state, "seen_elite_encounter_ids", []) or [])
         unseen_variants = [
             variant for variant in variants

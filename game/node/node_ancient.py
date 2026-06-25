@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, List
 
 from data.card.AAAregistry import create_card
+from data.content_gate import filter_card_ids
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
 from game.reward import CARD_REWARD_POOL, get_available_relic_ids
@@ -91,7 +92,10 @@ def choose_ancient_option(run_state, choice_index, seed=None):
         return True, "\n".join(gain_gold_with_relics(run_state, choice.amount, source="先古之民"))
 
     if choice.effect_type == "gain_random_card":
-        card_id = rng.choice(CARD_REWARD_POOL)
+        card_pool = filter_card_ids(CARD_REWARD_POOL)
+        if not card_pool:
+            return True, "没有可获得的卡牌。"
+        card_id = rng.choice(card_pool)
         card = create_card(card_id)
         return True, "\n".join(add_card_to_master_deck_with_relics(run_state, card, source="先古之民"))
 

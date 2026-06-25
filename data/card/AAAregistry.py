@@ -159,6 +159,7 @@ CARD_REGISTRY = {
     "card.status.dazed":create_dazed,
     "card.status.burn_i": create_burn_i,
     "card.status.burn_ii": create_burn_ii,
+    
     "card.curse.regret": create_regret,
     "card.curse.injury": create_injury,
     "card.curse.doubt": create_doubt,
