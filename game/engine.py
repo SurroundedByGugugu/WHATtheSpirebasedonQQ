@@ -41,6 +41,13 @@ from game.zone_utils import (
     record_player_card_played_this_turn,
     make_empty_player_card_type_played_counts
 )
+from game.pending_choice import (
+    clear_pending_choice,
+    format_pending_choice_hint,
+    get_pending_choice,
+    has_pending_choice,
+    pending_choice_is,
+)
 
 
 def move_bottled_cards_to_opening_hand(player):
@@ -334,6 +341,7 @@ def resolve_auto_target_index(game_state, card_or_item, target_index):
 
 def has_pending_player_choice(game_state):
     return any([
+        has_pending_choice(game_state),
         getattr(game_state, "pending_discard_selection", False),
         getattr(game_state, "pending_discard_to_draw_selection", False),
         getattr(game_state, "pending_exhaust_hand_selection", False),
@@ -349,6 +357,9 @@ def has_pending_player_choice(game_state):
 
 
 def get_pending_player_choice_hint(game_state):
+    pending_choice_hint = format_pending_choice_hint(game_state)
+    if pending_choice_hint:
+        return pending_choice_hint
     if getattr(game_state, "pending_discard_selection", False):
         return "当前需要先处理丢弃选择。用法：/card drop 0 2 3。若不丢弃，使用 /card drop none。\ndrop 等效 drop_hand，丢弃手牌，选择丢弃。"
     if getattr(game_state, "pending_discard_to_draw_selection", False):
@@ -708,6 +719,7 @@ def end_player_turn_hand_cleanup(game_state):
     return logs
 
 def clear_pending_discard_to_draw_top(game_state):
+    clear_pending_choice(game_state, "discard_to_draw_top")
     game_state.pending_discard_to_draw_selection = False
     game_state.pending_discard_to_draw_source = ""
     game_state.pending_discard_to_draw_options = []
@@ -740,10 +752,18 @@ def choose_pending_discard_to_draw_top(game_state, choice_index):
     处理头槌类效果：
     从 pending 选项中选择一张弃牌堆里的牌，放到抽牌堆顶。
     """
-    if not game_state.pending_discard_to_draw_selection:
+    use_pending_choice = pending_choice_is(game_state, "discard_to_draw_top")
+
+    if not use_pending_choice and not game_state.pending_discard_to_draw_selection:
         return "当前没有需要处理的弃牌堆置顶选择。"
 
-    options = getattr(game_state, "pending_discard_to_draw_options", [])
+    if use_pending_choice:
+        pending_choice = get_pending_choice(game_state)
+        options = list(getattr(pending_choice, "options", []) or [])
+        source = getattr(pending_choice, "source", "")
+    else:
+        options = getattr(game_state, "pending_discard_to_draw_options", [])
+        source = game_state.pending_discard_to_draw_source
 
     if not options:
         clear_pending_discard_to_draw_top(game_state)
@@ -762,7 +782,6 @@ def choose_pending_discard_to_draw_top(game_state, choice_index):
     player.discard_pile.remove(chosen_card)
     player.draw_pile.append(chosen_card)
 
-    source = game_state.pending_discard_to_draw_source
     clear_pending_discard_to_draw_top(game_state)
 
     return "【{}】选择了【{}】，将其放到抽牌堆顶。它会成为下一张抽到的牌。".format(
@@ -932,6 +951,7 @@ def choose_pending_exhaust_hand(game_state, choice_index):
     return "\n".join(logs)
 
 def clear_pending_hand_to_draw_top_selection(game_state):
+    clear_pending_choice(game_state, "hand_to_draw_top")
     game_state.pending_hand_to_draw_top_selection = False
     game_state.pending_hand_to_draw_top_source = ""
     game_state.pending_hand_to_draw_top_options = []
@@ -941,10 +961,18 @@ def choose_pending_hand_to_draw_top(game_state, choice_index):
     处理战吼：
     选择 1 张手牌放到抽牌堆顶。
     """
-    if not game_state.pending_hand_to_draw_top_selection:
+    use_pending_choice = pending_choice_is(game_state, "hand_to_draw_top")
+
+    if not use_pending_choice and not game_state.pending_hand_to_draw_top_selection:
         return "当前没有需要处理的手牌置顶选择。"
 
-    options = getattr(game_state, "pending_hand_to_draw_top_options", [])
+    if use_pending_choice:
+        pending_choice = get_pending_choice(game_state)
+        options = list(getattr(pending_choice, "options", []) or [])
+        source = getattr(pending_choice, "source", "")
+    else:
+        options = getattr(game_state, "pending_hand_to_draw_top_options", [])
+        source = game_state.pending_hand_to_draw_top_source
 
     if not options:
         clear_pending_hand_to_draw_top_selection(game_state)
@@ -963,7 +991,6 @@ def choose_pending_hand_to_draw_top(game_state, choice_index):
     player.hand.remove(chosen_card)
     player.draw_pile.append(chosen_card)
 
-    source = game_state.pending_hand_to_draw_top_source
     clear_pending_hand_to_draw_top_selection(game_state)
 
     return "【{}】选择了【{}】，将其放到抽牌堆顶。它会成为下一张抽到的牌。".format(
@@ -972,6 +999,7 @@ def choose_pending_hand_to_draw_top(game_state, choice_index):
     )
 
 def clear_pending_upgrade_hand_selection(game_state):
+    clear_pending_choice(game_state, "upgrade_hand")
     game_state.pending_upgrade_hand_selection = False
     game_state.pending_upgrade_hand_source = ""
     game_state.pending_upgrade_hand_options = []
@@ -981,10 +1009,18 @@ def choose_pending_upgrade_hand_card(game_state, choice_index):
     处理武装：
     选择 1 张手牌在本场战斗中临时升级。
     """
-    if not game_state.pending_upgrade_hand_selection:
+    use_pending_choice = pending_choice_is(game_state, "upgrade_hand")
+
+    if not use_pending_choice and not game_state.pending_upgrade_hand_selection:
         return "当前没有需要处理的手牌升级选择。"
 
-    options = getattr(game_state, "pending_upgrade_hand_options", [])
+    if use_pending_choice:
+        pending_choice = get_pending_choice(game_state)
+        options = list(getattr(pending_choice, "options", []) or [])
+        source = getattr(pending_choice, "source", "")
+    else:
+        options = getattr(game_state, "pending_upgrade_hand_options", [])
+        source = game_state.pending_upgrade_hand_source
 
     if not options:
         clear_pending_upgrade_hand_selection(game_state)
@@ -1016,7 +1052,6 @@ def choose_pending_upgrade_hand_card(game_state, choice_index):
             replaced = True
             break
 
-    source = game_state.pending_upgrade_hand_source
     clear_pending_upgrade_hand_selection(game_state)
 
     if not replaced:
@@ -2494,6 +2529,7 @@ def end_turn(game_state):
     player = game_state.player
 
     logs.append("玩家回合结束。")
+    clear_pending_choice(game_state)
     game_state.pending_discard_selection = False
     game_state.pending_discard_source = ""
     clear_pending_discard_to_draw_top(game_state)

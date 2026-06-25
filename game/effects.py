@@ -14,6 +14,17 @@ from game.zone_utils import (
 )
 from game.block import gain_block_without_modifiers
 
+
+EFFECT_HANDLERS = {}
+
+
+def register_effect(op):
+    def decorator(func):
+        EFFECT_HANDLERS[op] = func
+        return func
+    return decorator
+
+
 def is_player_attack_card(card):
     return getattr(card, "card_type", "") == "attack"
 
@@ -636,6 +647,64 @@ def is_enemy_intent_attack(intent):
 
     return False
 
+
+@register_effect("draw_cards")
+def handle_draw_cards(game_state, card, effect, target_index, effect_context):
+    logs = []
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context
+    )
+
+    logs.extend(draw_cards_with_no_draw_check(
+        game_state,
+        amount,
+        draw_source="card_effect"
+    ))
+    return logs
+
+
+@register_effect("draw_to_full")
+def handle_draw_to_full(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    logs = []
+    if get_status_value(player, "no_draw") > 0:
+        logs.append("{} 受到不能抽牌影响，无法抽牌。".format(player.name))
+        return logs
+    logs.extend(player.draw_to_full(
+        game_state=game_state,
+        draw_source="card_effect"
+    ))
+    return logs
+
+
+@register_effect("gain_energy")
+def handle_gain_energy(game_state, card, effect, target_index, effect_context):
+    logs = []
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context,
+    )
+
+    game_state.player.cost += amount
+
+    logs.append("{} 获得 {} 点费用。当前费用：{}。".format(
+        game_state.player.name,
+        amount,
+        game_state.player.cost
+    ))
+
+    return logs
+
+
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):
     """
     执行单个卡牌效果。
@@ -646,6 +715,15 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
     logs = []
 
     op = effect.get("op")
+    handler = EFFECT_HANDLERS.get(op)
+    if handler is not None:
+        return handler(
+            game_state=game_state,
+            card=card,
+            effect=effect,
+            target_index=target_index,
+            effect_context=effect_context
+        )
 
     if op == "deal_damage":
         attack_type, attack_element = get_effect_attack_tags(card, effect)
@@ -2445,9 +2523,16 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs.append("弃牌堆为空，没有可以放到抽牌堆顶的牌。")
             return logs
 
-        game_state.pending_discard_to_draw_selection = True
-        game_state.pending_discard_to_draw_source = card.name
-        game_state.pending_discard_to_draw_options = options
+        from game.pending_choice import PendingChoice, set_pending_choice
+
+        set_pending_choice(game_state, PendingChoice(
+            kind="discard_to_draw_top",
+            source=card.name,
+            prompt="请选择弃牌堆中的 1 张牌放到抽牌堆顶：/card top 0。",
+            command_hint="top 等效 headbutt，置顶，选择弃牌置顶。",
+            block_message="当前需要先处理弃牌堆置顶选择。用法：/card top 0。\ntop 等效 headbutt，置顶，选择弃牌置顶。",
+            options=options
+        ))
 
         logs.append("请选择弃牌堆中的 1 张牌放到抽牌堆顶：/card top 0。")
         logs.append("可选牌：")
@@ -2523,9 +2608,16 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs.append("手牌为空，没有可以放到抽牌堆顶的牌。")
             return logs
 
-        game_state.pending_hand_to_draw_top_selection = True
-        game_state.pending_hand_to_draw_top_source = card.name
-        game_state.pending_hand_to_draw_top_options = options
+        from game.pending_choice import PendingChoice, set_pending_choice
+
+        set_pending_choice(game_state, PendingChoice(
+            kind="hand_to_draw_top",
+            source=card.name,
+            prompt="请选择 1 张手牌放到抽牌堆顶：/card handtop 0。",
+            command_hint="handtop 等效 hand_top，warcry，置顶手牌，手牌置顶。",
+            block_message="当前需要先处理手牌置顶选择。用法：/card handtop 0。\nhandtop 等效 hand_top，warcry，置顶手牌，手牌置顶。",
+            options=options
+        ))
 
         logs.append("请选择 1 张手牌放到抽牌堆顶：/card handtop 0。")
         logs.append("可选牌：")
@@ -2546,9 +2638,16 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs.append("手牌中没有可以升级的牌。")
             return logs
 
-        game_state.pending_upgrade_hand_selection = True
-        game_state.pending_upgrade_hand_source = card.name
-        game_state.pending_upgrade_hand_options = options
+        from game.pending_choice import PendingChoice, set_pending_choice
+
+        set_pending_choice(game_state, PendingChoice(
+            kind="upgrade_hand",
+            source=card.name,
+            prompt="请选择 1 张手牌在本场战斗中临时升级：/card upgrade_hand 0。",
+            command_hint="upgrade_hand 等效 upgradehand，armaments，选择升级，升级手牌。",
+            block_message="当前需要先处理手牌升级选择。用法：/card upgrade_hand 0。\nupgrade_hand 等效 upgradehand，armaments，选择升级，升级手牌。",
+            options=options
+        ))
 
         logs.append("请选择 1 张手牌在本场战斗中临时升级：/card upgrade_hand 0。")
         logs.append("可选牌：")
@@ -2686,34 +2785,6 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         logs.append("upgrade_cards 暂不支持 scope={}。".format(scope))
         return logs
 
-    if op == "draw_cards":
-        amount = resolve_amount(
-            game_state=game_state,
-            card=card,
-            amount_spec=effect.get("amount"),
-            source=game_state.player,
-            target=game_state.player,
-            effect_context=effect_context
-        )
-
-        logs.extend(draw_cards_with_no_draw_check(
-            game_state,
-            amount,
-            draw_source="card_effect"
-        ))
-        return logs
-
-    if op == "draw_to_full":
-        player = game_state.player
-        if get_status_value(player, "no_draw") > 0:
-            logs.append("{} 受到不能抽牌影响，无法抽牌。".format(player.name))
-            return logs
-        logs.extend(player.draw_to_full(
-            game_state=game_state,
-            draw_source="card_effect"
-        ))
-        return logs
-
     if op == "request_discard_any":
         game_state.pending_discard_selection = True
         game_state.pending_discard_source = card.name
@@ -2765,26 +2836,6 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             card=card,
             force_extreme=force_extreme
         ))
-        return logs
-
-    if op == "gain_energy":
-        amount = resolve_amount(
-            game_state=game_state,
-            card=card,
-            amount_spec=effect.get("amount"),
-            source=game_state.player,
-            target=game_state.player,
-            effect_context=effect_context,
-        )
-
-        game_state.player.cost += amount
-
-        logs.append("{} 获得 {} 点费用。当前费用：{}。".format(
-            game_state.player.name,
-            amount,
-            game_state.player.cost
-        ))
-
         return logs
 
     logs.append("未知效果：{}".format(op))
@@ -2870,5 +2921,3 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         card=card
     ))            
     return logs
-
-

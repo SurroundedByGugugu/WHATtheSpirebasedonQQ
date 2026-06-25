@@ -50,6 +50,7 @@ CARD_REWARD_POOL = [
     "card.sword_boomerang",
     "card.thunderclap",
     "card.cleave",
+    "card.armaments",
     "card.iron_wave",
     "card.wild_strike",
     "card.pommel_strike",

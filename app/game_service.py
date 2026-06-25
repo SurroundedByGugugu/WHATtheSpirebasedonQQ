@@ -70,6 +70,7 @@ from game.run_engine import (
 )
 from game.route import format_route_text
 from game.reward import format_card_reward_choice
+from game.pending_choice import pending_choice_is
 
 
 CHARACTER_CHOICES = [
@@ -602,11 +603,14 @@ class GameService(object):
             game_state = run_state.current_battle
             if game_state is None:
                 return "当前不在战斗中。"
-            if not game_state.pending_discard_to_draw_selection:
+            if not (
+                game_state.pending_discard_to_draw_selection
+                or pending_choice_is(game_state, "discard_to_draw_top")
+            ):
                 return "当前没有需要处理的弃牌堆置顶选择。"
             reply = self.handle_discard_to_draw_top(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-        if game_state.pending_discard_to_draw_selection:
+        if game_state.pending_discard_to_draw_selection or pending_choice_is(game_state, "discard_to_draw_top"):
             return get_pending_player_choice_hint(game_state)
         
         if command in ("exhaust_hand", "burn", "consume", "选择消耗", "消耗手牌") or (
@@ -626,22 +630,28 @@ class GameService(object):
             game_state = run_state.current_battle
             if game_state is None:
                 return "当前不在战斗中。"
-            if not game_state.pending_hand_to_draw_top_selection:
+            if not (
+                game_state.pending_hand_to_draw_top_selection
+                or pending_choice_is(game_state, "hand_to_draw_top")
+            ):
                 return "当前没有需要处理的手牌置顶选择。"
             reply = self.handle_hand_to_draw_top(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-        if game_state.pending_hand_to_draw_top_selection:
+        if game_state.pending_hand_to_draw_top_selection or pending_choice_is(game_state, "hand_to_draw_top"):
             return get_pending_player_choice_hint(game_state)
         
         if command in ("upgrade_hand", "upgradehand", "armaments", "选择升级", "升级手牌"):
             game_state = run_state.current_battle
             if game_state is None:
                 return "当前不在战斗中。"
-            if not game_state.pending_upgrade_hand_selection:
+            if not (
+                game_state.pending_upgrade_hand_selection
+                or pending_choice_is(game_state, "upgrade_hand")
+            ):
                 return "当前没有需要处理的手牌升级选择。"
             reply = self.handle_upgrade_hand(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-        if game_state.pending_upgrade_hand_selection:
+        if game_state.pending_upgrade_hand_selection or pending_choice_is(game_state, "upgrade_hand"):
             return get_pending_player_choice_hint(game_state)
         
         if command in ("duplicate_hand", "dual_wield", "复制手牌", "双持"):
@@ -1174,7 +1184,10 @@ class GameService(object):
         /card top 0
         用于头槌：选择弃牌堆中的一张牌放到抽牌堆顶。
         """
-        if not game_state.pending_discard_to_draw_selection:
+        if not (
+            game_state.pending_discard_to_draw_selection
+            or pending_choice_is(game_state, "discard_to_draw_top")
+        ):
             return "当前没有需要处理的弃牌堆置顶选择。"
 
         if len(parts) < 3:
@@ -1211,7 +1224,10 @@ class GameService(object):
         /card handtop 0
         用于战吼：选择一张手牌放到抽牌堆顶。
         """
-        if not game_state.pending_hand_to_draw_top_selection:
+        if not (
+            game_state.pending_hand_to_draw_top_selection
+            or pending_choice_is(game_state, "hand_to_draw_top")
+        ):
             return "当前没有需要处理的手牌置顶选择。"
 
         if len(parts) < 3:
@@ -1229,7 +1245,10 @@ class GameService(object):
         /card upgrade_hand 0
         用于武装：选择一张手牌临时升级。
         """
-        if not game_state.pending_upgrade_hand_selection:
+        if not (
+            game_state.pending_upgrade_hand_selection
+            or pending_choice_is(game_state, "upgrade_hand")
+        ):
             return "当前没有需要处理的手牌升级选择。"
 
         if len(parts) < 3:
@@ -1344,8 +1363,9 @@ class GameService(object):
     def help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.24",
-            "- 添加了更多遗物",
+            "当前版本：v26.06.25",
+            "- 底层框架优化",
+            "- 修正武装抓不到的bug因为它没进池",
             "",
             "/card characters 查看可选角色",
             "/card new 0      选择 0 号测试角色并开始测试战斗",
