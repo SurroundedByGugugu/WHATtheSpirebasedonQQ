@@ -28,6 +28,7 @@ class EnemyIntent:
     count: int = 1
     message: str = ""
     actions: List[Any] = field(default_factory=list)
+    heal_unblocked: bool = False
 
     def to_text(self):
         if self.kind == "multi":
@@ -52,13 +53,37 @@ class EnemyIntent:
                 prefix = "攻击"
 
             if int(self.repeat) > 1:
-                return "{} {} ×{}".format(prefix, self.value, int(self.repeat))
+                text = "{} {} ×{}".format(prefix, self.value, int(self.repeat))
+            else:
+                text = "{} {}".format(prefix, self.value)
 
-            return "{} {}".format(prefix, self.value)
+            if getattr(self, "heal_unblocked", False):
+                text += "，回复未被格挡伤害等量生命"
+
+            return text
 
         if self.kind == "block":
             return "获得 {} 点格挡".format(self.value)
+        if self.kind == "heal_all_allies":
+            return "己方全员回复 {} 点生命".format(int(self.value))
 
+        if self.kind == "status_all_allies":
+            status_name_map = {
+                "strength": "力量",
+                "dexterity": "敏捷",
+                "artifact": "人工制品",
+                "ritual": "仪式",
+                "metallicize": "金属化",
+            }
+            status_name = status_name_map.get(self.status, self.status)
+            return "己方全员获得 {} 点{}".format(int(self.value), status_name)
+
+        if self.kind == "block_mystic_or_self":
+            return "给予神秘术士 {} 点格挡；若神秘术士不存在则自身获得 {} 点格挡".format(
+                int(self.value),
+                int(self.value)
+            )
+        
         if self.kind == "smart_ally_block_or_attack":
             return "给予随机队友 {} 点格挡；若无队友则攻击 {}".format(
                 self.value,
@@ -94,14 +119,20 @@ class EnemyIntent:
                 "artifact": "人工制品",
                 "stun": "眩晕",
                 "ritual": "仪式",
+                "barricade": "壁垒",
+                "hex": "邪咒",
+                "malleable": "柔韧",
                 "curl_up": "蜷缩",
                 "spore_cloud": "孢子云",
                 "entangled": "缠身",
+                "confusion": "混乱",
                 "enrage": "激怒",
                 "metallicize": "金属化",
                 "burn": "烧伤",
                 "shape_shift": "形态转换",
                 "sharp_hide": "锋利外甲",
+                "plated_armor": "多层护甲",
+                "flying": "飞行",
             }
             status_name = status_name_map.get(self.status, self.status)
 
@@ -158,7 +189,12 @@ class Enemy(object):
         return self.hp > 0
     
     def clear_block(self):
-        old_block = self.block
+        old_block = int(getattr(self, "block", 0))
+
+        # 敌人也可能拥有壁垒，例如圆球守护者。
+        if self.get_status_value("barricade") > 0:
+            return 0
+
         self.block = 0
         return old_block
 

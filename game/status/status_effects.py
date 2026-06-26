@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import random
 from game.constants import (
     EVENT_CARD_PLAY_AFTER,
     EVENT_DAMAGE_AFTER,
@@ -20,8 +21,9 @@ STATUS_EVENT_PRIORITY = {
     "temporary_thorns": 50,
     "poison_thorns": 49,
     "curl_up": 48,
-    "spore_cloud": 45,
+    "flying": 47,
     "plated_armor": 46,
+    "spore_cloud": 45,
     "god_in_hand": 40,
     "mirage_shadows": 35,
     "demon_form": 30,
@@ -37,12 +39,15 @@ STATUS_EVENT_PRIORITY = {
     "poison": 20,
     "burn": 19,
     "regeneration": 18,
+    "confusion": 14,
+    "hex": 14,
     "entangled": 13,
     "rage": 12,
     "anger": 12,
     "enrage": 12,
     "sharp_hide": 12,
     "vigor": 12,
+    "malleable": 12,
     "flex": 11,
     "temporary_dexterity_loss": 10,
     "crystal_cocoon": 10,
@@ -433,6 +438,185 @@ def handle_curl_up(event_name, context, owner, value):
     ))
     return logs
 
+def _make_flying_pending_key(card=None, action_key=None):
+    """
+    flying 延迟结算 key。
+
+    card:
+        玩家打出的一整张牌。
+    action_key:
+        敌人一次复合行动 / 多段行动。
+    """
+    if card is not None:
+        return ("card", id(card))
+    if action_key is not None:
+        return ("action", action_key)
+    return None
+
+
+def queue_pending_flying_hit(game_state, owner, card=None, action_key=None, hit_count=1):
+    """
+    记录飞行命中次数，并在“整张牌 / 整个敌人多段行动”结束后统一减少层数。
+    """
+    pending_key = _make_flying_pending_key(card=card, action_key=action_key)
+    if pending_key is None:
+        return False
+
+    pending = getattr(game_state, "pending_flying_hit_targets", None)
+    if pending is None:
+        pending = []
+        setattr(game_state, "pending_flying_hit_targets", pending)
+
+    for item in pending:
+        if item.get("owner") is owner and item.get("pending_key") == pending_key:
+            item["hit_count"] = int(item.get("hit_count", 0)) + int(hit_count)
+            return True
+
+    pending.append({
+        "owner": owner,
+        "pending_key": pending_key,
+        "card": card,
+        "action_key": action_key,
+        "hit_count": int(hit_count),
+    })
+    return True
+
+
+def _apply_flying_hits(game_state, owner, hit_count, card=None):
+    logs = []
+    if owner is None or not owner.is_alive():
+        return logs
+
+    hit_count = int(hit_count)
+    if hit_count <= 0:
+        return logs
+
+    current_flying = int(owner.statuses.get("flying"))
+    if current_flying <= 0:
+        return logs
+
+    new_flying = current_flying - hit_count
+    if new_flying > 0:
+        owner.statuses.set("flying", new_flying)
+        logs.append("{} 的飞行受到攻击影响，减少 {}，当前为 {}。".format(
+            owner.name,
+            hit_count,
+            new_flying
+        ))
+        return logs
+
+    owner.statuses.remove("flying")
+    logs.append("{} 的飞行被打破。".format(owner.name))
+
+    # 只有实现了 on_flying_broken 的实体才有坠落副作用。
+    # 异鸟会眩晕；玩家没有这个方法，因此只会失去飞行。
+    on_flying_broken = getattr(owner, "on_flying_broken", None)
+    if on_flying_broken is not None:
+        broken_logs = on_flying_broken(game_state=game_state, card=card)
+        if broken_logs:
+            logs.extend(broken_logs)
+
+    return logs
+
+
+def _resolve_pending_flying_by_key(game_state, pending_key):
+    pending = list(getattr(game_state, "pending_flying_hit_targets", []) or [])
+    if not pending:
+        return []
+
+    logs = []
+    remaining = []
+
+    for item in pending:
+        if item.get("pending_key") != pending_key:
+            remaining.append(item)
+            continue
+
+        logs.extend(_apply_flying_hits(
+            game_state=game_state,
+            owner=item.get("owner"),
+            hit_count=int(item.get("hit_count", 0)),
+            card=item.get("card")
+        ))
+
+    setattr(game_state, "pending_flying_hit_targets", remaining)
+    return logs
+
+
+def resolve_pending_flying_after_card(game_state, card=None):
+    pending_key = _make_flying_pending_key(card=card)
+    if pending_key is None:
+        return []
+    return _resolve_pending_flying_by_key(game_state, pending_key)
+
+
+def resolve_pending_flying_after_action(game_state, action_key=None):
+    pending_key = _make_flying_pending_key(action_key=action_key)
+    if pending_key is None:
+        return []
+    return _resolve_pending_flying_by_key(game_state, pending_key)
+
+
+def handle_flying(event_name, context, owner, value):
+    logs = []
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    if event_name != EVENT_DAMAGE_AFTER:
+        return logs
+
+    if context.target is not owner:
+        return logs
+
+    if context.extra.get("damage_kind") != "attack":
+        return logs
+
+    # 荆棘、毒荆棘、锋利外甲等反伤不影响飞行层数。
+    if context.extra.get("is_reaction_damage"):
+        return logs
+
+    if context.source is owner:
+        return logs
+
+    # 建议用 real_damage 判断“是否真的受到了攻击伤害”。
+    # 如果你希望被格挡完全抵消也减少飞行，就把这里改回 amount。
+    real_damage = int(context.extra.get("real_damage", 0))
+    if real_damage <= 0:
+        return logs
+
+    # 1. 玩家打出的牌：按整张牌延迟结算。
+    if context.card is not None:
+        queued = queue_pending_flying_hit(
+            game_state=context.game_state,
+            owner=owner,
+            card=context.card,
+            hit_count=1
+        )
+        if queued:
+            return logs
+
+    # 2. 敌人的多段 / 复合行动：按整个行动延迟结算。
+    action_key = getattr(context.game_state, "_current_flying_action_key", None)
+    if action_key is not None:
+        queued = queue_pending_flying_hit(
+            game_state=context.game_state,
+            owner=owner,
+            action_key=action_key,
+            hit_count=1
+        )
+        if queued:
+            return logs
+
+    # 3. 其他单次攻击：即时结算。
+    logs.extend(_apply_flying_hits(
+        game_state=context.game_state,
+        owner=owner,
+        hit_count=1,
+        card=context.card
+    ))
+    return logs
+
 def handle_spore_cloud(event_name, context, owner, value):
     """
     孢子云：
@@ -659,6 +843,46 @@ def handle_evolve(event_name, context, owner, value):
         owner=owner,
         count=draw_count,
         status_key="evolve"
+    ))
+
+    return logs
+
+def handle_confusion(event_name, context, owner, value):
+    """
+    混乱：
+    每当玩家抽到一张非 X 费用、非状态/诅咒牌时，
+    将其本回合费用随机变为 0 到 3。
+    """
+    logs = []
+
+    if event_name != EVENT_DRAW_CARD_AFTER:
+        return logs
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    if owner is not context.game_state.player:
+        return logs
+
+    if int(value) <= 0:
+        return logs
+
+    drawn_card = context.extra.get("drawn_card", context.card)
+    if drawn_card is None:
+        return logs
+
+    if getattr(drawn_card, "card_type", "") in ("status", "curse"):
+        return logs
+
+    if getattr(drawn_card, "cost", 0) == "X":
+        return logs
+
+    new_cost = random.randint(0, 3)
+    setattr(drawn_card, "temporary_cost_override", new_cost)
+
+    logs.append("【混乱】使抽到的【{}】费用随机变为 {}。".format(
+        drawn_card.name,
+        new_cost
     ))
 
     return logs
@@ -1163,6 +1387,58 @@ def handle_no_draw(event_name, context, owner, value):
     logs.append("{} 的不能抽牌状态消失了。".format(owner.name))
     return logs
 
+def handle_hex(event_name, context, owner, value):
+    """
+    邪咒：
+    每当玩家打出一张非攻击牌时，将 X 张【眩晕】随机放入抽牌堆。
+    X = 邪咒层数。
+    """
+    logs = []
+
+    if event_name != EVENT_CARD_PLAY_AFTER:
+        return logs
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    game_state = context.game_state
+    player = game_state.player
+
+    if owner is not player:
+        return logs
+
+    if context.player is not owner:
+        return logs
+
+    played_card = context.card
+    if played_card is None:
+        return logs
+
+    if getattr(played_card, "card_type", "") == "attack":
+        return logs
+
+    count = int(value)
+    if count <= 0:
+        return logs
+
+    from data.card.AAAregistry import create_card
+    import random
+
+    added = 0
+    for _ in range(count):
+        dazed = create_card("card.status.dazed")
+        pos = random.randint(0, len(player.draw_pile))
+        player.draw_pile.insert(pos, dazed)
+        added += 1
+
+    logs.append("{} 的邪咒触发，因为打出了非攻击牌【{}】，将 {} 张【眩晕】随机放入抽牌堆。".format(
+        owner.name,
+        getattr(played_card, "name", "牌"),
+        added
+    ))
+
+    return logs
+
 def handle_entangled(event_name, context, owner, value):
     """
     缠身：
@@ -1500,6 +1776,85 @@ def handle_anger(event_name, context, owner, value):
     ))
     return logs
 
+def handle_malleable(event_name, context, owner, value):
+    """
+    柔韧：
+    受到攻击时，获得 X 点格挡。
+    每触发一次，下一次获得的格挡值 +1。
+    在玩家回合开始时，当前触发值重置为基础值 X。
+
+    说明：
+    - status value 保存基础值 X。
+    - owner._malleable_current_block 保存当前触发值。
+    - 按每段攻击分别触发，因此多段攻击会逐段让蛇花获得递增格挡。
+    - 荆棘、毒、烧伤等非 attack 伤害不会触发。
+    """
+    logs = []
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    base_amount = int(value)
+    if base_amount <= 0:
+        return logs
+
+    if event_name == EVENT_TURN_START:
+        old_current = int(getattr(owner, "_malleable_current_block", base_amount))
+        setattr(owner, "_malleable_current_block", base_amount)
+
+        # 战斗开始时 EVENT_TURN_START 也会触发一次，没变化就不刷日志。
+        if old_current != base_amount:
+            logs.append("{} 的柔韧重置为 {}。".format(
+                owner.name,
+                base_amount
+            ))
+
+        return logs
+
+    if event_name != EVENT_DAMAGE_AFTER:
+        return logs
+
+    if context.target is not owner:
+        return logs
+
+    if context.extra.get("damage_kind") != "attack":
+        return logs
+
+    if context.extra.get("is_reaction_damage"):
+        return logs
+
+    source = getattr(context, "source", None)
+    if source is None or source is owner:
+        return logs
+
+    # 使用 amount 判断“这次攻击结算存在伤害数值”。
+    # 如果你希望被格挡完全挡住时不触发，可以改成 real_damage > 0。
+    attack_amount = int(context.extra.get("amount", 0))
+    if attack_amount <= 0:
+        return logs
+
+    current_block = int(getattr(owner, "_malleable_current_block", base_amount))
+    if current_block <= 0:
+        current_block = base_amount
+
+    logs.extend(gain_block_without_modifiers(
+        game_state=context.game_state,
+        source=owner,
+        target=owner,
+        amount=current_block,
+        block_source="malleable",
+        card=None,
+        message="{} 的柔韧触发，获得 {} 点格挡。当前格挡：{}。".format(
+            owner.name,
+            current_block,
+            owner.block + current_block
+        )
+    ))
+
+    setattr(owner, "_malleable_current_block", current_block + 1)
+
+    return logs
+
 def handle_vigor(event_name, context, owner, value):
     logs = []
     if event_name != EVENT_CARD_PLAY_AFTER:
@@ -1548,12 +1903,16 @@ def handle_crystal_cocoon(event_name, context, owner, value):
 
 def handle_plated_armor(event_name, context, owner, value):
     logs = []
+
     if owner is None or not owner.is_alive():
         return logs
+
     amount = int(value)
     if amount <= 0:
         return logs
-    if event_name == EVENT_TURN_START and owner is context.game_state.player:
+
+    # 通用多层护甲：玩家和敌人在玩家回合开始时都获得等同于层数的格挡。
+    if event_name == EVENT_TURN_START:
         logs.extend(gain_block_without_modifiers(
             game_state=context.game_state,
             source=owner,
@@ -1561,20 +1920,44 @@ def handle_plated_armor(event_name, context, owner, value):
             amount=amount,
             block_source="plated_armor",
             card=None,
-            message="{} 的多层护甲触发，获得 {} 点格挡。当前格挡：{}。".format(owner.name, amount, owner.block + amount)
+            message="{} 的多层护甲触发，获得 {} 点格挡。当前格挡：{}。".format(
+                owner.name,
+                amount,
+                owner.block + amount
+            )
         ))
         return logs
+
+    # 受到未被格挡的攻击伤害后，多层护甲减少 1。
     if event_name == EVENT_DAMAGE_AFTER:
         if context.target is not owner:
             return logs
+
+        if context.extra.get("damage_kind") != "attack":
+            return logs
+
         if int(context.extra.get("real_damage", 0)) <= 0:
             return logs
-        source = getattr(context, "source", None)
-        if source is None or not hasattr(source, "enemy_id"):
-            return logs
+
         new_value = owner.statuses.add("plated_armor", -1)
-        logs.append("{} 的多层护甲受到攻击后减少 1 层。当前多层护甲：{}。".format(owner.name, new_value))
+
+        if new_value > 0:
+            logs.append("{} 的多层护甲受到攻击后减少 1 层。当前多层护甲：{}。".format(
+                owner.name,
+                new_value
+            ))
+            return logs
+
+        logs.append("{} 的多层护甲被全部击破。".format(owner.name))
+
+        on_broken = getattr(owner, "on_plated_armor_broken", None)
+        if on_broken is not None:
+            broken_logs = on_broken(game_state=context.game_state)
+            if broken_logs:
+                logs.extend(broken_logs)
+
         return logs
+
     return logs
 
 def handle_magnetism(event_name, context, owner, value):
@@ -1702,6 +2085,7 @@ STATUS_EVENT_HANDLERS = {
     "temporary_thorns": handle_temporary_thorns,
     "poison_thorns": handle_poison_thorns,
     "curl_up": handle_curl_up,
+    "flying": handle_flying,
     "spore_cloud": handle_spore_cloud,
     "plated_armor": handle_plated_armor,
     "poison": handle_poison,
@@ -1729,7 +2113,10 @@ STATUS_EVENT_HANDLERS = {
     "duplication_potion_next_card": handle_duplication_potion_next_card,
     "juggernaut": handle_juggernaut,
     "berserk": handle_berserk,
+    "confusion": handle_confusion,
     "entangled": handle_entangled,
+    "hex": handle_hex,
+    "malleable": handle_malleable,
     "brutality": handle_brutality,
     "anger": handle_anger,
     "enrage": handle_enrage,

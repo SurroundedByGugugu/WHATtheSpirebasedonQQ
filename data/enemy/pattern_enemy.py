@@ -87,6 +87,7 @@ class PatternEnemy(Enemy):
                 "attack_type": intent.attack_type,
                 "attack_element": intent.attack_element,
                 "message": intent.message,
+                "heal_unblocked": bool(getattr(intent, "heal_unblocked", False)),
             }
 
             repeat = int(getattr(intent, "repeat", 1))
@@ -111,6 +112,34 @@ class PatternEnemy(Enemy):
                 "block": intent.value,
                 "attack_type": intent.attack_type,
                 "attack_element": intent.attack_element,
+                "message": intent.message,
+            }
+        
+        if intent.kind == "heal_all_allies":
+            return {
+                "op": "enemy_heal_all_allies",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "heal": intent.value,
+                "message": intent.message,
+            }
+
+        if intent.kind == "status_all_allies":
+            return {
+                "op": "enemy_status_all_allies",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "status": intent.status,
+                "amount": intent.value,
+                "message": intent.message,
+            }
+
+        if intent.kind == "block_mystic_or_self":
+            return {
+                "op": "enemy_block_mystic_or_self",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "block": intent.value,
                 "message": intent.message,
             }
         

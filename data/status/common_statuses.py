@@ -662,3 +662,36 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="flying",
+    name="飞行",
+    description="受到攻击伤害降低 50%。如果在一个回合内被攻击伤害等同于层数的次数，该状态消失。",
+    category="buff",
+    display_mode="stack",
+    order=69,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="hex",
+    name="邪咒",
+    description="每当你打出一张非攻击牌时，将等同于层数的【眩晕】随机放入你的抽牌堆。",
+    category="debuff",
+    display_mode="stack",
+    order=44,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="malleable",
+    name="柔韧",
+    description="受到攻击时，获得等同于当前柔韧值的格挡。每触发一次，本场本回合内下一次获得的格挡增加 1。在玩家回合开始时重置为基础值。",
+    category="buff",
+    display_mode="stack",
+    order=16,
+    decay_timing="none",
+    decay_amount=0,
+))

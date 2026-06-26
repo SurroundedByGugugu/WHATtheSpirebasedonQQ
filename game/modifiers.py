@@ -100,7 +100,9 @@ def get_attack_status_multiplier(source, target, damage_source):
                 multiplier *= 1.25
             else:
                 multiplier *= VULNERABLE_ENEMY_ATTACK_DAMAGE_MULT
-
+        # 飞行：只影响 attack_damage 乘区；荆棘/中毒/效果伤害不会进入这里。
+    if get_status_value(target, "flying") > 0:
+        multiplier *= 0.5
     return multiplier
 
 

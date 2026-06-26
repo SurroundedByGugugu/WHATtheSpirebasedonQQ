@@ -3489,9 +3489,16 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
 
             if game_state.battle_over:
                 break
-    from game.status.status_effects import resolve_pending_curl_up_after_card
+    from game.status.status_effects import (
+        resolve_pending_curl_up_after_card,
+        resolve_pending_flying_after_card,
+    )
     logs.extend(resolve_pending_curl_up_after_card(
         game_state=game_state,
         card=card
-    ))            
-    return logs
+    ))
+    logs.extend(resolve_pending_flying_after_card(
+        game_state=game_state,
+        card=card
+    ))
+    return logs       

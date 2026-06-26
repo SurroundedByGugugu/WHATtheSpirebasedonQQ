@@ -35,6 +35,16 @@ from data.enemy.enemy_origin_1_1 import (
     create_guardian,
     create_slime_boss,
 )
+from data.enemy.enemy_origin_1_2 import (
+    create_byrd,
+    create_snecko,
+    create_shelled_parasite,
+    create_spheric_guardian,
+    create_chosen,
+    create_snake_plant,
+    create_mystic,
+    create_centurion,
+)
 
 ENEMY_REGISTRY = {
     "enemy.test_dummy": TestDummyEnemy,
@@ -73,6 +83,14 @@ ENEMY_REGISTRY = {
     "enemy.guardian": create_guardian,
     "enemy.slime_boss": create_slime_boss,
     
+    "enemy.byrd": create_byrd,
+    "enemy.snecko": create_snecko,
+    "enemy.shelled_parasite":create_shelled_parasite,
+    "enemy.spheric_guardian": create_spheric_guardian,
+    "enemy.chosen":create_chosen,
+    "enemy.snake_plant": create_snake_plant,
+    "enemy.mystic": create_mystic,
+    "enemy.centurion": create_centurion,
 }
 
 

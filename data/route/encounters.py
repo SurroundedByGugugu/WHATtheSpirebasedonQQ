@@ -2,19 +2,56 @@
 
 from data.content_gate import is_content_enabled
 
+def normalize_weighted_pool(pool, default_weight=1):
+    """
+    统一 encounter pool 格式。
+
+    支持：
+    1. 加权格式：
+       [("encounter.xxx", 10)]
+
+    2. 简写格式：
+       ["encounter.xxx"]
+
+    简写格式会自动补 default_weight。
+    """
+    result = []
+
+    for item in pool or []:
+        if isinstance(item, str):
+            result.append((item, default_weight))
+            continue
+
+        if isinstance(item, tuple) and len(item) >= 2:
+            result.append((item[0], item[1]))
+            continue
+
+        if isinstance(item, list) and len(item) >= 2:
+            result.append((item[0], item[1]))
+            continue
+
+        raise ValueError("非法 encounter pool 项：{}".format(item))
+
+    return result
+
 
 def pick_weighted(pool, rng):
+    pool = normalize_weighted_pool(pool)
+    if not pool:
+        raise ValueError("encounter pool 为空，无法随机遭遇。")
+
     encounter_ids = [item[0] for item in pool]
     weights = [item[1] for item in pool]
     return rng.choices(encounter_ids, weights=weights, k=1)[0]
 
 
 def filter_encounter_pool(pool):
+    normalized_pool = normalize_weighted_pool(pool)
     filtered = [
-        item for item in pool
+        item for item in normalized_pool
         if is_content_enabled("encounter", item[0])
     ]
-    return filtered or pool
+    return filtered or normalized_pool
 
 
 ENCOUNTER_SEEN_ALIAS_MAP = {
@@ -79,10 +116,25 @@ ENCOUNTER_TABLE = {
     "encounter.boss.hexaghost": {"enemy_ids": ["enemy.hexaghost"]},
     "encounter.boss.guardian": { "enemy_ids": ["enemy.guardian"]},
     "encounter.boss.slime_boss": {"enemy_ids": ["enemy.slime_boss"]},
+
+    "encounter.byrd_3": {"enemy_ids": ["enemy.byrd","enemy.byrd","enemy.byrd"]},
+    "encounter.shelled_parasite_single": {"enemy_ids": ["enemy.shelled_parasite"]},
+    "encounter.thieves_2":{"enemy_ids": ["enemy.looter","enemy.mugger"]},
+    "encounter.chosen_single":{"enemy_ids": ["enemy.chosen"]},
+    "encounter.spheric_guardian_single":{"enemy_ids": ["enemy.spheric_guardian"]},
+
+    "encounter.snecko_single": {"enemy_ids": ["enemy.snecko"]},
+    "encounter.sentry_spheric_guardian":{"enemy_ids": ["enemy.sentry_b","enemy.spheric_guardian"]},
+    "encounter.cultist_3":{"enemy_ids": ["enemy.cultist","enemy.cultist","enemy.cultist"]},
+    "encounter.shelled_parasite_fungi_beast":{"enemy_ids": ["enemy.shelled_parasite","enemy.fungi_beast"]},
+    "encounter.chosen_byrd":{"enemy_ids": ["enemy.chosen","enemy.byrd"]},
+    "encounter.chosen_cultist":{"enemy_ids": ["enemy.chosen","enemy.cultist"]},
+    "encounter.snake_plant_single": {"enemy_ids": ["enemy.snake_plant"]},
+    "encounter.mystic_centurion": {"enemy_ids": ["enemy.centurion", "enemy.mystic"]},
 }
 
 
-STARTING_ENCOUNTER_POOL =[
+STARTING_ENCOUNTER_POOL_1_1 =[
     ("encounter.test_dummy", 5),
     ("encounter.cultist_1", 20),
     ("encounter.slimes_ms1", 10),
@@ -91,7 +143,15 @@ STARTING_ENCOUNTER_POOL =[
     ("encounter.louses_2", 20)
 ]
 
-NORMAL_ENCOUNTER_POOL = [
+STARTING_ENCOUNTER_POOL_1_2 =[
+    "encounter.byrd_3",
+    "encounter.shelled_parasite_single",
+    "encounter.thieves_2",
+    "encounter.chosen_single",
+    "encounter.spheric_guardian_single"
+]
+
+NORMAL_ENCOUNTER_POOL_1_1 = [
     # 6.25% -> 16
     ("encounter.corsoal_single", 4),
     ("encounter.mareanie_single", 4),
@@ -110,8 +170,18 @@ NORMAL_ENCOUNTER_POOL = [
     ("encounter.exordium_wildlife",24),
     ("encounter.gremlin_gang", 16),
 ]
+NORMAL_ENCOUNTER_POOL_1_2 = [
+    ("encounter.snecko_single", 14),
+    ("encounter.cultist_3", 10),
+    ("encounter.shelled_parasite_fungi_beast", 10),
+    ("encounter.chosen_byrd", 7),
+    ("encounter.chosen_cultist", 10),
+    ("encounter.sentry_spheric_guardian", 7),
+    ("encounter.snake_plant_single", 21),
+    ("encounter.mystic_centurion", 21)
+]
 
-ELITE_ENCOUNTER_POOL = [
+ELITE_ENCOUNTER_POOL_1_1 = [
     ("encounter.elite.gremlin_nob", 4),
     ("encounter.elite.lagavulin", 4),
     ("encounter.elite.sentries_bab", 4),
@@ -119,7 +189,7 @@ ELITE_ENCOUNTER_POOL = [
     ("encounter.elite.plastic_bag", 1)
 ]
 
-BOSS_ENCOUNTER_POOL = [
+BOSS_ENCOUNTER_POOL_1_1 = [
     ("encounter.corsoal_mareanie_pack", 1),
     ("encounter.boss.hexaghost", 4),
     ("encounter.boss.guardian", 4),
@@ -137,15 +207,84 @@ ENCOUNTER_DISPLAY_NAMES = {
 def get_encounter_display_name(encounter_id):
     return ENCOUNTER_DISPLAY_NAMES.get(encounter_id, encounter_id)
 
-def pick_encounter_id_by_node_type(node_type, rng, seen_encounter_ids=None):
-    if node_type == "starting":
-        return pick_weighted_with_seen_priority(filter_encounter_pool(STARTING_ENCOUNTER_POOL), rng, seen_encounter_ids)
-    if node_type == "elite":
-        return pick_weighted_with_seen_priority(filter_encounter_pool(ELITE_ENCOUNTER_POOL), rng, seen_encounter_ids)
-    if node_type == "boss":
-        return pick_weighted(filter_encounter_pool(BOSS_ENCOUNTER_POOL), rng)
+ENCOUNTER_POOL_BY_NODE_TYPE_AND_SUFFIX = {
+    "starting": {
+        "1_1": STARTING_ENCOUNTER_POOL_1_1,
+        "1_2": STARTING_ENCOUNTER_POOL_1_2,
+    },
+    "normal_enemy": {
+        "1_1": NORMAL_ENCOUNTER_POOL_1_1,
+        "1_2": NORMAL_ENCOUNTER_POOL_1_2,
+    },
+    "elite": {
+        "1_1": ELITE_ENCOUNTER_POOL_1_1,
+    },
+    "boss": {
+        "1_1": BOSS_ENCOUNTER_POOL_1_1,
+    },
+}
 
-    return pick_weighted_with_seen_priority(filter_encounter_pool(NORMAL_ENCOUNTER_POOL), rng, seen_encounter_ids)
+
+DEFAULT_ENCOUNTER_POOL_SUFFIX_BY_NODE_TYPE = {
+    "starting": "1_1",
+    "normal_enemy": "1_1",
+    "elite": "1_1",
+    "boss": "1_1",
+}
+
+
+def get_encounter_pool(node_type, pool_suffix=None):
+    """
+    根据节点类型和池后缀获取 encounter pool。
+
+    pool_suffix 示例：
+    - "1_1"：一层前半 / 基础池
+    - "1_2"：一层后半 / 扩展池
+
+    这里保留 pool_suffix=None 的兼容行为，
+    所以旧调用 pick_encounter_id_by_node_type("normal_enemy", rng) 不会崩。
+    """
+    node_type = str(node_type or "normal_enemy")
+
+    if node_type not in ENCOUNTER_POOL_BY_NODE_TYPE_AND_SUFFIX:
+        node_type = "normal_enemy"
+
+    suffix_map = ENCOUNTER_POOL_BY_NODE_TYPE_AND_SUFFIX[node_type]
+
+    if pool_suffix is None:
+        pool_suffix = DEFAULT_ENCOUNTER_POOL_SUFFIX_BY_NODE_TYPE.get(node_type, "1_1")
+
+    pool_suffix = str(pool_suffix)
+
+    if pool_suffix in suffix_map:
+        return suffix_map[pool_suffix]
+
+    if "1_1" in suffix_map:
+        return suffix_map["1_1"]
+
+    for pool in suffix_map.values():
+        return pool
+
+    raise ValueError("没有可用 encounter pool：node_type={}，pool_suffix={}".format(
+        node_type,
+        pool_suffix
+    ))
+
+
+def pick_encounter_id_by_node_type(node_type, rng, seen_encounter_ids=None, pool_suffix=None):
+    pool = get_encounter_pool(
+        node_type=node_type,
+        pool_suffix=pool_suffix,
+    )
+
+    if node_type == "boss":
+        return pick_weighted(filter_encounter_pool(pool), rng)
+
+    return pick_weighted_with_seen_priority(
+        filter_encounter_pool(pool),
+        rng,
+        seen_encounter_ids
+    )
 
 def pick_enemy_spec(enemy_spec, rng):
     """

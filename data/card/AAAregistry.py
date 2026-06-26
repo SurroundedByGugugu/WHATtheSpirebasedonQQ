@@ -178,6 +178,7 @@ from data.card.character.armored_warrior_cards import(
 from data.card.character.yoirine_cards import (
     create_crystal_piercing,
     create_crystal_zone,
+    create_spreading_wing,
     create_crystal_cocoon,
     create_crystal_thorns,
     create_abyssal_form,
@@ -200,14 +201,14 @@ from data.card.character.lumine_cards import (
 CARD_REGISTRY = {
     "card.strike": create_strike,
     "card.defend": create_defend,
-
+    #状态
     "card.status.slime_i": create_slime_i,
     "card.status.wound":create_wound,
     "card.status.dazed":create_dazed,
     "card.status.void": create_void,
     "card.status.burn_i": create_burn_i,
     "card.status.burn_ii": create_burn_ii,
-    
+    #诅咒
     "card.curse.regret": create_regret,
     "card.curse.injury": create_injury,
     "card.curse.doubt": create_doubt,
@@ -217,7 +218,7 @@ CARD_REGISTRY = {
     "card.curse.bell": create_curse_of_the_bell,
     "card.curse.normality": create_normality,
     "card.curse.necronomicurse": create_necronomicurse,
-
+    #无色
     "card.soul": create_soul,
     "card.jax": create_jax,
     "card.shiv": create_shiv,
@@ -269,7 +270,7 @@ CARD_REGISTRY = {
     "card.transmutation": create_transmutation,
     "card.trip": create_trip,
     "card.violence": create_violence,
-
+    #测试
     "card.gain_status_strength": create_gain_status_strength,
     "card.exhaust_strength": create_exhaust_strength,
     "card.ethereal_strength": create_ethereal_strength,
@@ -280,7 +281,7 @@ CARD_REGISTRY = {
     "card.test_heavy_strike": create_test_heavy_strike,
     "card.hard_blow": create_hard_blow,
     "card.test_x_drill": create_test_x_drill,
-
+    #战士哥
     "card.whirlwind": create_whirlwind,
     "card.clothesline": create_clothesline,
     "card.heavy_blade": create_heavy_blade,
@@ -363,14 +364,15 @@ CARD_REGISTRY = {
     "card.blood_wall": create_blood_wall,
     "card.fire_strike":create_fire_strike,
     "card.fire_zone":create_fire_zone,
-    
+    #yoi
     "card.crystal_piercing": create_crystal_piercing,
     "card.crystal_zone": create_crystal_zone,
+    "card.spreading_wing":create_spreading_wing,
     "card.crystal_cocoon": create_crystal_cocoon,
     "card.crystal_thorns": create_crystal_thorns,
     "card.abyssal_form": create_abyssal_form,
     "card.phantom_form": create_phantom_form,
-
+    #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.god_in_hand": create_god_in_hand,
     "card.transfer": create_transfer,

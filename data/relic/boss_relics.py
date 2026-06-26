@@ -241,21 +241,15 @@ class SneckoEyeRelic(RelicTemplate):
         return 2
 
     def on_event(self, event_name, context):
-        from game.constants import EVENT_BATTLE_START, EVENT_DRAW_CARD_AFTER
+        from game.constants import EVENT_BATTLE_START
+
         if event_name == EVENT_BATTLE_START:
             current = context.player.gain_status("confusion", 1)
-            return ["【{}】触发：获得混乱。当前混乱：{}。".format(self.name, current)]
-        if event_name == EVENT_DRAW_CARD_AFTER:
-            card = context.extra.get("drawn_card") if getattr(context, "extra", None) else None
-            if card is None:
-                return []
-            if getattr(card, "card_type", "") in ("status", "curse"):
-                return []
-            if getattr(card, "cost", 0) == "X":
-                return []
-            new_cost = random.randint(0, 3)
-            setattr(card, "temporary_cost_override", new_cost)
-            return ["【混乱】使抽到的【{}】费用随机变为 {}。".format(card.name, new_cost)]
+            return ["【{}】触发：获得混乱。当前混乱：{}。".format(
+                self.name,
+                current
+            )]
+
         return []
 
 

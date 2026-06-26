@@ -1241,6 +1241,36 @@ def check_battle_result(game_state):
         return "所有敌人已被击败，战斗胜利。"
     return None
 
+def _safe_int_card_cost(value):
+    """
+    将卡牌当前费用安全转成 int。
+
+    返回：
+    - int：正常整数费用
+    - None：X费、None、非法字符串等不能参与“>= 2”判断的费用
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        return int(value)
+
+    if isinstance(value, int):
+        return value
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    if text.upper() == "X":
+        return None
+
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return None
+
+
 def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
     """
     处理本回合下一张牌额外结算一次的状态。
@@ -1249,8 +1279,7 @@ def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
     - burst：技能牌
     - amplify：能力牌
     - duplication_potion_next_card：任意牌
-
-    这些效果都等效为 replay_extra +1。
+    - necronomicon：每回合第一张当前耗能 >=2 的攻击牌
     """
     player = game_state.player
     card_type = getattr(card, "card_type", "")
@@ -1282,17 +1311,33 @@ def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
         ))
 
     # 死灵之书：每回合第一张当前耗能 >=2 的攻击牌额外结算 1 次。
-    if getattr(card, "card_type", "") == "attack":
-        has_book = any(getattr(relic, "relic_id", "") == "relic.necronomicon" for relic in getattr(player, "relics", []) or [])
-        used_turn = int(getattr(game_state, "necronomicon_used_turn", 0) or 0)
-        try:
-            current_cost = get_card_current_cost(game_state, card)
-        except Exception:
-            current_cost = getattr(card, "cost", 0)
-        if has_book and used_turn != int(getattr(game_state, "turn_count", 0)) and current_cost != "X" and _safe_int_card_cost(current_cost) >= 2:
-            effect_context["replay_extra"] = int(effect_context.get("replay_extra", 0)) + 1
-            game_state.necronomicon_used_turn = int(getattr(game_state, "turn_count", 0))
-            logs.append("【死灵之书】触发：【{}】将额外结算 1 次。".format(getattr(card, "name", "攻击牌")))
+    if card_type == "attack":
+        has_book = any(
+            getattr(relic, "relic_id", "") == "relic.necronomicon"
+            for relic in getattr(player, "relics", []) or []
+        )
+
+        if has_book:
+            current_turn = int(getattr(game_state, "turn_count", 0))
+            used_turn = int(getattr(game_state, "necronomicon_used_turn", 0) or 0)
+
+            try:
+                current_cost = get_card_current_cost(game_state, card)
+            except Exception:
+                current_cost = getattr(card, "cost", 0)
+
+            current_cost_int = _safe_int_card_cost(current_cost)
+
+            if (
+                used_turn != current_turn
+                and current_cost_int is not None
+                and current_cost_int >= 2
+            ):
+                effect_context["replay_extra"] = int(effect_context.get("replay_extra", 0)) + 1
+                game_state.necronomicon_used_turn = current_turn
+                logs.append("【死灵之书】触发：【{}】将额外结算 1 次。".format(
+                    getattr(card, "name", "攻击牌")
+                ))
 
     return effect_context
 
@@ -2195,12 +2240,34 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             logs.append("敌人复合行动缺少 actions。")
             return
 
-        for child_action in child_actions:
-            process_enemy_action_payload(game_state, enemy, child_action, logs)
-            result = check_battle_result(game_state)
-            if result:
-                logs.append(result)
-                break
+        from game.status.status_effects import resolve_pending_flying_after_action
+
+        old_flying_action_key = getattr(game_state, "_current_flying_action_key", None)
+        flying_action_key = ("enemy_multi_action", id(action), int(getattr(game_state, "turn_count", 0)))
+
+        setattr(game_state, "_current_flying_action_key", flying_action_key)
+
+        try:
+            for child_action in child_actions:
+                process_enemy_action_payload(game_state, enemy, child_action, logs)
+                result = check_battle_result(game_state)
+                if result:
+                    logs.append(result)
+                    break
+
+            logs.extend(resolve_pending_flying_after_action(
+                game_state=game_state,
+                action_key=flying_action_key
+            ))
+        finally:
+            if old_flying_action_key is None:
+                try:
+                    delattr(game_state, "_current_flying_action_key")
+                except AttributeError:
+                    pass
+            else:
+                setattr(game_state, "_current_flying_action_key", old_flying_action_key)
+
         return
 
     if op == "enemy_attack":
@@ -2245,6 +2312,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             add_status_to_target,
         )
         damage = apply_zone_amount_modifier(damage, game_state, zone_element)
+        old_target_hp = int(getattr(target, "hp", 0))
         logs.extend(deal_damage(
             game_state=game_state,
             source=enemy,
@@ -2256,9 +2324,163 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             attack_element=attack_element,
             zone_element=zone_element
         ))
+
+        real_damage = old_target_hp - int(getattr(target, "hp", 0))
+        if real_damage < 0:
+            real_damage = 0
+
+        if bool(action.get("heal_unblocked", False)) and real_damage > 0 and enemy.is_alive():
+            old_enemy_hp = int(getattr(enemy, "hp", 0))
+            enemy.hp = min(int(getattr(enemy, "max_hp", old_enemy_hp)), old_enemy_hp + real_damage)
+            real_heal = int(enemy.hp) - old_enemy_hp
+            logs.append("{} 回复 {} 点生命。当前 HP：{}/{}。".format(
+                enemy.name,
+                real_heal,
+                enemy.hp,
+                enemy.max_hp
+            ))
         burn = get_zone_burn_amount(game_state, zone_element)
         if burn > 0 and target.is_alive():
             logs.append(add_status_to_target(target, "burn", burn))
+        apply_zone_source_hp_loss_if_needed(
+            game_state=game_state,
+            source=enemy,
+            zone_element=zone_element,
+            logs=logs,
+            label="阴 Zone"
+        )
+        return
+    
+    if op == "enemy_heal_all_allies":
+        heal = int(action.get("heal", 0))
+        if heal <= 0:
+            logs.append("{} 试图治疗己方，但治疗量无效。".format(enemy.name))
+            return
+
+        healed_any = False
+        for target in getattr(game_state, "enemies", []) or []:
+            if not target.is_alive():
+                continue
+
+            old_hp = int(getattr(target, "hp", 0))
+            max_hp = int(getattr(target, "max_hp", old_hp))
+            target.hp = min(max_hp, old_hp + heal)
+            real_heal = int(target.hp) - old_hp
+
+            if real_heal > 0:
+                healed_any = True
+                logs.append("{} 回复 {} 点生命。当前 HP：{}/{}。".format(
+                    target.name,
+                    real_heal,
+                    target.hp,
+                    target.max_hp
+                ))
+
+        if not healed_any:
+            logs.append("{} 试图治疗己方，但没有成员需要治疗。".format(enemy.name))
+
+        return
+
+    if op == "enemy_status_all_allies":
+        status_key = action.get("status", "")
+        amount = int(action.get("amount", 0))
+
+        if not status_key:
+            logs.append("敌人全员状态行动缺少 status。")
+            return
+
+        if amount == 0:
+            logs.append("敌人全员状态行动数值为 0。")
+            return
+
+        from game.zone_utils import apply_zone_amount_modifier, apply_zone_source_hp_loss_if_needed
+        amount = apply_zone_amount_modifier(amount, game_state, zone_element)
+
+        for target in getattr(game_state, "enemies", []) or []:
+            if not target.is_alive():
+                continue
+
+            if hasattr(target, "gain_status_with_result"):
+                result = target.gain_status_with_result(status_key, amount)
+                from game.status.status_gain import format_status_gain_log
+                logs.append(format_status_gain_log(target, status_key, amount, result))
+            else:
+                current = target.gain_status(status_key, amount)
+                status_name = get_status_name(status_key)
+                logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
+                    target.name,
+                    amount,
+                    status_name,
+                    status_name,
+                    current
+                ))
+
+        apply_zone_source_hp_loss_if_needed(
+            game_state=game_state,
+            source=enemy,
+            zone_element=zone_element,
+            logs=logs,
+            label="阴 Zone"
+        )
+        return
+
+    if op == "enemy_block_mystic_or_self":
+        block = int(action.get("block", 0))
+        if block <= 0:
+            logs.append("{} 试图给予格挡，但数值无效。".format(enemy.name))
+            return
+
+        target = None
+        for candidate in getattr(game_state, "enemies", []) or []:
+            if candidate is enemy:
+                continue
+            if not candidate.is_alive():
+                continue
+            if getattr(candidate, "enemy_id", "") == "enemy.mystic":
+                target = candidate
+                break
+
+        if target is None:
+            target = enemy
+
+        block = apply_modifier_profile(
+            value=block,
+            modifier_profile="block",
+            game_state=game_state,
+            source=enemy,
+            target=target,
+            card=None,
+            block_source=BLOCK_SOURCE_ENEMY_ACTION,
+            zone_element=zone_element
+        )
+
+        from game.zone_utils import (
+            apply_zone_amount_modifier,
+            apply_earth_zone_temp_thorns,
+            apply_zone_source_hp_loss_if_needed,
+        )
+
+        block = apply_zone_amount_modifier(block, game_state, zone_element)
+        if block < 0:
+            block = 0
+
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=enemy,
+            target=target,
+            amount=block,
+            block_source=BLOCK_SOURCE_ENEMY_ACTION,
+            card=None
+        ))
+
+        apply_earth_zone_temp_thorns(
+            game_state=game_state,
+            target=target,
+            zone_element=zone_element,
+            block_amount=block,
+            logs=logs
+        )
+
         apply_zone_source_hp_loss_if_needed(
             game_state=game_state,
             source=enemy,
@@ -2497,6 +2719,7 @@ def process_enemy_action(game_state, enemy):
             current_stun
         ))
         return logs
+    setattr(enemy, "_current_game_state", game_state)
     result = enemy.act()
     for log in result.logs:
         logs.append(log)
