@@ -7,7 +7,7 @@ import random
 from dataclasses import dataclass, field
 from typing import List, Any
 
-from data.card.AAAregistry import create_card
+from data.card.AAAregistry import CARD_REGISTRY, create_card
 from data.card.upgrade_rules import upgrade_card, has_upgrade
 from data.content_gate import filter_card_ids, filter_relic_ids, is_content_enabled
 from data.potion.AAAregistry import create_potion, POTION_REGISTRY
@@ -120,10 +120,8 @@ CARD_REWARD_POOL = [
     "card.juggernaut",
     "card.impervious",
     "card.double_tap",
-    "card.burst",
     "card.limit_break",
     "card.offering",
-    "card.amplify",
     "card.exhume",
     "card.fire_strike",
     "card.fire_zone",
@@ -148,6 +146,8 @@ CARD_REWARD_POOL = [
     "card.brain_shockwave",
     "card.ok_next",
 ]
+
+CARD_REWARD_QUANTITIES = {"common", "uncommon", "rare"}
 
 
 COMMON_POTION_POOL=[
@@ -1370,19 +1370,22 @@ def replace_potion_reward(run_state, reward_state, option_index, potion_index):
         extra
     )
 
-def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=False, ignore_prismatic=False):
+def get_card_reward_pool(run_state, include_colorless=False, include_test_cards=False, ignore_prismatic=False):
     """
     获取当前角色可用的战斗卡牌奖励池。
 
     规则：
-    - 当前角色有色卡：owner_character_id == run_state.character_id
-    - 可选无色卡：owner_character_id == ""
+    - 默认只包含当前角色有色卡：owner_character_id == run_state.character_id
+    - 棱镜碎片等修正可放开其他角色有色卡和无色卡
+    - 无色卡只在显式 include_colorless=True 时进入，不属于普通三选一奖励
     - 默认排除 starting / status / test
     """
     current_character_id = getattr(run_state, "character_id", "")
     result = []
+    has_prismatic = (not ignore_prismatic) and has_run_relic(run_state, "relic.prismatic_shard")
+    source_card_ids = CARD_REGISTRY.keys() if has_prismatic or include_colorless else CARD_REWARD_POOL
 
-    for card_id in filter_card_ids(CARD_REWARD_POOL):
+    for card_id in filter_card_ids(source_card_ids):
         card = create_card(card_id)
         owner = getattr(card, "owner_character_id", "")
         quantity = getattr(card, "quantity", "")
@@ -1394,10 +1397,11 @@ def get_card_reward_pool(run_state, include_colorless=True, include_test_cards=F
         if quantity == "starting":
             continue
 
-        if quantity == "test" and not include_test_cards:
+        if quantity not in CARD_REWARD_QUANTITIES and not (quantity == "test" and include_test_cards):
             continue
 
-        has_prismatic = (not ignore_prismatic) and has_run_relic(run_state, "relic.prismatic_shard")
+        if quantity == "test" and not include_test_cards:
+            continue
 
         if has_prismatic:
             result.append(card_id)

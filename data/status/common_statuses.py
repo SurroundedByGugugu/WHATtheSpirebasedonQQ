@@ -234,6 +234,17 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="no_card_block",
+    name="不能从卡牌获得格挡",
+    description="无法从卡牌效果获得格挡。",
+    category="debuff",
+    display_mode="turns",
+    order=79,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
+
+register_status_def(StatusDef(
     key="rage",
     name="愤怒",
     description="本回合每打出一张攻击牌，获得等同于层数的格挡。该格挡不受敏捷等修正影响。",
@@ -582,6 +593,72 @@ register_status_def(StatusDef(
     category="debuff",
     display_mode="stack",
     order=98,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="magnetism",
+    name="磁力",
+    description="每个回合开始时，增加一张随机无色牌到你的手牌。",
+    category="buff",
+    display_mode="stack",
+    order=99,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="mayhem",
+    name="乱战",
+    description="每个回合开始时，打出抽牌堆顶部的牌。",
+    category="buff",
+    display_mode="stack",
+    order=100,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="omega",
+    name="欧米伽",
+    description="玩家回合结束时，对所有敌人造成等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=101,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="panache",
+    name="神气制胜",
+    description="每当同一回合内打出第 5、10、15... 张牌时，对所有敌人造成等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=102,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="sadistic_nature",
+    name="残虐天性",
+    description="每当你对敌人造成负面状态，使其受到等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=103,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="the_bomb",
+    name="炸弹",
+    description="倒计时结束后，对所有敌人造成等同于层数的伤害。",
+    category="buff",
+    display_mode="stack",
+    order=104,
     decay_timing="none",
     decay_amount=0,
 ))

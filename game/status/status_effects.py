@@ -1577,6 +1577,126 @@ def handle_plated_armor(event_name, context, owner, value):
         return logs
     return logs
 
+def handle_magnetism(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_START:
+        return logs
+    if owner is None or owner is not context.game_state.player or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    from game.effects import handle_add_random_colorless_to_hand_temp_cost_zero
+    dummy = type("MagnetismCard", (), {
+        "name": "磁力",
+        "card_vars": {"amount": amount},
+        "owner_character_id": ""
+    })()
+    logs.extend(handle_add_random_colorless_to_hand_temp_cost_zero(
+        context.game_state,
+        dummy,
+        {"amount": {"var": "amount"}},
+        0,
+        {}
+    ))
+    return logs
+
+
+def handle_mayhem(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_START:
+        return logs
+    if owner is None or owner is not context.game_state.player or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    from game.effects import reshuffle_discard_into_draw_if_needed, play_card_from_effect_and_exhaust
+    for _ in range(amount):
+        if not reshuffle_discard_into_draw_if_needed(owner, logs, game_state=context.game_state):
+            logs.append("【乱战】触发，但抽牌堆没有可打出的牌。")
+            break
+        top_card = owner.draw_pile.pop()
+        logs.extend(play_card_from_effect_and_exhaust(
+            game_state=context.game_state,
+            source_card=type("MayhemCard", (), {"name": "乱战", "card_id": "status.mayhem"})(),
+            played_card=top_card,
+            reason="mayhem"
+        ))
+        if context.game_state.battle_over:
+            break
+    return logs
+
+
+def deal_status_damage_all_enemies(game_state, owner, amount, source_name, logs):
+    from game.damage import deal_damage
+    for enemy in list(getattr(game_state, "enemies", []) or []):
+        if not enemy.is_alive():
+            continue
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=owner,
+            target=enemy,
+            amount=amount,
+            damage_kind="status",
+            card=None,
+            is_reaction_damage=False,
+            ignore_block=False
+        ))
+    if amount > 0:
+        logs.insert(0, "【{}】触发：对所有敌人造成 {} 点伤害。".format(source_name, amount))
+
+
+def handle_omega(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_PLAYER_TURN_END:
+        return logs
+    if owner is None or owner is not context.game_state.player or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    deal_status_damage_all_enemies(context.game_state, owner, amount, "欧米伽", logs)
+    return logs
+
+
+def handle_panache(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_CARD_PLAY_AFTER:
+        return logs
+    if owner is None or context.player is not owner or not owner.is_alive():
+        return logs
+    amount = int(value)
+    if amount <= 0:
+        return logs
+    counts = getattr(context.game_state, "player_card_type_played_counts_this_turn", {}) or {}
+    total = sum(int(v) for v in counts.values())
+    if total <= 0 or total % 5 != 0:
+        return logs
+    deal_status_damage_all_enemies(context.game_state, owner, amount, "神气制胜", logs)
+    return logs
+
+
+def handle_the_bomb(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_PLAYER_TURN_END:
+        return logs
+    if owner is None or owner is not context.game_state.player or not owner.is_alive():
+        return logs
+    amount = int(value)
+    turns = int(getattr(owner, "_the_bomb_turns", 0))
+    if amount <= 0 or turns <= 0:
+        return logs
+    turns -= 1
+    setattr(owner, "_the_bomb_turns", turns)
+    if turns > 0:
+        logs.append("【炸弹】倒计时：剩余 {} 回合。".format(turns))
+        return logs
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("the_bomb")
+    deal_status_damage_all_enemies(context.game_state, owner, amount, "炸弹", logs)
+    return logs
+
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "temporary_thorns": handle_temporary_thorns,
@@ -1616,4 +1736,9 @@ STATUS_EVENT_HANDLERS = {
     "sharp_hide": handle_sharp_hide,
     "vigor": handle_vigor,
     "crystal_cocoon": handle_crystal_cocoon,
+    "magnetism": handle_magnetism,
+    "mayhem": handle_mayhem,
+    "omega": handle_omega,
+    "panache": handle_panache,
+    "the_bomb": handle_the_bomb,
 }

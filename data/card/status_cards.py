@@ -48,6 +48,21 @@ def create_dazed():
         upgrade_patch={}
     )
 
+def create_void():
+    return CardTemplate(
+        card_id="card.status.void",
+        name="虚空",
+        card_type="status",
+        cost=0,
+        target="none",
+        description="不能被打出。抽到这张牌时失去 1 点能量。虚无。",
+        quantity="status",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE, KEYWORD_ETHEREAL],
+        upgraded=False,
+        upgrade_patch={}
+    )
+
 def create_burn_i():
     return CardTemplate(
         card_id="card.status.burn_i",

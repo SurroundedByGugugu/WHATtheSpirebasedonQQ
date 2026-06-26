@@ -67,6 +67,7 @@ class GameState:
     pending_elixir_selection: bool = False
     pending_elixir_source: str = ""
     pending_elixir_options: List[Any] = field(default_factory=list)
+    pending_elixir_max_count: int = 0
 
     # 先占位，后续 zone / field 系统接这里
     active_zone: Any = None

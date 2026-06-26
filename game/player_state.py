@@ -149,6 +149,10 @@ class PlayerState:
 
             self.hand.append(card)
             logs.append("抽到【{}】。".format(card.name))
+            if getattr(card, "card_id", "") == "card.status.void":
+                old_cost = int(getattr(self, "cost", 0))
+                self.cost = max(0, old_cost - 1)
+                logs.append("【虚空】触发：失去 1 点能量。当前费用：{}。".format(self.cost))
             if game_state is not None:
                 from game.battle_context import BattleContext
                 from game.event_bus import dispatch_event

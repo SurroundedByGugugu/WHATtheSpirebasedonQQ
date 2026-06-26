@@ -970,9 +970,11 @@ def choose_pending_hand_to_draw_top(game_state, choice_index):
         pending_choice = get_pending_choice(game_state)
         options = list(getattr(pending_choice, "options", []) or [])
         source = getattr(pending_choice, "source", "")
+        payload = getattr(pending_choice, "payload", {}) or {}
     else:
         options = getattr(game_state, "pending_hand_to_draw_top_options", [])
         source = game_state.pending_hand_to_draw_top_source
+        payload = {}
 
     if not options:
         clear_pending_hand_to_draw_top_selection(game_state)
@@ -989,9 +991,25 @@ def choose_pending_hand_to_draw_top(game_state, choice_index):
         return "所选牌已经不在手牌中，选择已取消。"
 
     player.hand.remove(chosen_card)
-    player.draw_pile.append(chosen_card)
+    if payload.get("set_cost_zero", False):
+        try:
+            chosen_card.cost = 0
+        except Exception:
+            setattr(chosen_card, "temporary_cost_override", 0)
+
+    destination = payload.get("destination", "top")
+    if destination == "bottom":
+        player.draw_pile.insert(0, chosen_card)
+    else:
+        player.draw_pile.append(chosen_card)
 
     clear_pending_hand_to_draw_top_selection(game_state)
+
+    if destination == "bottom":
+        return "【{}】选择了【{}】，将其放到抽牌堆底，并使其耗能变为 0。".format(
+            source,
+            chosen_card.name
+        )
 
     return "【{}】选择了【{}】，将其放到抽牌堆顶。它会成为下一张抽到的牌。".format(
         source,
@@ -1717,6 +1735,7 @@ def clear_pending_elixir_selection(game_state):
     game_state.pending_elixir_selection = False
     game_state.pending_elixir_source = ""
     game_state.pending_elixir_options = []
+    game_state.pending_elixir_max_count = 0
 
 
 def choose_pending_elixir_cards(game_state, indices):
@@ -1734,6 +1753,9 @@ def choose_pending_elixir_cards(game_state, indices):
     for idx in unique:
         if idx < 0 or idx >= len(hand):
             return "手牌编号无效：{}。".format(idx)
+    max_count = int(getattr(game_state, "pending_elixir_max_count", 0) or 0)
+    if max_count > 0 and len(unique) > max_count:
+        return "【{}】最多只能选择 {} 张手牌。".format(source, max_count)
     indexed_cards = [(idx, hand[idx]) for idx in unique]
     for idx in sorted(unique, reverse=True):
         hand.pop(idx)
@@ -2891,6 +2913,8 @@ def clear_pending_toolbox_selection(game_state):
     game_state.pending_toolbox_selection = False
     game_state.pending_toolbox_source = ""
     game_state.pending_toolbox_options = []
+    game_state.pending_toolbox_mode = ""
+    game_state.pending_toolbox_temp_cost_zero = False
 
 
 def choose_pending_toolbox_card(game_state, choice_index):
@@ -2901,9 +2925,21 @@ def choose_pending_toolbox_card(game_state, choice_index):
     if choice_index < 0 or choice_index >= len(options):
         return "选择编号无效。"
     source = getattr(game_state, "pending_toolbox_source", "工具箱")
-    card = copy.deepcopy(options[choice_index])
+    mode = getattr(game_state, "pending_toolbox_mode", "") or "add_choice_to_hand"
+    selected = options[choice_index]
+    card = copy.deepcopy(selected)
+    if bool(getattr(game_state, "pending_toolbox_temp_cost_zero", False)):
+        try:
+            card.cost = 0
+        except Exception:
+            setattr(card, "temporary_cost_override", 0)
     player = game_state.player
     clear_pending_toolbox_selection(game_state)
+    if mode == "draw_pile_to_hand":
+        if selected not in player.draw_pile:
+            return "所选牌已经不在抽牌堆中，选择已取消。"
+        player.draw_pile.remove(selected)
+        card = selected
     if player.is_hand_full():
         player.discard_pile.append(card)
         return "【{}】选择【{}】，但手牌已满，进入弃牌堆。".format(source, getattr(card, "name", "未知卡牌"))

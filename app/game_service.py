@@ -1471,10 +1471,8 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.25",
-            "- 底层框架优化",
-            "- 修正武装抓不到的bug因为它没进池",
-            "- 添加了私货的小开关",
+            "当前版本：v26.06.26",
+            "- 更新遗物和大量无色牌，目前塔1大致框架能跑起来还原了",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制是否启用私货内容，默认开启",

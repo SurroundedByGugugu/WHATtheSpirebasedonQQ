@@ -709,6 +709,345 @@ def handle_gain_energy(game_state, card, effect, target_index, effect_context):
     return logs
 
 
+@register_effect("heal_player")
+def handle_heal_player(game_state, card, effect, target_index, effect_context):
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context,
+    )
+    from game.relic_logic.combat_relic_utils import heal_player_in_combat
+    return heal_player_in_combat(game_state, amount, getattr(card, "name", "卡牌"))
+
+
+@register_effect("shuffle_discard_into_draw")
+def handle_shuffle_discard_into_draw(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    logs = []
+    if not player.discard_pile:
+        logs.append("弃牌堆为空，没有牌洗入抽牌堆。")
+        return logs
+    player.draw_pile.extend(player.discard_pile)
+    count = len(player.discard_pile)
+    player.discard_pile = []
+    random.shuffle(player.draw_pile)
+    logs.append("将弃牌堆的 {} 张牌洗入抽牌堆。".format(count))
+    for relic in getattr(player, "relics", []) or []:
+        handler = getattr(relic, "on_shuffle", None)
+        if handler is None:
+            continue
+        result = handler(game_state, player)
+        if result:
+            logs.extend(result)
+    return logs
+
+
+@register_effect("draw_if_no_attack_in_hand")
+def handle_draw_if_no_attack_in_hand(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    for hand_card in getattr(player, "hand", []) or []:
+        if getattr(hand_card, "card_type", "") == "attack":
+            return ["手牌中有攻击牌，【{}】没有抽牌。".format(card.name)]
+    return handle_draw_cards(game_state, card, effect, target_index, effect_context)
+
+
+def get_random_card_candidates(card_type=None, colorless_only=False, exclude_card_ids=None):
+    from data.card.AAAregistry import CARD_REGISTRY, create_card
+    from data.content_gate import is_content_enabled
+    exclude_card_ids = set(exclude_card_ids or [])
+    candidates = []
+    for candidate_card_id in CARD_REGISTRY:
+        if candidate_card_id in exclude_card_ids:
+            continue
+        if not is_content_enabled("card", candidate_card_id):
+            continue
+        try:
+            candidate = create_card(candidate_card_id)
+        except Exception:
+            continue
+        if colorless_only and getattr(candidate, "owner_character_id", "") != "":
+            continue
+        if getattr(candidate, "card_type", "") in ("status", "curse"):
+            continue
+        if getattr(candidate, "quantity", "") in ("starting", "status", "curse", "test"):
+            continue
+        if card_type and getattr(candidate, "card_type", "") != card_type:
+            continue
+        candidates.append(candidate_card_id)
+    return candidates
+
+
+def prepare_generated_card(card, temp_cost_zero=False, upgrade=False):
+    setattr(card, "temporary", True)
+    setattr(card, "created_in_battle", True)
+    if upgrade:
+        from data.card.upgrade_rules import upgrade_card
+        card = upgrade_card(card)
+        setattr(card, "temporary", True)
+        setattr(card, "created_in_battle", True)
+    if temp_cost_zero and getattr(card, "card_type", "") not in ("status", "curse"):
+        try:
+            card.cost = 0
+        except Exception:
+            setattr(card, "temporary_cost_override", 0)
+    return card
+
+
+def add_card_to_hand_or_discard(player, card, logs, source_name):
+    if player.is_hand_full():
+        player.discard_pile.append(card)
+        logs.append("【{}】生成【{}】，但手牌已满，进入弃牌堆。".format(source_name, card.name))
+        return
+    player.hand.append(card)
+    logs.append("【{}】生成【{}】，加入手牌。".format(source_name, card.name))
+
+
+@register_effect("add_random_cards_to_draw_pile_temp_cost_zero")
+def handle_add_random_cards_to_draw_pile_temp_cost_zero(game_state, card, effect, target_index, effect_context):
+    from data.card.AAAregistry import create_card
+    count = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount", 1),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context,
+    )
+    count = int(count)
+    card_type = effect.get("card_type")
+    candidates = get_random_card_candidates(
+        card_type=card_type,
+        colorless_only=bool(effect.get("colorless_only", False)),
+        exclude_card_ids=effect.get("exclude_card_ids", [])
+    )
+    if count <= 0 or not candidates:
+        return ["【{}】没有生成卡牌。".format(card.name)]
+    logs = []
+    added = []
+    for _ in range(count):
+        new_card = prepare_generated_card(
+            create_card(random.choice(candidates)),
+            temp_cost_zero=True,
+            upgrade=bool(effect.get("upgrade", False))
+        )
+        game_state.player.draw_pile.append(new_card)
+        added.append(new_card.name)
+    random.shuffle(game_state.player.draw_pile)
+    logs.append("【{}】将 {} 张随机{}牌加入抽牌堆，它们在本场战斗中耗能为 0。".format(
+        card.name,
+        len(added),
+        {"attack": "攻击", "skill": "技能", "power": "能力"}.get(card_type, "")
+    ))
+    return logs
+
+
+@register_effect("add_random_colorless_to_hand_temp_cost_zero")
+def handle_add_random_colorless_to_hand_temp_cost_zero(game_state, card, effect, target_index, effect_context):
+    from data.card.AAAregistry import create_card
+    count = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount", 1),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context,
+    )
+    count = int(count)
+    candidates = get_random_card_candidates(
+        colorless_only=True,
+        exclude_card_ids=effect.get("exclude_card_ids", [])
+    )
+    if count <= 0 or not candidates:
+        return ["【{}】没有生成无色牌。".format(card.name)]
+    logs = []
+    for _ in range(count):
+        new_card = prepare_generated_card(
+            create_card(random.choice(candidates)),
+            temp_cost_zero=bool(effect.get("temp_cost_zero", False)),
+            upgrade=bool(effect.get("upgrade", False))
+        )
+        add_card_to_hand_or_discard(game_state.player, new_card, logs, card.name)
+    return logs
+
+
+@register_effect("request_discovery_card")
+def handle_request_discovery_card(game_state, card, effect, target_index, effect_context):
+    from data.card.AAAregistry import create_card
+    candidates = get_random_card_candidates(exclude_card_ids=effect.get("exclude_card_ids", []))
+    if not candidates:
+        return ["【{}】没有可发现的卡牌。".format(card.name)]
+    option_count = int(effect.get("option_count", 3))
+    selected_ids = random.sample(candidates, option_count) if len(candidates) >= option_count else [
+        random.choice(candidates) for _ in range(option_count)
+    ]
+    options = [
+        prepare_generated_card(create_card(card_id), temp_cost_zero=True)
+        for card_id in selected_ids
+    ]
+    game_state.pending_toolbox_selection = True
+    game_state.pending_toolbox_source = card.name
+    game_state.pending_toolbox_options = options
+    game_state.pending_toolbox_mode = "add_choice_to_hand"
+    game_state.pending_toolbox_temp_cost_zero = True
+    logs = ["=== {}：选择 1 张牌加入手牌，本回合耗能为 0 ===".format(card.name)]
+    for index, option in enumerate(options):
+        logs.append("[{}] {}".format(index, option.summary_text()))
+    logs.append("使用 /card toolbox 0 选择。")
+    return logs
+
+
+@register_effect("reduce_hand_costs_to")
+def handle_reduce_hand_costs_to(game_state, card, effect, target_index, effect_context):
+    target_cost = int(effect.get("cost", 1))
+    duration = effect.get("duration", "turn")
+    changed = 0
+    for hand_card in getattr(game_state.player, "hand", []) or []:
+        if getattr(hand_card, "card_type", "") in ("status", "curse"):
+            continue
+        try:
+            current_cost = int(getattr(hand_card, "cost", 0))
+        except (TypeError, ValueError):
+            continue
+        if current_cost <= target_cost:
+            continue
+        if duration == "combat":
+            hand_card.cost = target_cost
+        else:
+            setattr(hand_card, "temporary_cost_override", target_cost)
+        changed += 1
+    if changed <= 0:
+        return ["【{}】没有降低任何手牌费用。".format(card.name)]
+    return ["【{}】使 {} 张手牌的耗能降低到 {}。".format(card.name, changed, target_cost)]
+
+
+@register_effect("random_hand_card_cost_zero")
+def handle_random_hand_card_cost_zero(game_state, card, effect, target_index, effect_context):
+    options = [
+        hand_card for hand_card in getattr(game_state.player, "hand", []) or []
+        if getattr(hand_card, "card_type", "") not in ("status", "curse")
+    ]
+    if not options:
+        return ["【{}】没有可降费的手牌。".format(card.name)]
+    chosen = random.choice(options)
+    chosen.cost = 0
+    return ["【{}】使【{}】在本场战斗中耗能变为 0。".format(card.name, chosen.name)]
+
+
+@register_effect("request_hand_to_draw_bottom_temp_cost_zero")
+def handle_request_hand_to_draw_bottom_temp_cost_zero(game_state, card, effect, target_index, effect_context):
+    options = [
+        hand_card for hand_card in getattr(game_state.player, "hand", []) or []
+        if hand_card is not card
+    ]
+    if not options:
+        return ["手牌中没有可以放到抽牌堆底的牌。"]
+    from game.pending_choice import PendingChoice, set_pending_choice
+    set_pending_choice(game_state, PendingChoice(
+        kind="hand_to_draw_top",
+        source=card.name,
+        prompt="请选择 1 张手牌放到抽牌堆底并使其耗能变为 0：/card handtop 0。",
+        command_hint="handtop 等效 hand_top，warcry，置顶手牌，手牌置顶。",
+        block_message="当前需要先处理手牌放回抽牌堆选择。用法：/card handtop 0。",
+        options=options,
+        payload={"destination": "bottom", "set_cost_zero": True}
+    ))
+    logs = ["请选择 1 张手牌放到抽牌堆底并使其耗能变为 0：/card handtop 0。", "可选牌："]
+    for index, hand_card in enumerate(options):
+        logs.append("[{}] {}".format(index, hand_card.summary_text()))
+    return logs
+
+
+@register_effect("request_draw_pile_card_to_hand")
+def handle_request_draw_pile_card_to_hand(game_state, card, effect, target_index, effect_context):
+    required_type = effect.get("card_type")
+    options = [
+        pile_card for pile_card in getattr(game_state.player, "draw_pile", []) or []
+        if not required_type or getattr(pile_card, "card_type", "") == required_type
+    ]
+    if not options:
+        return ["抽牌堆中没有可选择的{}牌。".format({"attack": "攻击", "skill": "技能"}.get(required_type, ""))]
+    game_state.pending_toolbox_selection = True
+    game_state.pending_toolbox_source = card.name
+    game_state.pending_toolbox_options = options
+    game_state.pending_toolbox_mode = "draw_pile_to_hand"
+    logs = ["=== {}：选择 1 张{}牌加入手牌 ===".format(card.name, {"attack": "攻击", "skill": "技能"}.get(required_type, ""))]
+    for index, option in enumerate(options):
+        logs.append("[{}] {}".format(index, option.summary_text()))
+    logs.append("使用 /card toolbox 0 选择。")
+    return logs
+
+
+@register_effect("request_exhaust_multiple_hand_cards")
+def handle_request_exhaust_multiple_hand_cards(game_state, card, effect, target_index, effect_context):
+    options = list(enumerate(getattr(game_state.player, "hand", []) or []))
+    if not options:
+        return ["手牌为空，没有可以消耗的牌。"]
+    max_count = int(resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("max_count", 1),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context,
+    ))
+    game_state.pending_elixir_selection = True
+    game_state.pending_elixir_source = card.name
+    game_state.pending_elixir_options = options
+    game_state.pending_elixir_max_count = max_count
+    logs = ["=== {}：选择最多 {} 张手牌消耗 ===".format(card.name, max_count), ""]
+    for index, hand_card in options:
+        logs.append("[{}] {}".format(index, hand_card.summary_text()))
+    logs.append("")
+    logs.append("使用 /card elixir 0,1,2；不消耗则 /card elixir none。")
+    return logs
+
+
+@register_effect("move_random_draw_pile_cards_to_hand")
+def handle_move_random_draw_pile_cards_to_hand(game_state, card, effect, target_index, effect_context):
+    count = int(resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount", 1),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context,
+    ))
+    card_type = effect.get("card_type")
+    player = game_state.player
+    options = [
+        pile_card for pile_card in list(getattr(player, "draw_pile", []) or [])
+        if not card_type or getattr(pile_card, "card_type", "") == card_type
+    ]
+    if count <= 0 or not options:
+        return ["抽牌堆中没有可加入手牌的{}牌。".format({"attack": "攻击", "skill": "技能"}.get(card_type, ""))]
+    random.shuffle(options)
+    logs = []
+    for chosen in options[:count]:
+        if chosen not in player.draw_pile:
+            continue
+        player.draw_pile.remove(chosen)
+        add_card_to_hand_or_discard(player, chosen, logs, card.name)
+    return logs
+
+
+@register_effect("gain_bomb")
+def handle_gain_bomb(game_state, card, effect, target_index, effect_context):
+    damage = int(resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("damage", 40),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context,
+    ))
+    game_state.player.gain_status("the_bomb", damage)
+    setattr(game_state.player, "_the_bomb_turns", int(effect.get("turns", 3)))
+    return ["【{}】已设置炸弹：{} 回合后对所有敌人造成 {} 点伤害。".format(card.name, int(effect.get("turns", 3)), damage)]
+
+
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):
     """
     执行单个卡牌效果。
@@ -1111,6 +1450,171 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs.append("目标是爪牙，【{}】不获得最大生命。".format(card.name))
 
         return logs
+    if op == "deal_damage_gain_gold_on_non_minion_kill":
+        attack_type, attack_element = get_effect_attack_tags(card, effect)
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
+
+        target_key = effect.get("target", "selected_enemy")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+
+        if target_entity is None:
+            logs.append("目标敌人无效。")
+            return logs
+
+        damage = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=target_entity,
+            damage_source="played_card",
+            effect_context=local_context,
+            attack_type=attack_type,
+            attack_element=attack_element
+        )
+
+        was_alive = target_entity.is_alive()
+        was_minion = bool(getattr(target_entity, "is_minion", False))
+
+        logs.append("【{}】造成 {} 点攻击伤害。".format(
+            card.name,
+            damage
+        ))
+
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=game_state.player,
+            target=target_entity,
+            amount=damage,
+            damage_kind="attack",
+            card=card,
+            attack_type=attack_type,
+            attack_element=attack_element,
+            zone_element=zone_element
+        ))
+
+        from game.zone_utils import apply_fire_zone_burn
+        apply_fire_zone_burn(
+            game_state=game_state,
+            source=game_state.player,
+            target=target_entity,
+            card=card,
+            zone_element=zone_element,
+            logs=logs
+        )
+
+        if was_alive and not target_entity.is_alive() and not was_minion:
+            gold_gain = resolve_amount(
+                game_state=game_state,
+                card=card,
+                amount_spec=effect.get("gold_gain"),
+                source=game_state.player,
+                target=game_state.player,
+                effect_context=local_context
+            )
+            gold_gain = int(gold_gain)
+
+            if gold_gain > 0:
+                run_state = getattr(game_state, "run_state", None)
+
+                if run_state is None:
+                    logs.append("【{}】触发斩杀，但当前战斗没有绑定 RunState，无法获得金币。".format(card.name))
+                else:
+                    from game.relic_logic.run_relic_utils import gain_gold_with_relics
+                    logs.extend(gain_gold_with_relics(
+                        run_state,
+                        gold_gain,
+                        source="【{}】斩杀".format(card.name)
+                    ))
+
+        elif was_alive and not target_entity.is_alive() and was_minion:
+            logs.append("目标是爪牙，【{}】不获得金币。".format(card.name))
+
+        return logs
+
+    if op == "deal_damage_increase_card_var_on_non_minion_kill":
+        attack_type, attack_element = get_effect_attack_tags(card, effect)
+        zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+        local_context = make_zone_effect_context(effect_context, zone_element)
+
+        target_key = effect.get("target", "selected_enemy")
+        target_entity = get_effect_target_entity(
+            game_state=game_state,
+            target_key=target_key,
+            target_index=target_index
+        )
+
+        if target_entity is None:
+            logs.append("目标敌人无效。")
+            return logs
+
+        damage = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=target_entity,
+            damage_source="played_card",
+            effect_context=local_context,
+            attack_type=attack_type,
+            attack_element=attack_element
+        )
+
+        was_alive = target_entity.is_alive()
+        was_minion = bool(getattr(target_entity, "is_minion", False))
+
+        logs.append("【{}】造成 {} 点攻击伤害。".format(card.name, damage))
+
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=game_state.player,
+            target=target_entity,
+            amount=damage,
+            damage_kind="attack",
+            card=card,
+            attack_type=attack_type,
+            attack_element=attack_element,
+            zone_element=zone_element
+        ))
+
+        from game.zone_utils import apply_fire_zone_burn
+        apply_fire_zone_burn(
+            game_state=game_state,
+            source=game_state.player,
+            target=target_entity,
+            card=card,
+            zone_element=zone_element,
+            logs=logs
+        )
+
+        if was_alive and not target_entity.is_alive() and not was_minion:
+            var_name = effect.get("var", "damage")
+            increase = resolve_amount(
+                game_state=game_state,
+                card=card,
+                amount_spec=effect.get("increase", 0),
+                source=game_state.player,
+                target=game_state.player,
+                effect_context=effect_context
+            )
+            old_value = int(card.card_vars.get(var_name, 0))
+            new_value = old_value + int(increase)
+            card.card_vars[var_name] = new_value
+            logs.append("【{}】斩杀成功：{} 从 {} 增加到 {}。".format(
+                card.name,
+                var_name,
+                old_value,
+                new_value
+            ))
+        elif was_minion:
+            logs.append("目标是爪牙，【{}】不成长。".format(card.name))
+
+        return logs
 
     if op == "deal_damage_all_enemies_heal_unblocked":
         attack_type, attack_element = get_effect_attack_tags(card, effect)
@@ -1220,6 +1724,12 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         )
         if target_entity is None:
             logs.append("格挡目标无效。")
+            return logs
+        if get_status_value(target_entity, "no_card_block") > 0:
+            logs.append("{} 受到不能从卡牌获得格挡影响，【{}】没有获得格挡。".format(
+                target_entity.name,
+                card.name
+            ))
             return logs
         amount = resolve_amount(
             game_state=game_state,
@@ -1451,6 +1961,32 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     status_name,
                     current
                 ))
+
+            if (
+                status_applied
+                and target_entity is not game_state.player
+                and hasattr(target_entity, "enemy_id")
+                and int(amount) > 0
+            ):
+                from game.status.status_defs import get_status_def
+                status_def = get_status_def(status_key)
+                if getattr(status_def, "category", "") == "debuff":
+                    sadistic_damage = get_status_value(game_state.player, "sadistic_nature")
+                    if sadistic_damage > 0 and target_entity.is_alive():
+                        logs.append("【残虐天性】触发：对【{}】造成 {} 点伤害。".format(
+                            target_entity.name,
+                            sadistic_damage
+                        ))
+                        logs.extend(deal_damage(
+                            game_state=game_state,
+                            source=game_state.player,
+                            target=target_entity,
+                            amount=sadistic_damage,
+                            damage_kind="status",
+                            card=None,
+                            is_reaction_damage=False,
+                            ignore_block=False
+                        ))
 
             if (
                 status_applied
@@ -2215,23 +2751,31 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         from data.card.AAAregistry import create_card
 
-        added = 0
+        added_to_hand = 0
+        added_to_discard = 0
+        card_name = ""
         for _ in range(amount):
-            if game_state.player.is_hand_full():
-                logs.append("手牌已满，停止加入卡牌。")
-                break
-
             new_card = create_card(card_id)
             setattr(new_card, "temporary", True)
             setattr(new_card, "created_in_battle", True)
+            card_name = new_card.name
 
-            game_state.player.hand.append(new_card)
-            added += 1
+            if game_state.player.is_hand_full():
+                game_state.player.discard_pile.append(new_card)
+                added_to_discard += 1
+            else:
+                game_state.player.hand.append(new_card)
+                added_to_hand += 1
 
-        if added > 0:
+        if added_to_hand > 0:
             logs.append("将 {} 张【{}】加入手牌。".format(
-                added,
-                create_card(card_id).name
+                added_to_hand,
+                card_name
+            ))
+        if added_to_discard > 0:
+            logs.append("手牌已满，{} 张【{}】进入弃牌堆。".format(
+                added_to_discard,
+                card_name
             ))
 
         return logs
@@ -2786,6 +3330,29 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 logs.append("本场战斗中，手牌里的 {} 张牌被临时升级。".format(
                     upgraded_count
                 ))
+
+            return logs
+
+        if scope in ("combat", "all_combat"):
+            total_upgraded = 0
+            pile_labels = [
+                ("draw_pile", "抽牌堆"),
+                ("hand", "手牌"),
+                ("discard_pile", "弃牌堆"),
+                ("exhaust_pile", "消耗堆"),
+            ]
+            for pile_name, pile_label in pile_labels:
+                pile = getattr(player, pile_name, [])
+                upgraded_count, upgrade_logs = upgrade_all_cards_in_pile_for_this_combat(pile)
+                total_upgraded += upgraded_count
+                logs.extend(upgrade_logs)
+                if upgraded_count > 0:
+                    logs.append("{}中 {} 张牌被临时升级。".format(pile_label, upgraded_count))
+
+            if total_upgraded <= 0:
+                logs.append("本场战斗中没有可以升级的牌。")
+            else:
+                logs.append("本场战斗中，共 {} 张牌被临时升级。".format(total_upgraded))
 
             return logs
 
