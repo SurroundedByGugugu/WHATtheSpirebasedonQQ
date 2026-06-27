@@ -12,6 +12,17 @@ STARTING_RELIC_MYTH_MAP = {
 }
 
 
+def ensure_card_master_uid(run_state, card):
+    if not getattr(card, "_master_deck_uid", None):
+        return assign_new_card_master_uid(run_state, card)
+    return card
+
+def assign_new_card_master_uid(run_state, card):
+    next_uid = int(getattr(run_state, "_next_master_card_uid", 1) or 1)
+    setattr(card, "_master_deck_uid", next_uid)
+    setattr(run_state, "_next_master_card_uid", next_uid + 1)
+    return card
+
 def find_upgradeable_starting_relic(run_state):
     owned_ids = {
         getattr(relic, "relic_id", "")
@@ -166,7 +177,9 @@ def add_card_to_master_deck_with_relics(run_state, card, source="获得卡牌", 
             return logs
         logs.extend(trigger_darkstone_periapt_for_curse(run_state, card))
 
+    card = assign_new_card_master_uid(run_state, card)
     run_state.master_deck.append(card)
+    
     logs.append("{}：【{}】加入牌组。".format(source, getattr(card, "name", "未知卡牌")))
 
     if has_run_relic(run_state, "relic.ceramic_fish"):
@@ -486,3 +499,4 @@ def choose_pending_dollys_mirror_card(run_state, card_index):
     logs = ["【多利之镜】复制【{}】。".format(getattr(card, "name", "未知卡牌"))]
     logs.extend(add_card_to_master_deck_with_relics(run_state, card, source="多利之镜", apply_gain_preview=False))
     return "\n".join(logs)
+

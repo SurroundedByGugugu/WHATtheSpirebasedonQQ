@@ -45,6 +45,10 @@ from data.enemy.enemy_origin_1_2 import (
     create_mystic,
     create_centurion,
 
+    create_pointy,
+    create_romeo,
+    create_bear,
+
     create_book_of_stabbing,
     create_gremlin_leader,
     create_taskmaster,
@@ -106,6 +110,10 @@ ENEMY_REGISTRY = {
     "enemy.snake_plant": create_snake_plant,
     "enemy.mystic": create_mystic,
     "enemy.centurion": create_centurion,
+    #_1_2_event    
+    "enemy.pointy": create_pointy,
+    "enemy.romeo": create_romeo,
+    "enemy.bear": create_bear,
     #_1_2_elite
     "enemy.book_of_stabbing": create_book_of_stabbing,
     "enemy.gremlin_leader": create_gremlin_leader,

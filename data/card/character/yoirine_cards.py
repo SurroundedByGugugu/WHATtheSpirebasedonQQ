@@ -75,6 +75,48 @@ def create_crystal_zone():
     )
 
 #common
+def create_brave_bird():
+    return CardTemplate(
+        card_id="card.brave_bird",
+        name="勇鸟",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 13 点伤害。失去 2 点生命；若有飞行，改为消耗 1 层飞行并消去自伤。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 13,
+            "self_loss": 2
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "brave_bird_self_cost",
+                "status": "flying",
+                "amount": {
+                    "var": "self_loss"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "勇鸟+",
+            "description": "造成 17 点伤害。失去 1 点生命；若有飞行，改为消耗 1 层飞行并消去自伤。",
+            "card_vars": {
+                "damage": 17,
+                "self_loss": 1
+            }
+        }
+    )
+
 def create_crystal_thorns():
     return CardTemplate(
         card_id="card.crystal_thorns",
@@ -117,8 +159,72 @@ def create_crystal_thorns():
             },
         }
     )
+def create_spreading_wing():
+    return CardTemplate(
+        card_id="card.spreading_wing",
+        name="展翼",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="获得 2 层飞行。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={"flying": 2},
+        effects=[{
+            "op": "apply_status",
+            "target": "self",
+            "status": "flying",
+            "amount": {"base_var": "flying"}
+        }],
+        upgraded=False,
+        upgrade_patch={
+            "name": "展翼+",
+            "description": "获得 3 层飞行。",
+            "card_vars": {
+                "flying": 3
+            },
+        }
+    )
 
 #uncommon
+def create_abyssal_erosion():
+    return CardTemplate(
+        card_id="card.abyssal_erosion",
+        name="渊蚀",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 3 点伤害。本场战斗中每因自身行动失去 1 点生命，本牌伤害 +3。",
+        quantity="uncommon",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 3,
+            "per_hp": 3
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "player_self_action_hp_loss_total_this_battle": True,
+                    "multiplier_var": "per_hp",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "渊蚀+",
+            "description": "造成 4 点伤害。本场战斗中每因自身行动失去 1 点生命，本牌伤害 +4。",
+            "card_vars": {
+                "damage": 4,
+                "per_hp": 4
+            }
+        }
+    )
+
 def create_crystal_cocoon():
     return CardTemplate(
         card_id="card.crystal_cocoon",
@@ -162,32 +268,61 @@ def create_crystal_cocoon():
             },
         }
     )
-def create_spreading_wing():
+def create_roost():
     return CardTemplate(
-        card_id="card.spreading_wing",
-        name="展翼",
+        card_id="card.roost",
+        name="羽栖",
         card_type="skill",
         cost=1,
         target="self",
-        description="获得 2 层飞行。",
+        description="只能在有飞行时打出。消耗。获得 1 层易伤。结束当前回合。恢复 10% 最大生命值。不失去飞行层数。",
         quantity="uncommon",
         owner_character_id="character.yoirine",
-        card_vars={"flying": 2},
-        effects=[{
-            "op": "apply_status",
-            "target": "self",
-            "status": "flying",
-            "amount": {"base_var": "flying"}
-        }],
+        card_vars={
+            "vulnerable": 1,
+            "heal_percent": 0.10
+        },
+        play_conditions=[
+            {
+                "op": "has_status_at_least",
+                "status": "flying",
+                "amount": 1
+            }
+        ],
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "vulnerable",
+                "amount": {
+                    "var": "vulnerable"
+                }
+            },
+            {
+                "op": "heal_player_by_max_hp_percent",
+                "percent": 0.10
+            },
+            {
+                "op": "force_end_turn"
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
         upgraded=False,
         upgrade_patch={
-            "name": "展翼+",
-            "description": "获得 3 层飞行。",
+            "name": "羽栖+",
+            "description": "只能在有飞行时打出。消耗。获得 1 层易伤。结束当前回合。恢复 15% 最大生命值。不失去飞行层数。",
             "card_vars": {
-                "flying": 3
+                "heal_percent": 0.15
             },
+            "patches": [
+                {
+                    "path": ["effects", 1, "percent"],
+                    "value": 0.15
+                }
+            ]
         }
     )
+
 def create_reminiscence():
     return CardTemplate(
         card_id="card.reminiscence",
@@ -317,5 +452,10 @@ def create_phantom_form():
             "description": "攻击牌无视格挡。",
         }
     )
+
+
+
+
+
 
 

@@ -635,7 +635,14 @@ def resolve_status_card_turn_end(game_state, card, hand_count=None):
             current
         ))
         return logs
-
+    if card_id == "card.curse.shame":
+        current = player.gain_status("frail", 1)
+        logs.append("【{}】在回合结束时刺痛你的自尊，获得 1 层脆弱。当前脆弱：{}。".format(
+            card.name,
+            current
+        ))
+        return logs
+    
     burn_damage_map = {
         "card.status.burn_i": 2,
         "card.status.burn_ii": 4,

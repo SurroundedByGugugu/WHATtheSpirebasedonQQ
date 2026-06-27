@@ -136,6 +136,9 @@ CARD_REWARD_POOL = [
     "card.abyssal_form",
     "card.phantom_form",
     "card.rockbound_wish",
+    "card.abyssal_erosion",
+    "card.brave_bird",
+    "card.roost",
 
     #昼
     "card.mirage_shadows",
@@ -373,6 +376,7 @@ GOLD_RANGE_BY_NODE_TYPE = {
     "elite": (25, 40),
     "event_elite": (25, 40),
     "boss": (80, 120),
+    "arena_final": (100, 100),
 }
 
 # 遗物奖励概率与战斗节点类型相关。
@@ -382,6 +386,7 @@ RELIC_CHANCE_BY_NODE_TYPE = {
     "elite": 1.0,
     "event_elite": 0.0,
     "boss": 1.0,
+    "arena_final": 0.0,
 }
 
 
@@ -1114,6 +1119,7 @@ def collect_card_related_refs(card):
     card_ids = set()
     collect_effect_refs_from_value(getattr(card, "effects", []), status_keys, card_ids)
     collect_effect_refs_from_value(getattr(card, "exhaust_effects", []), status_keys, card_ids)
+    collect_effect_refs_from_value(getattr(card, "play_conditions", []), status_keys, card_ids)
     collect_effect_refs_from_value(getattr(card, "upgrade_patch", {}), status_keys, card_ids)
     if getattr(card, "card_id", "") in card_ids:
         card_ids.remove(getattr(card, "card_id", ""))

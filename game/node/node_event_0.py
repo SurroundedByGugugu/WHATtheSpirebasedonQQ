@@ -14,7 +14,7 @@ from game.command_help import command_tip
 from game.deck_utils import remove_card_from_master_deck, transform_card_in_master_deck
 from game.node.node_rest import get_upgradable_cards
 from game.relic_logic.bottle_utils import copy_bottled_flags, strip_bottled_flags
-from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics, gain_gold_with_relics, try_block_curse_with_omamori, heal_run_hp_with_relics
+from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics, gain_gold_with_relics, increase_max_hp, try_block_curse_with_omamori, heal_run_hp_with_relics
 from game.reward import get_available_relic_ids, create_potion_reward_state, record_reward_options_offered
 
 
@@ -66,6 +66,21 @@ EVENT_MIND_BLOOM = "event.mind_bloom"
 EVENT_FACE_TRADER = "event.face_trader"
 EVENT_AUGMENTER = "event.augmenter"
 
+
+# 塔1 二层
+EVENT_NEST = "event.nest"
+EVENT_HOBO = "event.hobo"
+EVENT_ANCIENT_WRITING = "event.ancient_writing"
+EVENT_OLD_BEGGAR = "event.old_beggar"
+EVENT_FORGOTTEN_ALTAR = "event.forgotten_altar"
+EVENT_KNOWING_SKULL = "event.knowing_skull"
+EVENT_MASKED_BANDITS = "event.masked_bandits"
+EVENT_JOUST = "event.joust"
+EVENT_GREAT_LIBRARY = "event.great_library"
+EVENT_MAUSOLEUM = "event.mausoleum"
+EVENT_VAMPIRES = "event.vampires"
+EVENT_GHOST_COUNCIL = "event.ghost_council"
+EVENT_ARENA = "event.arena"
 
 def get_current_floor(run_state):
     node = run_state.get_current_node() if hasattr(run_state, "get_current_node") else None
@@ -125,6 +140,87 @@ def add_curse(run_state, card_id):
         return "\n".join(logs)
     return "\n".join(["获得诅咒：【{}】。".format(card.name)] + logs)
 
+def remove_relic_by_id(run_state, relic_id):
+    relics = getattr(run_state, "relics", []) or []
+    for index, relic in enumerate(relics):
+        if getattr(relic, "relic_id", "") == relic_id:
+            return relics.pop(index)
+    return None
+
+
+def is_basic_strike_card(card):
+    card_id = getattr(card, "card_id", "")
+    name = getattr(card, "name", "")
+    return card_id in ("card.strike", "card.global.strike") or name in ("打击", "打击+")
+
+
+def is_basic_defend_card(card):
+    card_id = getattr(card, "card_id", "")
+    name = getattr(card, "name", "")
+    return card_id in ("card.defend", "card.global.defend") or name in ("格挡", "格挡+", "防御", "防御+")
+
+
+def remove_all_basic_strikes(run_state):
+    deck = list(getattr(run_state, "master_deck", []) or [])
+    kept = []
+    removed = []
+
+    for card in deck:
+        if is_basic_strike_card(card):
+            removed.append(card)
+        else:
+            kept.append(card)
+
+    run_state.master_deck = kept
+    return removed
+
+
+def pick_uncommon_colorless_card_id(rng):
+    from data.card.AAAregistry import CARD_REGISTRY
+    from data.content_gate import is_content_enabled
+
+    candidates = []
+
+    for card_id in CARD_REGISTRY.keys():
+        if not is_content_enabled("card", card_id):
+            continue
+
+        try:
+            card = create_card(card_id)
+        except Exception:
+            continue
+
+        if getattr(card, "owner_character_id", ""):
+            continue
+
+        if getattr(card, "quantity", "") != "uncommon":
+            continue
+
+        if getattr(card, "card_type", "") not in ("attack", "skill", "power"):
+            continue
+
+        candidates.append(card_id)
+
+    return rng.choice(candidates) if candidates else ""
+
+
+def make_event_card_reward(run_state, cards, title):
+    from game.reward import RewardOption, RewardState, record_reward_options_offered
+
+    reward_state = RewardState(
+        node_type="event",
+        options=[
+            RewardOption(
+                option_type="card",
+                title=title,
+                payload={"cards": cards},
+            )
+        ]
+    )
+
+    run_state.pending_reward = reward_state
+    record_reward_options_offered(run_state, reward_state)
+    return reward_state
 
 def heal_by_max_hp_fraction(run_state, numerator, denominator):
     if denominator <= 0:
@@ -423,14 +519,17 @@ def get_current_act(run_state):
             return int("".join(digits))
     return 1
 
-
 def get_common_event_builders(run_state, seed=None, source_node_type="event"):
     """
-    当前 Act 的通用事件池入口。
-    约定：game.node.node_event_{act}_0 存放该 Act 通用事件。
+    塔1通用事件池入口。
+
+    约定：
+    - node_event_1_0.py：塔1通用事件池
+    - node_event_1_1.py：塔1一层事件池
+    - node_event_1_2.py：塔1二层事件池
     """
-    act = get_current_act(run_state)
-    module_name = "game.node.node_event_{}_0".format(act)
+    module_name = "game.node.node_event_1_0"
+
     try:
         module = importlib.import_module(module_name)
     except ModuleNotFoundError as exc:
@@ -438,7 +537,6 @@ def get_common_event_builders(run_state, seed=None, source_node_type="event"):
             return []
         raise
 
-    # 防止有人误把底层文件命名成 node_event_0 后被当作通用池递归调用。
     if getattr(module, "__name__", "") == __name__:
         return []
 
@@ -453,12 +551,12 @@ def get_common_event_builders(run_state, seed=None, source_node_type="event"):
     )
 
 
-def _load_floor_event_module(act, floor):
-    module_name = "game.node.node_event_{}_{}".format(act, floor)
+def _load_event_stage_module(stage):
+    module_name = "game.node.node_event_1_{}".format(int(stage))
+
     try:
         return importlib.import_module(module_name)
     except ModuleNotFoundError as exc:
-        # 只吞掉目标模块本身不存在的情况；模块内部 import 错误继续抛出，方便定位。
         if getattr(exc, "name", "") == module_name:
             return None
         raise
@@ -466,34 +564,37 @@ def _load_floor_event_module(act, floor):
 
 def get_event_builders_for_current_node(run_state, seed=None, source_node_type="event"):
     """
-    第 x 层事件池 = node_event_1_0 通用池 + node_event_1_x 本层专属池。
-    当前其他楼层专属池尚未补齐时，可临时回退到 node_event_1_1，保证现有路线仍能跑。
+    塔1事件池 = node_event_1_0 通用池 + node_event_1_{阶段} 阶段池。
+
+    例：
+    - 一层：node_event_1_0 + node_event_1_1
+    - 二层：node_event_1_0 + node_event_1_2
+
+    route node_id 里的 act1 / act2 表示当前第几阶段；
+    事件文件名里的 1_x 表示“塔1 / 第 x 阶段”。
     """
-    act = get_current_act(run_state)
-    floor = get_current_floor(run_state)
+    stage = get_current_act(run_state)
 
     builders = []
 
-    # 先加载当前 Act 通用池：node_event_{act}_0.py。
     builders.extend(get_common_event_builders(
         run_state,
         seed=seed,
         source_node_type=source_node_type,
     ))
 
-    if floor <= 0:
-        floor = 1
+    stage_module = _load_event_stage_module(stage)
 
-    floor_module = _load_floor_event_module(act, floor)
-
-    if floor_module is not None and hasattr(floor_module, "get_event_builders"):
-        builders.extend(floor_module.get_event_builders(
+    if stage_module is not None and hasattr(stage_module, "get_event_builders"):
+        builders.extend(stage_module.get_event_builders(
             run_state,
             seed=seed,
             source_node_type=source_node_type,
         ))
 
     return builders
+
+
 
 
 def _pick_random_book_relic(rng):
@@ -1590,5 +1691,359 @@ def choose_event_option(run_state, choice_index, seed=None):
             logs.append("花费 {} 金币。当前金币：{}。".format(gold_cost, run_state.gold))
         logs.append("升级卡牌：【{}】 -> 【{}】。".format(card.name, upgraded_card.name))
         return True, "\n".join(logs)
+    if effect == "nest_rob":
+        amount = int(payload.get("gold", choice.amount or 99) or 99)
+        logs = ["他们甚至完全没有注意到你的行动。"]
+        logs.extend(gain_gold_with_relics(run_state, amount, source="巢穴"))
+        return True, "\n".join(logs)
 
+    if effect == "nest_stay":
+        old_hp, new_hp = lose_hp(run_state, 6)
+        logs = [
+            "你决定留在队列中，看看究竟会发生什么。",
+            "失去 6 点生命：{} -> {}。".format(old_hp, new_hp),
+        ]
+        logs.extend(add_card_to_master_deck_with_relics(
+            run_state,
+            create_card("card.ritual_dagger"),
+            source="巢穴",
+        ))
+        logs.append("“咔~咔~咔-咔！”你也跟着喊了起来，为什么不呢？")
+        return True, "\n".join(logs)
+
+    if effect == "hobo_pay":
+        cost = int(choice.amount or 85)
+        if run_state.gold < cost:
+            return False, "金币不足。当前金币：{}，需要：{}。".format(run_state.gold, cost)
+
+        run_state.gold -= cost
+        logs = ["失去 {} 金币。当前金币：{}。".format(cost, run_state.gold)]
+        logs.extend(add_random_relic(run_state, rng))
+        logs.append("“啊啊，太好了，太好了！来，给你，这很公平吧！”")
+        return True, "\n".join(logs)
+
+    if effect == "hobo_rob":
+        logs = ["你一把抓过他手中珍贵的遗物转身就走。"]
+        logs.extend(add_random_relic(run_state, rng))
+        logs.append(add_curse(run_state, "card.curse.shame"))
+        logs.append("“你不知道什么是羞耻吗？你就不知道~什么是羞耻吗？！~”")
+        return True, "\n".join(logs)
+
+    if effect == "ancient_writing_remove":
+        ok, text = build_deck_selection(
+            state,
+            run_state,
+            "答案当然是简洁。请选择要移除的牌。",
+            "select_remove_card",
+            payload={"after_text": "答案当然是简洁。"},
+        )
+        return False, text if ok else text
+
+    if effect == "ancient_writing_upgrade":
+        logs = ["真相总是朴素的。"]
+        count = 0
+
+        for index, card in enumerate(list(getattr(run_state, "master_deck", []) or [])):
+            if not (is_basic_strike_card(card) or is_basic_defend_card(card)):
+                continue
+            if not has_upgrade(card):
+                continue
+
+            upgraded = upgrade_card(card)
+            upgraded = copy_bottled_flags(card, upgraded)
+            run_state.master_deck[index] = upgraded
+            logs.append("升级：【{}】 -> 【{}】。".format(card.name, upgraded.name))
+            count += 1
+
+        if count <= 0:
+            logs.append("没有可升级的打击或防御。")
+
+        return True, "\n".join(logs)
+
+    if effect == "old_beggar_pay":
+        cost = int(choice.amount or 75)
+        if run_state.gold < cost:
+            return False, "金币不足。当前金币：{}，需要：{}。".format(run_state.gold, cost)
+
+        ok, text = build_deck_selection(
+            state,
+            run_state,
+            "乞丐突然脱下了外套，原来他是牧师！请选择要移除的牌。",
+            "select_remove_card",
+            payload={
+                "gold_cost": cost,
+                "after_text": "乞丐突然脱下了外套，原来他是牧师！\n“你真是个善良的人，接受我的净化吧！”",
+            },
+        )
+        return False, text if ok else text
+
+    if effect == "old_beggar_leave":
+        return True, "乞丐在你经过时低头看着地板，喃喃自语：\n“你永远也成就不了什么事情的……永远不会。”"
+
+    if effect == "forgotten_altar_idol":
+        relic = remove_relic_by_id(run_state, "relic.golden_idol")
+        if relic is None:
+            return False, "你没有【金神像】。"
+
+        logs = [
+            "你小心翼翼地将金神像放到了祭坛上，一阵寒风瞬间吹过了房间。",
+            "失去遗物：【{}】。".format(getattr(relic, "name", "金神像")),
+        ]
+        logs.extend(add_specific_relic(run_state, "relic.bloody_idol"))
+        logs.append("你的金神像开始变暗，然后双眼开始流出血液。血始终也没有停止流下。")
+        return True, "\n".join(logs)
+
+    if effect == "forgotten_altar_sacrifice":
+        percent = float(payload.get("percent", 0.25) or 0.25)
+        amount, old_hp, new_hp = lose_hp_percent_of_max(run_state, percent)
+        logs = [
+            "你站在祭坛前，割开了你自己的手腕。",
+            "失去 {} 点生命：{} -> {}。".format(amount, old_hp, new_hp),
+        ]
+        logs.extend(increase_max_hp(run_state, 5, source_name="被遗忘的祭坛"))
+        logs.append("你在一段时间后苏醒了过来，感觉自己体内有了新的潜力。")
+        return True, "\n".join(logs)
+
+    if effect == "forgotten_altar_deface":
+        logs = ["你使劲开始砸面前的雕像，终于打破了这个房间对你施加的魔力。"]
+        logs.append(add_curse(run_state, "card.curse.decay"))
+        logs.append("四周回荡起一声黑暗的恸哭，你能感觉到诅咒的魔法渗入了你的骨髓。")
+        return True, "\n".join(logs)
+
+    if effect in ("skull_potion", "skull_gold", "skull_card"):
+        uses = int(state.data.get("uses", 0) or 0)
+        hp_loss = 6 + uses
+
+        old_hp, new_hp = lose_hp(run_state, hp_loss)
+        logs = ["失去 {} 点生命：{} -> {}。".format(hp_loss, old_hp, new_hp)]
+
+        if effect == "skull_potion":
+            logs.append("“喝了吧！”")
+            logs.extend(add_random_potions_to_run(run_state, rng, 1))
+
+        elif effect == "skull_gold":
+            logs.append("“你们这些人类真是从来都不会变。愿望达成了。”")
+            logs.extend(gain_gold_with_relics(run_state, 90, source="全知头骨"))
+
+        else:
+            card_id = pick_uncommon_colorless_card_id(rng)
+            if card_id:
+                logs.append("“说不定这个能行？”")
+                logs.extend(add_card_to_master_deck_with_relics(
+                    run_state,
+                    create_card(card_id),
+                    source="全知头骨",
+                ))
+            else:
+                logs.append("没有可获得的罕见无色牌。")
+
+        state.data["uses"] = uses + 1
+        next_loss = 6 + int(state.data.get("uses", 0) or 0)
+
+        state.choices = [
+            EventChoice("来点喝的？得到一瓶药水。失去 {} 生命。".format(next_loss), "skull_potion"),
+            EventChoice("财富？获得 90 金币。失去 {} 生命。".format(next_loss), "skull_gold"),
+            EventChoice("成功？得到一张罕见无色牌。失去 {} 生命。".format(next_loss), "skull_card"),
+            EventChoice("我要怎么离开？失去 6 生命。", "skull_leave"),
+        ]
+
+        logs.append("“还有没有别的？”")
+        return False, "\n".join(logs) + "\n\n" + format_event(run_state)
+
+    if effect == "skull_leave":
+        old_hp, new_hp = lose_hp(run_state, 6)
+        return True, "“看你背后，人类。”\n失去 6 点生命：{} -> {}。".format(old_hp, new_hp)
+
+    if effect == "masked_bandits_pay":
+        lost = int(getattr(run_state, "gold", 0) or 0)
+        run_state.gold = 0
+        return True, "失去所有金币：{}。\n嘿嘿嘿……谢谢你的金币啦！\n*噗嗤*……白痴……哈哈哈哈哈".format(lost)
+
+    if effect == "masked_bandits_fight":
+        from game.run_engine import start_forced_event_battle
+
+        return False, start_forced_event_battle(
+            run_state,
+            encounter_id="encounter.event.masked_bandits",
+            effective_node_type="event_elite",
+            seed=seed,
+            post_battle_effects=[
+                {"type": "gain_relic", "relic_id": "relic.red_mask"},
+            ],
+            intro_text="你举起武器。强盗们大笑着围了上来。",
+        )
+
+    if effect in ("joust_murderer", "joust_owner"):
+        cost = int(choice.amount or 50)
+
+        if run_state.gold < cost:
+            return False, "金币不足。当前金币：{}，需要：{}。".format(run_state.gold, cost)
+
+        run_state.gold -= cost
+
+        if effect == "joust_murderer":
+            win = rng.random() < 0.70
+            prize = 100
+        else:
+            win = rng.random() < 0.30
+            prize = 250
+
+        logs = [
+            "失去 {} 金币。当前金币：{}。".format(cost, run_state.gold),
+            "*哐啷*！！ *铛！！*",
+            "*砰！！*",
+        ]
+
+        if win:
+            logs.append("你赌赢了。虽然你还是搞不太清楚情况，但有得赚就好。")
+            logs.extend(gain_gold_with_relics(run_state, prize, source="长枪决斗"))
+        else:
+            logs.append("你赌输了。但至少被长枪捅穿的人不是你。")
+
+        return True, "\n".join(logs)
+
+    if effect == "great_library_read":
+        from game.reward import roll_card_rewards, get_card_reward_upgrade_chance
+
+        cards = roll_card_rewards(
+            count=20,
+            rng=rng,
+            upgrade_chance=get_card_reward_upgrade_chance(run_state),
+            run_state=run_state,
+        )
+
+        make_event_card_reward(
+            run_state,
+            cards,
+            "大图书馆：从 20 张牌中选择 1 张",
+        )
+
+        text = rng.choice([
+            "这本书是关于一个被昆虫控制的想当英雄的少女的。读完书，你觉得心满意足。",
+            "这本书是关于一个在群星旅行，最后落难在一个荒芜陌生星球上的男人的。读来令人神往。",
+            "这本书是关于一个巨大的废弃地下建筑的。你开始思考是否在高塔中也存在着类似的关系网。",
+        ])
+
+        return True, text
+
+    if effect == "great_library_sleep":
+        amount, old_hp, new_hp = heal_by_max_hp_fraction(run_state, 1, 3)
+        logs = [
+            state.data.get("sleep_line", "傻子才读书呢。"),
+            "你在沙发椅上打了个盹儿。\nZzz...zzz.....Zz....",
+            "醒来后，你觉得神清气爽。",
+            "恢复 {} 点生命：{} -> {}。".format(amount, old_hp, new_hp),
+        ]
+        return True, "\n".join(logs)
+
+    if effect == "mausoleum_open":
+        cursed = rng.random() < 0.50
+        logs = []
+
+        logs.extend(add_random_relic(run_state, rng))
+
+        if cursed:
+            logs.append(add_curse(run_state, "card.curse.writhe"))
+            logs.append("一股黑雾涌了出来，淹没了整个房间！")
+        else:
+            logs.append("雾气很快消散了。你拿走了石棺中的遗物，离开了房间。")
+
+        return True, "\n".join(logs)
+
+    if effect == "vampires_accept":
+        removed = remove_all_basic_strikes(run_state)
+        amount, old_max, new_max, old_hp, new_hp = lose_max_hp_percent(run_state, 0.30)
+
+        logs = [
+            "高个男人抓住你的手臂将你拉了过去，他的尖牙咬进你的脖子。",
+            "移除了 {} 张打击。".format(len(removed)),
+            "失去 {} 点最大生命：{} -> {}，HP：{} -> {}。".format(amount, old_max, new_max, old_hp, new_hp),
+        ]
+
+        for _ in range(5):
+            logs.extend(add_card_to_master_deck_with_relics(
+                run_state,
+                create_card("card.bite"),
+                source="吸血鬼",
+            ))
+
+        logs.append("你必须进食……")
+        return True, "\n".join(logs)
+
+    if effect == "vampires_blood_vial":
+        relic = remove_relic_by_id(run_state, "relic.blood_vial")
+
+        if relic is None:
+            return False, "你没有【小血瓶】。"
+
+        removed = remove_all_basic_strikes(run_state)
+        bite_count = len(removed)
+
+        logs = [
+            "失去遗物：【{}】。".format(getattr(relic, "name", "小血瓶")),
+            "“主人的血……主人的血！主 人 的 血！！”",
+            "移除了 {} 张打击。".format(len(removed)),
+        ]
+
+        for _ in range(bite_count):
+            logs.extend(add_card_to_master_deck_with_relics(
+                run_state,
+                create_card("card.bite"),
+                source="吸血鬼",
+            ))
+
+        logs.append("你必须进食……")
+        return True, "\n".join(logs)
+
+    if effect == "ghost_council_accept":
+        amount, old_max, new_max, old_hp, new_hp = lose_max_hp_percent(run_state, 0.50)
+
+        logs = [
+            "浓重的黑烟笼罩了整个房间。",
+            "失去 {} 点最大生命：{} -> {}，HP：{} -> {}。".format(amount, old_max, new_max, old_hp, new_hp),
+        ]
+
+        for _ in range(5):
+            logs.extend(add_card_to_master_deck_with_relics(
+                run_state,
+                create_card("card.ghostly"),
+                source="幽灵议会",
+            ))
+
+        logs.append("你重新上路，但总觉得自己的内心变得有些空洞。")
+        return True, "\n".join(logs)
+
+    if effect == "ghost_council_refuse":
+        return True, "“真令人失望....”\n“反正你迟早会成为我们的一员。”\n“哈哈哈哈哈哈!”"
+
+    if effect == "arena_start":
+        from game.run_engine import start_forced_event_battle
+
+        return False, start_forced_event_battle(
+            run_state,
+            encounter_id="encounter.event.arena_slavers_first",
+            effective_node_type="event_normal",
+            seed=seed,
+            post_battle_effects=[
+                {"type": "arena_after_first"},
+            ],
+            intro_text="在你对面的大门缓缓打开了……",
+        )
+
+    if effect == "arena_coward":
+        return True, "你从竞技场围墙上那个小小的缺口逃了出去。"
+
+    if effect == "arena_continue":
+        from game.run_engine import start_forced_event_battle
+
+        return False, start_forced_event_battle(
+            run_state,
+            encounter_id="encounter.event.arena_final",
+            effective_node_type="arena_final",
+            seed=seed,
+            post_battle_effects=[
+                {"type": "arena_final_rewards"},
+            ],
+            intro_text="你选择留下来。观众席爆发出刺耳的欢呼声。",
+        )
     return False, "未知事件效果：{}。".format(effect)

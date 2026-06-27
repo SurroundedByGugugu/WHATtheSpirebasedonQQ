@@ -169,7 +169,24 @@ def check_card_play_conditions(game_state, card, play_reason="normal"):
                     )
 
             continue
+        if op == "has_status_at_least":
+            status_key = condition.get("status", "")
+            required_amount = int(condition.get("amount", 1) or 1)
 
+            from game.modifiers import get_status_value
+            from game.status.status_defs import get_status_name
+
+            current = get_status_value(player, status_key)
+
+            if current < required_amount:
+                return False, "【{}】不能被打出：需要至少 {} 层{}，当前为 {}。".format(
+                    card.name,
+                    required_amount,
+                    get_status_name(status_key),
+                    current
+                )
+
+            continue
         return False, "【{}】存在未知出牌条件：{}。".format(
             card.name,
             op

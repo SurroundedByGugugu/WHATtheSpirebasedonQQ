@@ -144,7 +144,8 @@ def deal_damage(
     ignore_block=False,
     attack_type="",
     attack_element="",
-    zone_element=""
+    zone_element="",
+    count_as_player_self_action_hp_loss=False
 ):
     """
     统一伤害入口。
@@ -291,6 +292,14 @@ def deal_damage(
         game_state.player_life_loss_count_this_battle = int(
             getattr(game_state, "player_life_loss_count_this_battle", 0)
         ) + 1
+
+        if bool(count_as_player_self_action_hp_loss):
+            game_state.player_self_action_hp_loss_count_this_battle = int(
+                getattr(game_state, "player_self_action_hp_loss_count_this_battle", 0)
+            ) + 1
+            game_state.player_self_action_hp_loss_total_this_battle = int(
+                getattr(game_state, "player_self_action_hp_loss_total_this_battle", 0)
+            ) + int(real_damage)
         
     context = BattleContext(
         game_state=game_state,
@@ -310,6 +319,7 @@ def deal_damage(
             "zone_element": zone_element,
             "target_was_alive": was_alive,
             "target_is_dead_after": (was_alive and not target.is_alive()),
+            "count_as_player_self_action_hp_loss": bool(count_as_player_self_action_hp_loss),
         }
     )
 
@@ -317,6 +327,19 @@ def deal_damage(
 
     if was_alive and not target.is_alive() and not context.extra.get("suppress_death_message", False):
         if hasattr(target, "enemy_id"):
+            if getattr(target, "enemy_id", "") == "enemy.bear":
+                enemies = list(getattr(game_state, "enemies", []) or [])
+
+                if any(enemy is not target and enemy.is_alive() for enemy in enemies):
+                    for enemy in enemies:
+                        if not enemy.is_alive():
+                            continue
+
+                        if getattr(enemy, "enemy_id", "") == "enemy.pointy":
+                            logs.append("尖尖：“熊——”")
+                        elif getattr(enemy, "enemy_id", "") == "enemy.romeo":
+                            logs.append("罗密欧：“哦不——熊——！”")
+
             from data.enemy.death_messages import get_enemy_death_message
             logs.append(get_enemy_death_message(target))
 

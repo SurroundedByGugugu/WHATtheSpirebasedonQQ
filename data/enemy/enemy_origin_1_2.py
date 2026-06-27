@@ -921,8 +921,76 @@ class CenturionEnemy(PatternEnemy):
 def create_centurion():
     return CenturionEnemy()
 
-#elite
+# event
+# 蒙面强盗事件敌人
+POINTY_ATTACK = EnemyIntent(kind="attack", value=5, repeat=2)
+class PointyEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.pointy",
+            name="尖尖",
+            max_hp=30,
+            intent_cycle=[POINTY_ATTACK],
+        )
+def create_pointy():
+    return PointyEnemy()
 
+ROMEO_ORDER_BEAR = EnemyIntent(kind="wait", message="上啊，熊！")
+ROMEO_DEBUFF_ATTACK = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=10),
+        EnemyIntent(kind="status", target="player", status="weak", value=2),
+    ],
+)
+ROMEO_ATTACK = EnemyIntent(kind="attack", value=15)
+class RomeoEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.romeo",
+            name="罗密欧",
+            max_hp=random.randint(35, 39),
+            intent_cycle=[
+                ROMEO_ORDER_BEAR,
+                ROMEO_DEBUFF_ATTACK,
+                ROMEO_ATTACK,
+            ],
+            loop_start_index=1,
+        )
+def create_romeo():
+    return RomeoEnemy()
+
+BEAR_DEBUFF = EnemyIntent(kind="status", target="player", status="dexterity", value=-2)
+BEAR_ATTACK_BLOCK = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=9),
+        EnemyIntent(kind="block", value=9),
+    ],
+)
+BEAR_ATTACK = EnemyIntent(kind="attack", value=18)
+
+
+class BearEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.bear",
+            name="熊",
+            max_hp=random.randint(38, 42),
+            intent_cycle=[
+                BEAR_DEBUFF,
+                BEAR_ATTACK_BLOCK,
+                BEAR_ATTACK,
+            ],
+            loop_start_index=1,
+        )
+def create_bear():
+    return BearEnemy()
+
+#elite
 BOOK_OF_STABBING_B = EnemyIntent(
     kind="attack",
     value=21,

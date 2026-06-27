@@ -28,8 +28,9 @@ from game.event_bus import dispatch_event
 from game.player_state import PlayerState
 from game.relic_logic.bottle_utils import format_pending_bottle, has_pending_bottle_selection
 from game.relic_logic.run_relic_utils import (
-    format_pending_astrolabe, has_pending_astrolabe_selection, choose_pending_astrolabe_cards,
+    assign_new_card_master_uid, format_pending_astrolabe, has_pending_astrolabe_selection, choose_pending_astrolabe_cards,
     format_pending_empty_cage, has_pending_empty_cage_selection, choose_pending_empty_cage_cards,
+    ensure_card_master_uid
 )
 from game.route import build_route, find_next_node_by_column, get_next_nodes, format_route_text, get_reachable_columns_text
 from game.run_state import RunState
@@ -1047,6 +1048,50 @@ def process_post_battle_effects(run_state, rng=None):
                 elif reward == "nothing":
                     logs.append("尸体奖励：什么也没有。")
             continue
+        if effect_type == "arena_final_rewards":
+            from game.reward import get_available_relic_ids, RewardOption
+
+            def pick_relic_id_by_quantity(quantity):
+                candidates = []
+
+                for relic_id in get_available_relic_ids(run_state):
+                    try:
+                        relic = create_relic(relic_id)
+                    except Exception:
+                        continue
+
+                    if getattr(relic, "quantity", "") == quantity:
+                        candidates.append(relic_id)
+
+                return rng.choice(candidates) if candidates else ""
+
+            injections = list(getattr(run_state, "pending_reward_injections", []) or [])
+
+            for quantity, title_prefix in (
+                ("rare", "竞技场：稀有遗物"),
+                ("uncommon", "竞技场：罕见遗物"),
+            ):
+                relic_id = pick_relic_id_by_quantity(quantity)
+
+                if not relic_id:
+                    logs.append("竞技场奖励：没有可获得的{}遗物。".format(
+                        "稀有" if quantity == "rare" else "罕见"
+                    ))
+                    continue
+
+                relic = create_relic(relic_id)
+                injections.append(RewardOption(
+                    option_type="relic",
+                    title="{}：【{}】".format(title_prefix, relic.name),
+                    payload={
+                        "relic": relic,
+                        "source": "arena",
+                    },
+                ))
+
+            run_state.pending_reward_injections = injections
+            logs.append("竞技场奖励：额外遗物已加入战斗奖励。")
+            continue
 
     return logs
 
@@ -1097,6 +1142,31 @@ def finish_current_battle_if_needed(run_state):
     node_type = getattr(run_state, "current_battle_node_type", "") or "normal_enemy"
     if not node_type and current_node is not None:
         node_type = current_node.node_type
+
+    pending_post_battle_effects = list(getattr(run_state, "pending_post_battle_effects", []) or [])
+
+    if any(effect.get("type") == "arena_after_first" for effect in pending_post_battle_effects):
+        run_state.pending_post_battle_effects = []
+        run_state.pending_stolen_gold_rewards = []
+        run_state.current_battle = None
+        run_state.current_battle_node_type = ""
+
+        from game.node.node_event_1_2 import build_arena_after_first_event
+        from game.node.node_event_0 import format_event
+
+        run_state.pending_event = build_arena_after_first_event(run_state)
+
+        lines = ["第一场战斗胜利。"]
+
+        if battle_end_logs:
+            lines.append("")
+            lines.extend(battle_end_logs)
+
+        lines.append("")
+        lines.append(format_event(run_state))
+
+        return "\n".join(lines)
+
     run_state.mark_current_node_completed()
     run_state.current_battle = None
     run_state.current_battle_node_type = ""
@@ -1417,6 +1487,13 @@ def create_player_for_battle(run_state):
     根据 RunState 创建当前战斗用 PlayerState。
     每场战斗的抽牌堆来自 master_deck 的拷贝。
     """
+    seen_uids = set()
+    for card in getattr(run_state, "master_deck", []) or []:
+        uid = getattr(card, "_master_deck_uid", None)
+        if not uid or uid in seen_uids:
+            assign_new_card_master_uid(run_state, card)
+            uid = getattr(card, "_master_deck_uid", None)
+        seen_uids.add(uid)
     player = PlayerState(
         character_id=run_state.character_id,
         name=run_state.character_name,

@@ -76,6 +76,14 @@ class GameState:
     # 本场战斗已经打出过的牌对象，用于“第一次打出”类效果。
     played_card_keys_this_battle: set = field(default_factory=set)
 
+    # 本场战斗中，玩家因为自身行动造成的实际 HP 损失次数。
+    # 用于【渊蚀】这类只关心“自我代价”的效果。
+    player_self_action_hp_loss_count_this_battle: int = 0
+
+    # 本场战斗中，玩家因为自身行动造成的实际 HP 损失总量。
+    # 例如一次自伤 2 点，则 count +1，total +2。
+    player_self_action_hp_loss_total_this_battle: int = 0
+    
     # 本场战斗中，玩家 HP 实际减少的次数。
     # 每次 real_damage > 0 记 1 次，不按损失点数累计。
     player_life_loss_count_this_battle: int = 0

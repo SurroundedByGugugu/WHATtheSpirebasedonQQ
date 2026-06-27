@@ -21,6 +21,8 @@ from data.card.status_cards import (
     create_curse_of_the_bell,
     create_normality,
     create_necronomicurse,
+    create_shame,
+    create_writhe,
 )
 
 from data.card.colorless_cards import(
@@ -185,6 +187,9 @@ from data.card.character.yoirine_cards import (
     create_phantom_form,
     create_reminiscence,
     create_rockbound_wish,
+    create_abyssal_erosion,
+    create_brave_bird,
+    create_roost,
 )
 
 from data.card.character.lumine_cards import (
@@ -220,6 +225,8 @@ CARD_REGISTRY = {
     "card.curse.bell": create_curse_of_the_bell,
     "card.curse.normality": create_normality,
     "card.curse.necronomicurse": create_necronomicurse,
+    "card.curse.shame": create_shame,
+    "card.curse.writhe": create_writhe,
     #无色
     "card.soul": create_soul,
     "card.jax": create_jax,
@@ -376,6 +383,9 @@ CARD_REGISTRY = {
     "card.phantom_form": create_phantom_form,
     "card.reminiscence": create_reminiscence,
     "card.rockbound_wish": create_rockbound_wish,
+    "card.abyssal_erosion": create_abyssal_erosion,
+    "card.brave_bird": create_brave_bird,
+    "card.roost": create_roost,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.god_in_hand": create_god_in_hand,

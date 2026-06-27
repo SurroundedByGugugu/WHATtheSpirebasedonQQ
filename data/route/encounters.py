@@ -132,6 +132,10 @@ ENCOUNTER_TABLE = {
     "encounter.snake_plant_single": {"enemy_ids": ["enemy.snake_plant"]},
     "encounter.mystic_centurion": {"enemy_ids": ["enemy.centurion", "enemy.mystic"]},
 
+    "encounter.event.masked_bandits": {"enemy_ids": ["enemy.pointy", "enemy.romeo", "enemy.bear"]},
+    "encounter.event.arena_slavers_first": {"enemy_ids": ["enemy.blue_slaver", "enemy.red_slaver"]},
+    "encounter.event.arena_final": {"enemy_ids": ["enemy.taskmaster", "enemy.gremlin_nob"]},
+
     "encounter.elite.book_of_stabbing": {"enemy_ids": ["enemy.book_of_stabbing"]},
     "encounter.elite.gremlin_leader": {"enemy_ids": ["enemy.gremlin_leader"]},
     "encounter.elite.taskmaster_slavers": {"enemy_ids": ["enemy.red_slaver", "enemy.taskmaster", "enemy.blue_slaver"]},

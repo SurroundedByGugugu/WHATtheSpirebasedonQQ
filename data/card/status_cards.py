@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from data.card.base_card import CardTemplate
-from game.constants import KEYWORD_EXHAUST, KEYWORD_UNPLAYABLE, KEYWORD_ETHEREAL
+from game.constants import KEYWORD_EXHAUST, KEYWORD_UNPLAYABLE, KEYWORD_ETHEREAL, KEYWORD_INNATE
 
+# 状态
 def create_slime_i():
     return CardTemplate(
         card_id="card.status.slime_i",
@@ -93,6 +94,8 @@ def create_burn_ii():
         upgrade_patch={}
     )
 
+
+# 诅咒
 def create_regret():
     return CardTemplate(
         card_id="card.curse.regret",
@@ -240,3 +243,34 @@ def create_necronomicurse():
     setattr(card, "untransformable", True)
     setattr(card, "inescapable", True)
     return card
+
+def create_shame():
+    return CardTemplate(
+        card_id="card.curse.shame",
+        name="羞耻",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。在你的回合结束时，获得 1 层脆弱。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE],
+        upgraded=False,
+        upgrade_patch={},
+    )
+
+
+def create_writhe():
+    return CardTemplate(
+        card_id="card.curse.writhe",
+        name="苦恼",
+        card_type="curse",
+        cost=0,
+        target="none",
+        description="不能被打出。固有。",
+        quantity="curse",
+        effects=[],
+        keywords=[KEYWORD_UNPLAYABLE, KEYWORD_INNATE],
+        upgraded=False,
+        upgrade_patch={},
+    )

@@ -62,7 +62,9 @@ def apply_abyssal_form_hp_loss_if_needed(game_state, card, zone_element, logs):
         source=game_state.player,
         zone_element="shade",
         logs=logs,
-        label="深渊形态"
+        label="深渊形态",
+        card=card,
+        count_as_player_self_action_hp_loss=True
     )
 
 def iter_player_cards_by_piles(player, pile_names):
@@ -181,6 +183,17 @@ def resolve_amount(
         player = getattr(game_state, "player", None)
         draw_pile = getattr(player, "draw_pile", []) if player is not None else []
         value += len(draw_pile)
+    if amount_spec.get("player_self_action_hp_loss_total_this_battle", False):
+        loss_total = int(getattr(
+            game_state,
+            "player_self_action_hp_loss_total_this_battle",
+            0
+        ))
+        multiplier = int(amount_spec.get("multiplier", 1) or 1)
+        multiplier_var = amount_spec.get("multiplier_var")
+        if multiplier_var:
+            multiplier = int(card_vars.get(multiplier_var, multiplier))
+        value += loss_total * multiplier
 
     scaling_list = amount_spec.get("scaling", [])
     for scaling in scaling_list:
@@ -722,6 +735,67 @@ def handle_heal_player(game_state, card, effect, target_index, effect_context):
     from game.relic_logic.combat_relic_utils import heal_player_in_combat
     return heal_player_in_combat(game_state, amount, getattr(card, "name", "卡牌"))
 
+@register_effect("heal_player_by_max_hp_percent")
+def handle_heal_player_by_max_hp_percent(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    percent = float(effect.get("percent", 0.0) or 0.0)
+
+    amount = int(int(getattr(player, "max_hp", 0)) * percent)
+    if amount <= 0 and percent > 0:
+        amount = 1
+
+    from game.relic_logic.combat_relic_utils import heal_player_in_combat
+    return heal_player_in_combat(game_state, amount, getattr(card, "name", "卡牌"))
+
+
+@register_effect("brave_bird_self_cost")
+def handle_brave_bird_self_cost(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    from game.modifiers import get_status_value
+
+    flying = get_status_value(player, "flying")
+    if flying > 0:
+        current = player.statuses.add("flying", -1)
+        logs.append("【{}】消耗 1 层飞行，消去了自伤。当前飞行：{}。".format(
+            card.name,
+            current
+        ))
+        return logs
+
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    amount = int(amount)
+
+    if amount <= 0:
+        logs.append("【{}】没有造成自伤。".format(card.name))
+        return logs
+
+    logs.append("【{}】没有飞行保护，失去 {} 点生命。".format(
+        card.name,
+        amount
+    ))
+
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=player,
+        target=player,
+        amount=amount,
+        damage_kind="card_hp_loss",
+        card=card,
+        is_reaction_damage=False,
+        ignore_block=True,
+        count_as_player_self_action_hp_loss=True
+    ))
+
+    return logs
 
 @register_effect("shuffle_discard_into_draw")
 def handle_shuffle_discard_into_draw(game_state, card, effect, target_index, effect_context):
@@ -1605,6 +1679,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             old_value = int(card.card_vars.get(var_name, 0))
             new_value = old_value + int(increase)
             card.card_vars[var_name] = new_value
+            run_state = getattr(game_state, "run_state", None)
+            uid = getattr(card, "_master_deck_uid", None)
+
+            if run_state is not None and uid:
+                for master_card in getattr(run_state, "master_deck", []) or []:
+                    if getattr(master_card, "_master_deck_uid", None) == uid:
+                        master_card.card_vars[var_name] = new_value
+                        break
             logs.append("【{}】斩杀成功：{} 从 {} 增加到 {}。".format(
                 card.name,
                 var_name,
@@ -1833,7 +1915,11 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             damage_kind="life_loss",
             card=card,
             is_reaction_damage=False,
-            ignore_block=True
+            ignore_block=True,
+            count_as_player_self_action_hp_loss=(
+                target_entity is game_state.player
+                and bool(effect.get("count_as_player_self_action_hp_loss", True))
+            )
         ))
 
         return logs
@@ -3544,7 +3630,9 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         source=game_state.player,
         zone_element=card_zone_element,
         logs=logs,
-        label="阴 Zone"
+        label="阴 Zone",
+        card=card,
+        count_as_player_self_action_hp_loss=True
     )
     replay_extra = int(getattr(card, "replay_extra", 0))
     replay_extra += int(effect_context.get("replay_extra", 0))

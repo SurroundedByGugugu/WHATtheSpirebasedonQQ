@@ -508,7 +508,15 @@ def should_zone_thunder_make_all(game_state, zone_element):
     return normalize_element(zone_element) == "thunder" and get_active_zone(game_state) is not None
 
 
-def apply_zone_source_hp_loss_if_needed(game_state, source, zone_element, logs, label="Zone"):
+def apply_zone_source_hp_loss_if_needed(
+    game_state,
+    source,
+    zone_element,
+    logs,
+    label="Zone",
+    card=None,
+    count_as_player_self_action_hp_loss=False
+):
     zone_element = normalize_element(zone_element)
     if zone_element != "shade":
         return
@@ -529,8 +537,9 @@ def apply_zone_source_hp_loss_if_needed(game_state, source, zone_element, logs, 
         target=source,
         amount=amount,
         damage_kind="hp_loss",
-        card=None,
-        ignore_block=True
+        card=card,
+        ignore_block=True,
+        count_as_player_self_action_hp_loss=count_as_player_self_action_hp_loss
     ))
 
 

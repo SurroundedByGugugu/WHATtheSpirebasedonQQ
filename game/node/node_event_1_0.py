@@ -34,7 +34,6 @@ def get_event_builders(run_state, seed=None, source_node_type="event"):
     第 x 层实际事件池 = 本文件通用事件 + node_event_1_x.py 本层专属事件。
     """
     builders = [
-        build_nloth_event,
         build_designer_event,
         build_duplicator_event,
         build_forge_event,
@@ -64,44 +63,6 @@ def get_event_builders(run_state, seed=None, source_node_type="event"):
     return builders
 
 
-def build_nloth_event(run_state, rng=None, seed=None, source_node_type="event"):
-    if rng is None:
-        rng = random.Random(seed)
-
-    relics = list(getattr(run_state, "relics", []) or [])
-    indices = list(range(len(relics)))
-    rng.shuffle(indices)
-    chosen = indices[:2]
-
-    choices = []
-    for relic_index in chosen:
-        relic = relics[relic_index]
-        choices.append(EventChoice(
-            "交出：【{}】。失去这件遗物。获得一件特别的遗物。".format(getattr(relic, "name", "遗物")),
-            "nloth_relic",
-            payload={"relic_index": relic_index},
-        ))
-    choices.append(EventChoice("离开。", "leave"))
-
-    if not chosen:
-        description = (
-            "一个驼着背、背后长出几条触手的奇怪生物正在你面前的垃圾堆和废墟里翻找。\n"
-            "“恩洛斯好饿，喂喂恩洛斯。”\n"
-            "但你身上没有能喂给他的遗物。"
-        )
-    else:
-        description = (
-            "一个驼着背、背后长出几条触手的奇怪生物正在你面前的垃圾堆和废墟里翻找。\n"
-            "当你靠近时，他可怜巴巴地拖着脚走到了你面前。\n"
-            "“恩洛斯好饿，喂喂恩洛斯。”"
-        )
-
-    return EventState(
-        title="恩洛斯",
-        event_id=EVENT_NLOTH,
-        description=description,
-        choices=choices,
-    )
 
 def build_holy_water_event(run_state, rng=None, seed=None, source_node_type="event"):
     return EventState(
@@ -293,7 +254,6 @@ def build_blue_woman_event(run_state, rng=None, seed=None, source_node_type="eve
 
 def _mark_event_builder_ids():
     mapping = {
-        build_nloth_event: EVENT_NLOTH,
         build_holy_water_event: EVENT_HOLY_WATER,
         build_designer_event: EVENT_DESIGNER,
         build_duplicator_event: EVENT_DUPLICATOR,
