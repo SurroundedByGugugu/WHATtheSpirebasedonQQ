@@ -183,6 +183,8 @@ from data.card.character.yoirine_cards import (
     create_crystal_thorns,
     create_abyssal_form,
     create_phantom_form,
+    create_reminiscence,
+    create_rockbound_wish,
 )
 
 from data.card.character.lumine_cards import (
@@ -372,6 +374,8 @@ CARD_REGISTRY = {
     "card.crystal_thorns": create_crystal_thorns,
     "card.abyssal_form": create_abyssal_form,
     "card.phantom_form": create_phantom_form,
+    "card.reminiscence": create_reminiscence,
+    "card.rockbound_wish": create_rockbound_wish,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.god_in_hand": create_god_in_hand,

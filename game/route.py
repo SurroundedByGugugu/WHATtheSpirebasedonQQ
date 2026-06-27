@@ -67,21 +67,49 @@ def is_grid_route(run_state):
     return False
 
 
-def get_floor_nodes(route_nodes, floor):
-    nodes = [
-        node for node in route_nodes
-        if getattr(node, "floor", -1) == floor
-    ]
+def get_node_act(node):
+    node_id = getattr(node, "node_id", "")
+    if not isinstance(node_id, str) or not node_id.startswith("act"):
+        return 1
+    digits = []
+    for ch in node_id[3:]:
+        if ch.isdigit():
+            digits.append(ch)
+        else:
+            break
+    if not digits:
+        return 1
+    return int("".join(digits))
+
+
+def get_current_route_act(run_state):
+    node = run_state.get_current_node() if run_state is not None else None
+    if node is None:
+        return 1
+    return get_node_act(node)
+
+
+def get_floor_nodes(route_nodes, floor, act=None):
+    nodes = []
+    for node in route_nodes:
+        if getattr(node, "floor", -1) != floor:
+            continue
+        if act is not None and get_node_act(node) != int(act):
+            continue
+        nodes.append(node)
     nodes.sort(key=lambda node: getattr(node, "col", -1))
     return nodes
 
 
-def get_max_floor(route_nodes):
-    floors = [
-        getattr(node, "floor", -1)
-        for node in route_nodes
-        if getattr(node, "floor", -1) >= 0
-    ]
+def get_max_floor(route_nodes, act=None):
+    floors = []
+    for node in route_nodes:
+        floor = getattr(node, "floor", -1)
+        if floor < 0:
+            continue
+        if act is not None and get_node_act(node) != int(act):
+            continue
+        floors.append(floor)
     if not floors:
         return -1
     return max(floors)
@@ -120,13 +148,15 @@ def node_type_display_text(node, run_state=None):
         "shop": "商店",
         "rest": "火堆",
         "treasure": "宝箱",
+        "boss_empty": "Boss（未实现）",
     }
     return mapping.get(node_type, node_type)
 
 
 def format_floor_line(run_state, floor, reachable_node_ids=None, show_reachability=False):
     route_nodes = getattr(run_state, "route_nodes", [])
-    nodes = get_floor_nodes(route_nodes, floor)
+    current_act = get_current_route_act(run_state) if run_state is not None else None
+    nodes = get_floor_nodes(route_nodes, floor, act=current_act)
 
     if not nodes:
         return "第 {} 层：无".format(floor)
@@ -195,7 +225,8 @@ def format_grid_route_text(run_state):
 
     current_floor = getattr(current_node, "floor", -1)
     current_col = getattr(current_node, "col", -1)
-    max_floor = get_max_floor(run_state.route_nodes)
+    current_act = get_current_route_act(run_state)
+    max_floor = get_max_floor(run_state.route_nodes, act=current_act)
 
     if current_floor == 0:
         lines.append("地图进度：第 0 / {} 层".format(max_floor))
@@ -235,7 +266,7 @@ def format_grid_route_text(run_state):
 
     preview_lines = []
     for preview_floor in range(next_floor + 1, min(next_floor + 3, max_floor) + 1):
-        preview_nodes = get_floor_nodes(run_state.route_nodes, preview_floor)
+        preview_nodes = get_floor_nodes(run_state.route_nodes, preview_floor, act=current_act)
         if not preview_nodes:
             continue
         preview_lines.append(format_floor_line(

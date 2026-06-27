@@ -42,6 +42,7 @@ STATUS_EVENT_PRIORITY = {
     "confusion": 14,
     "hex": 14,
     "entangled": 13,
+    "pain_stab": 12,
     "rage": 12,
     "anger": 12,
     "enrage": 12,
@@ -51,6 +52,7 @@ STATUS_EVENT_PRIORITY = {
     "flex": 11,
     "temporary_dexterity_loss": 10,
     "crystal_cocoon": 10,
+    "reminiscence": 10,
     "abyssal_form": 10,
     "phantom_form": 10,
     "no_draw": 9,
@@ -1855,6 +1857,53 @@ def handle_malleable(event_name, context, owner, value):
 
     return logs
 
+def handle_pain_stab(event_name, context, owner, value):
+    """
+    疼痛戳刺：
+    每当 owner 对玩家造成未被格挡的攻击伤害时，
+    向玩家弃牌堆加入 X 张【伤口】。
+    X = 疼痛戳刺层数。
+    """
+    logs = []
+
+    if event_name != EVENT_DAMAGE_AFTER:
+        return logs
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    game_state = context.game_state
+    player = game_state.player
+
+    if context.source is not owner:
+        return logs
+
+    if context.target is not player:
+        return logs
+
+    if context.extra.get("damage_kind") != "attack":
+        return logs
+
+    if context.extra.get("is_reaction_damage"):
+        return logs
+
+    real_damage = int(context.extra.get("real_damage", 0))
+    if real_damage <= 0:
+        return logs
+
+    count = int(value)
+    if count <= 0:
+        return logs
+    from data.card.AAAregistry import create_card
+
+    for _ in range(count):
+        player.discard_pile.append(create_card("card.status.wound"))
+    logs.append("{} 的疼痛戳刺触发，向你的弃牌堆加入 {} 张【伤口】。".format(
+        owner.name,
+        count
+    ))
+    return logs
+
 def handle_vigor(event_name, context, owner, value):
     logs = []
     if event_name != EVENT_CARD_PLAY_AFTER:
@@ -1900,6 +1949,45 @@ def handle_crystal_cocoon(event_name, context, owner, value):
 
     return logs
 
+def handle_reminiscence(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_TURN_START:
+        return logs
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    if owner is not context.game_state.player:
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    zone = getattr(context.game_state, "active_zone", None)
+    if zone is None:
+        return logs
+
+    from game.zone_utils import normalize_element
+    zone_element = normalize_element(getattr(zone, "element", ""))
+
+    if zone_element != "crystal":
+        return logs
+
+    logs.append("{} 的追思触发，晶 Zone 下额外抽 {} 张牌。".format(
+        owner.name,
+        amount
+    ))
+
+    logs.extend(draw_cards_from_status(
+        context=context,
+        owner=owner,
+        count=amount,
+        status_key="reminiscence"
+    ))
+
+    return logs
 
 def handle_plated_armor(event_name, context, owner, value):
     logs = []
@@ -2123,9 +2211,11 @@ STATUS_EVENT_HANDLERS = {
     "sharp_hide": handle_sharp_hide,
     "vigor": handle_vigor,
     "crystal_cocoon": handle_crystal_cocoon,
+    "reminiscence": handle_reminiscence,
     "magnetism": handle_magnetism,
     "mayhem": handle_mayhem,
     "omega": handle_omega,
     "panache": handle_panache,
     "the_bomb": handle_the_bomb,
+    "pain_stab": handle_pain_stab,
 }

@@ -3415,6 +3415,107 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
     logs.append("未知效果：{}".format(op))
     return logs
 
+@register_effect("exhaust_status_and_curse_hand_gain_stats")
+def handle_exhaust_status_and_curse_hand_gain_stats(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    cards_to_exhaust = [
+        hand_card
+        for hand_card in list(getattr(player, "hand", []) or [])
+        if getattr(hand_card, "card_type", "") in ("status", "curse")
+    ]
+
+    if not cards_to_exhaust:
+        logs.append("没有可消耗的状态牌或诅咒牌。")
+        return logs
+
+    from game.engine import move_card_to_exhaust_pile
+
+    exhausted_count = 0
+    exhausted_names = []
+
+    for hand_card in cards_to_exhaust:
+        if hand_card not in player.hand:
+            continue
+
+        player.hand.remove(hand_card)
+        exhausted_names.append(hand_card.name)
+        exhausted_count += 1
+
+        logs.extend(move_card_to_exhaust_pile(
+            game_state=game_state,
+            card=hand_card,
+            reason="rockbound_wish"
+        ))
+
+        if game_state.battle_over:
+            return logs
+
+    if exhausted_count <= 0:
+        logs.append("没有实际消耗任何状态牌或诅咒牌。")
+        return logs
+
+    hp_divisor = int(effect.get("hp_divisor", 2) or 2)
+    stat_divisor = int(effect.get("stat_divisor", 4) or 4)
+
+    if hp_divisor <= 0:
+        hp_divisor = 2
+    if stat_divisor <= 0:
+        stat_divisor = 4
+
+    # 按当前工程常见写法使用整数除法向下取整。
+    hp_loss = exhausted_count // hp_divisor
+
+    # 力量和敏捷在消耗数量 > 0 时保底 1。
+    stat_gain = exhausted_count // stat_divisor
+    if stat_gain < 1:
+        stat_gain = 1
+
+    logs.append("【{}】消耗了 {} 张状态牌/诅咒牌：{}。".format(
+        card.name,
+        exhausted_count,
+        "、".join(exhausted_names)
+    ))
+
+    if hp_loss > 0:
+        from game.damage import deal_damage
+
+        logs.append("【{}】使 {} 失去 {} 点生命。".format(
+            card.name,
+            player.name,
+            hp_loss
+        ))
+
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=player,
+            target=player,
+            amount=hp_loss,
+            damage_kind="life_loss",
+            card=card,
+            is_reaction_damage=False,
+            ignore_block=True
+        ))
+
+        if game_state.battle_over or not player.is_alive():
+            return logs
+    else:
+        logs.append("【{}】本次生命损失为 0。".format(card.name))
+
+    current_strength = player.gain_status("strength", stat_gain)
+    current_dexterity = player.gain_status("dexterity", stat_gain)
+
+    logs.append("【{}】获得 {} 点力量和 {} 点敏捷。当前力量：{}，敏捷：{}。".format(
+        card.name,
+        stat_gain,
+        stat_gain,
+        current_strength,
+        current_dexterity
+    ))
+
+    return logs
+
 def apply_card_effects(game_state, card, target_index, effect_context=None):
     logs = []
 

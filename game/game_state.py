@@ -100,11 +100,54 @@ class GameState:
     def is_all_enemies_dead(self):
         return len(self.get_alive_enemies()) == 0
 
+    def counter_relics_text(self):
+        relics = getattr(self.player, "relics", []) or []
+        if not relics:
+            return ""
+
+        lines = []
+        for relic in relics:
+            relic_id = getattr(relic, "relic_id", "")
+            name = getattr(relic, "name", "遗物")
+
+            if relic_id == "relic.incense_burner":
+                count = int(getattr(relic, "turn_counter", 0) or 0)
+                lines.append("{} {}/6".format(name, count % 6))
+            elif relic_id == "relic.happy_flower":
+                count = int(getattr(relic, "turn_counter", 0) or 0)
+                lines.append("{} {}/3".format(name, count % 3))
+            elif relic_id == "relic.letter_opener":
+                counts = getattr(self, "player_card_type_played_counts_this_turn", {}) or {}
+                count = int(counts.get("skill", 0) or 0)
+                lines.append("{} 本回合技能 {}/3".format(name, count % 3))
+            elif relic_id == "relic.ink_bottle":
+                count = int(getattr(relic, "card_count", 0) or 0)
+                lines.append("{} {}/10".format(name, count % 10))
+            elif relic_id == "relic.pen_nib":
+                count = int(getattr(relic, "attack_count", 0) or 0)
+                lines.append("{} 攻击 {}/10".format(name, count % 10))
+            elif relic_id == "relic.nunchaku":
+                count = int(getattr(relic, "attack_count", 0) or 0)
+                lines.append("{} 攻击 {}/10".format(name, count % 10))
+            elif relic_id == "relic.sundial":
+                count = int(getattr(relic, "shuffle_count", 0) or 0)
+                lines.append("{} 洗牌 {}/3".format(name, count % 3))
+            elif relic_id == "relic.keystone_of_the_tomb":
+                count = int(getattr(relic, "skill_play_count", 0) or 0)
+                lines.append("{} 技能 {}/6（总 {}）".format(name, count % 6, count))
+
+        if not lines:
+            return ""
+        return "遗物计数：" + "；".join(lines)
+
     def status_text(self):
         lines = []
         lines.append("=== 战斗状态 ===")
         lines.append("回合：{}".format(self.turn_count))
         lines.append(self.player.status_text())
+        counter_text = self.counter_relics_text()
+        if counter_text:
+            lines.append(counter_text)
 
         lines.append("")
         lines.append("敌人：")

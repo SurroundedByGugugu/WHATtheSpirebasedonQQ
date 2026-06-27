@@ -15,7 +15,7 @@ from game.deck_utils import remove_card_from_master_deck, transform_card_in_mast
 from game.node.node_rest import get_upgradable_cards
 from game.relic_logic.bottle_utils import copy_bottled_flags, strip_bottled_flags
 from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics, gain_gold_with_relics, try_block_curse_with_omamori, heal_run_hp_with_relics
-from game.reward import get_available_relic_ids
+from game.reward import get_available_relic_ids, create_potion_reward_state, record_reward_options_offered
 
 
 @dataclass
@@ -286,11 +286,41 @@ def add_random_potion_to_run(run_state, rng):
     return "\n".join(try_gain_potion_with_relics(run_state, potion, source="事件"))
 
 
-def add_random_potions_to_run(run_state, rng, count):
-    logs = []
+def roll_random_potions_for_event(run_state, rng, count):
+    from data.potion.AAAregistry import create_potion
+    from game.reward import roll_potion_id_by_rarity
+
+    potions = []
     for _ in range(int(count)):
-        logs.append(add_random_potion_to_run(run_state, rng))
-    return logs
+        potion_id = roll_potion_id_by_rarity(rng, run_state=run_state, include_event=False)
+        if potion_id:
+            potions.append(create_potion(potion_id))
+    return potions
+
+
+def add_random_potions_to_run(run_state, rng, count):
+    """事件给药水时进入标准奖励流程，允许药水栏满时替换。"""
+    potions = roll_random_potions_for_event(run_state, rng, count)
+    if not potions:
+        return ["没有可获得的药水。"]
+
+    reward_state = create_potion_reward_state(
+        potions,
+        node_type="event",
+        title_prefix="事件药水"
+    )
+    if not reward_state.options:
+        return ["没有可获得的药水。"]
+
+    # 事件一般在完成前不会已有 pending_reward；这里仍做兼容：若已有奖励则追加。
+    if getattr(run_state, "pending_reward", None) is not None:
+        run_state.pending_reward.options.extend(reward_state.options)
+        record_reward_options_offered(run_state, reward_state)
+    else:
+        run_state.pending_reward = reward_state
+        record_reward_options_offered(run_state, reward_state)
+
+    return ["获得 {} 瓶药水，已加入待领取奖励。".format(len(reward_state.options))]
 
 
 def upgrade_random_cards(run_state, rng, count):

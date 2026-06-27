@@ -10,7 +10,7 @@ from data.relic.AAAregistry import create_relics, create_relic
 from data.potion.AAAregistry import create_potions
 from game.command_help import command_tip
 # from data.route.route_templates import TEST_ROUTE
-from data.route.route_templates import generate_act1_grid_route
+from data.route.route_templates import generate_act1_grid_route, generate_act2_grid_route
 
 from data.route.encounters import (
     ENCOUNTER_TABLE,
@@ -196,8 +196,12 @@ def prepare_visible_boss_for_route(run_state, seed=DEBUG_SEED):
             "boss",
             seed=seed
         ))
-        encounter_id = pick_encounter_id_by_node_type("boss", rng)
-
+        pool_suffix = get_encounter_pool_suffix_for_node(boss_nodes[0])
+        encounter_id = pick_encounter_id_by_node_type(
+            "boss",
+            rng,
+            pool_suffix=pool_suffix
+        )
     for node in boss_nodes:
         node.encounter_id = encounter_id
 
@@ -433,6 +437,14 @@ def enter_current_node(run_state, seed=DEBUG_SEED):
         result = enter_ancient_node(run_state, node, seed=seed)
     elif node.node_type == "treasure":
         result = enter_treasure_node(run_state, node, seed=seed)
+    elif node.node_type == "boss_empty":
+        run_state.mark_current_node_completed()
+        run_state.run_over = True
+        run_state.victory = True
+        result = "进入路线节点：{} ({})\n\n二层 Boss 还没有实现，当前版本到此为止。".format(
+            node.name,
+            node.node_type
+        )
     else:
         result = "进入节点：{}。当前节点类型 {} 暂未实现。".format(
             node.name,
@@ -868,6 +880,14 @@ def pick_replacement_encounter_id(run_state, effective_node_type, rng):
     return pick_encounter_id_by_node_type(pick_type, rng, seen)
 
 
+
+def get_encounter_pool_suffix_for_node(node):
+    act = get_route_act_from_node(node)
+    # 当前数据文件中二层遭遇池沿用 1_2 后缀命名。
+    if act >= 2:
+        return "1_2"
+    return None
+
 def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_SEED):
     """
     根据实际战斗类型选择 encounter。
@@ -883,6 +903,7 @@ def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_S
         effective_node_type,
         seed=seed
     ))
+    pool_suffix = get_encounter_pool_suffix_for_node(node)
 
     fixed_encounter_id = getattr(node, "fixed_encounter_id", "")
     if fixed_encounter_id:
@@ -894,25 +915,33 @@ def get_encounter_id_for_node(run_state, node, effective_node_type, seed=DEBUG_S
         if node.node_type != "mystery" and getattr(node, "encounter_id", ""):
             if is_content_enabled("encounter", node.encounter_id):
                 return node.encounter_id
-            return pick_encounter_id_by_node_type("starting", rng, get_seen_encounter_ids(run_state, effective_node_type))
-        return pick_encounter_id_by_node_type("starting", rng, get_seen_encounter_ids(run_state, effective_node_type))
+            return pick_encounter_id_by_node_type("starting", rng, get_seen_encounter_ids(run_state, effective_node_type), pool_suffix=pool_suffix)
+        return pick_encounter_id_by_node_type("starting", rng, get_seen_encounter_ids(run_state, effective_node_type), pool_suffix=pool_suffix)
 
     if effective_node_type == "elite":
-        return pick_encounter_id_by_node_type("elite", rng, get_seen_encounter_ids(run_state, effective_node_type))
+        return pick_encounter_id_by_node_type("elite", rng, get_seen_encounter_ids(run_state, effective_node_type), pool_suffix=pool_suffix)
 
     if effective_node_type == "boss":
         if getattr(node, "encounter_id", ""):
             if is_content_enabled("encounter", node.encounter_id):
                 return node.encounter_id
-            return pick_encounter_id_by_node_type("boss", rng)
-        return pick_encounter_id_by_node_type("boss", rng)
+            return pick_encounter_id_by_node_type(
+                "boss",
+                rng,
+                pool_suffix=pool_suffix
+            )
+        return pick_encounter_id_by_node_type(
+            "boss",
+            rng,
+            pool_suffix=pool_suffix
+        )
 
     if effective_node_type == "normal_enemy":
         if node.node_type != "mystery" and getattr(node, "encounter_id", ""):
             if is_content_enabled("encounter", node.encounter_id):
                 return node.encounter_id
-            return pick_encounter_id_by_node_type("normal_enemy", rng, get_seen_encounter_ids(run_state, effective_node_type))
-        return pick_encounter_id_by_node_type("normal_enemy", rng, get_seen_encounter_ids(run_state, effective_node_type))
+            return pick_encounter_id_by_node_type("normal_enemy", rng, get_seen_encounter_ids(run_state, effective_node_type), pool_suffix=pool_suffix)
+        return pick_encounter_id_by_node_type("normal_enemy", rng, get_seen_encounter_ids(run_state, effective_node_type), pool_suffix=pool_suffix)
 
     if getattr(node, "encounter_id", ""):
         if is_content_enabled("encounter", node.encounter_id):
@@ -1417,6 +1446,94 @@ def get_after_reward_text(run_state):
     return complete_current_node(run_state)
 
 
+
+def get_route_act_from_node(node):
+    node_id = getattr(node, "node_id", "")
+    if not isinstance(node_id, str) or not node_id.startswith("act"):
+        return 1
+    digits = []
+    for ch in node_id[3:]:
+        if ch.isdigit():
+            digits.append(ch)
+        else:
+            break
+    if not digits:
+        return 1
+    return int("".join(digits))
+
+
+def has_route_act(run_state, act):
+    prefix = "act{}.".format(int(act))
+    return any(
+        isinstance(getattr(node, "node_id", ""), str)
+        and getattr(node, "node_id", "").startswith(prefix)
+        for node in getattr(run_state, "route_nodes", []) or []
+    )
+
+
+def get_post_boss_heal_ratio(run_state):
+    ratio = float(getattr(run_state, "post_boss_heal_ratio", 1.0) or 0.0)
+    for relic in getattr(run_state, "relics", []) or []:
+        modifier = getattr(relic, "modify_post_boss_heal_ratio", None)
+        if modifier is None:
+            continue
+        try:
+            ratio = float(modifier(ratio, run_state=run_state))
+        except TypeError:
+            ratio = float(modifier(ratio))
+    if ratio < 0.0:
+        ratio = 0.0
+    if ratio > 1.0:
+        ratio = 1.0
+    return ratio
+
+
+def apply_post_boss_act_heal(run_state):
+    import math
+    ratio = get_post_boss_heal_ratio(run_state)
+    old_hp = int(getattr(run_state, "hp", 0) or 0)
+    max_hp = int(getattr(run_state, "max_hp", 0) or 0)
+    if max_hp <= 0:
+        return "Boss 后回复：最大生命异常，未处理。"
+    target_hp = int(math.ceil(max_hp * ratio))
+    if ratio >= 1.0:
+        target_hp = max_hp
+    if target_hp < 1:
+        target_hp = 1
+    run_state.hp = max(old_hp, min(max_hp, target_hp))
+    if ratio >= 1.0:
+        return "进入下一层前回复生命：{} -> {}（满血）。".format(old_hp, run_state.hp)
+    return "进入下一层前回复生命：{} -> {}（{}% 最大生命）。".format(
+        old_hp,
+        run_state.hp,
+        int(round(ratio * 100))
+    )
+
+
+def advance_to_next_act_after_boss_if_needed(run_state, current_node):
+    """Boss 奖励结算完后，若当前是一层 Boss，追加并进入二层路线。"""
+    if current_node is None:
+        return ""
+    if getattr(current_node, "node_type", "") != "boss":
+        return ""
+    current_act = get_route_act_from_node(current_node)
+    if current_act != 1:
+        return ""
+    next_act = current_act + 1
+    if not has_route_act(run_state, next_act):
+        seed = int(getattr(run_state, "run_seed", 0) or 0) + next_act * 100000
+        run_state.route_nodes.extend(build_route(generate_act2_grid_route(seed=seed)))
+    run_state.current_node_id = "act{}.floor00".format(next_act)
+    run_state.boss_encounter_id = ""
+    run_state.boss_name = ""
+    heal_text = apply_post_boss_act_heal(run_state)
+    entry_text = enter_current_node(run_state, seed=getattr(run_state, "run_seed", DEBUG_SEED))
+    return "\n\n".join([
+        "Boss 已击败，通往下一层的道路打开了。",
+        heal_text,
+        entry_text,
+    ])
+
 def complete_current_node(run_state):
     """
     所有节点完成后的统一出口。
@@ -1433,6 +1550,15 @@ def complete_current_node(run_state):
     next_nodes = get_next_nodes(run_state.route_nodes, current_node)
 
     if not next_nodes:
+        next_act_text = advance_to_next_act_after_boss_if_needed(run_state, current_node)
+        if next_act_text:
+            return next_act_text
+
+        if getattr(current_node, "node_type", "") == "boss_empty":
+            run_state.run_over = True
+            run_state.victory = True
+            return "二层 Boss 还没有实现，当前版本到此为止。"
+
         run_state.run_over = True
         run_state.victory = True
 
@@ -1620,6 +1746,13 @@ def handle_event_option(run_state, choice_index, seed=DEBUG_SEED):
         ])
 
     if done:
+        if run_state.pending_reward is not None:
+            run_state.pending_event = None
+            return "\n".join([
+                text,
+                "",
+                run_state.pending_reward.reward_text()
+            ])
         return "\n".join([
             text,
             "",

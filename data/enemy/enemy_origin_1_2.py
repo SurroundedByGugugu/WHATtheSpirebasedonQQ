@@ -920,3 +920,838 @@ class CenturionEnemy(PatternEnemy):
         self._locked_intent = None
 def create_centurion():
     return CenturionEnemy()
+
+#elite
+
+BOOK_OF_STABBING_B = EnemyIntent(
+    kind="attack",
+    value=21,
+)
+class BookOfStabbingEnemy(PatternEnemy):
+    """
+    扎人的书 Book of Stabbing。
+
+    战斗开始自带疼痛戳刺：
+    - 每当它对玩家造成未被格挡的攻击伤害时，
+      向玩家弃牌堆加入 1 张【伤口】。
+
+    a：造成 6 × n 点伤害。
+       n = 本次战斗中使用过 b 的次数 + 2。
+       具体实现为 6 点伤害重复 n 次。
+       权重 85%，不能连续使用三次。
+
+    b：造成 21 点伤害。
+       权重 15%，不能连续使用两次。
+    """
+
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.book_of_stabbing",
+            name="扎人的书",
+            max_hp=random.randint(160, 162),
+            intent_cycle=[BOOK_OF_STABBING_B],
+        )
+        self.statuses.set("pain_stab", 1)
+        self._book_history = []
+        self._book_b_count = 0
+        self._locked_book_key = None
+
+    def _make_book_a_intent(self):
+        n = int(self._book_b_count) + 2
+        return EnemyIntent(
+            kind="attack",
+            value=6,
+            repeat=n,
+        )
+
+    def _choose_book_key(self):
+        weighted = [
+            (85, "a"),
+            (15, "b"),
+        ]
+
+        history = self._book_history
+        candidates = []
+
+        for weight, key in weighted:
+            if key == "a" and len(history) >= 2 and history[-2:] == ["a", "a"]:
+                continue
+            if key == "b" and len(history) >= 1 and history[-1] == "b":
+                continue
+            candidates.append((weight, key))
+
+        if not candidates:
+            candidates = weighted
+
+        keys = [item[1] for item in candidates]
+        weights = [item[0] for item in candidates]
+        return random.choices(keys, weights=weights, k=1)[0]
+
+    def _intent_by_key(self, key):
+        if key == "a":
+            return self._make_book_a_intent()
+        if key == "b":
+            return BOOK_OF_STABBING_B
+        return self._make_book_a_intent()
+
+    def get_current_intent(self):
+        if self._locked_intent is None:
+            self._locked_book_key = self._choose_book_key()
+            self._locked_intent = self._intent_by_key(self._locked_book_key)
+        return self._locked_intent
+
+    def advance_intent(self):
+        key = self._locked_book_key
+
+        if key:
+            self._book_history.append(key)
+            self._book_history = self._book_history[-3:]
+
+        if key == "b":
+            self._book_b_count += 1
+
+        self._locked_book_key = None
+        self._locked_intent = None
+def create_book_of_stabbing():
+    return BookOfStabbingEnemy()
+
+GREMLIN_LEADER_A = EnemyIntent(
+    kind="gremlin_leader_rally",
+    value=3,
+    count=6,
+)
+GREMLIN_LEADER_B = EnemyIntent(
+    kind="attack",
+    value=6,
+    repeat=3,
+)
+GREMLIN_LEADER_C = EnemyIntent(
+    kind="summon_gremlins",
+    count=2,
+)
+class GremlinLeaderEnemy(PatternEnemy):
+    """
+    地精首领 Gremlin Leader。
+
+    a：所有敌人获得 3 点力量，所有爪牙获得 6 点格挡。
+    b：造成 6 点伤害 3 次。
+    c：召唤随机两只地精，召唤物带有爪牙效果。
+
+    行动逻辑：
+    - 若场上没有其他敌人：75% c，25% b
+    - 若场上仅 1 名其他敌人：
+      - a 后：50% b，50% c
+      - b 后：62.5% c，37.5% a
+      - 其他情况：50% b，50% c
+    - 若场上有 >=2 名其他敌人：66% a，34% b
+    """
+
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.gremlin_leader",
+            name="地精首领",
+            max_hp=random.randint(140, 148),
+            intent_cycle=[GREMLIN_LEADER_B],
+        )
+        self._gremlin_leader_history = []
+        self._locked_gremlin_leader_key = None
+
+    def _alive_other_count(self, game_state):
+        if game_state is None:
+            return 0
+
+        count = 0
+        for target in getattr(game_state, "enemies", []) or []:
+            if target is self:
+                continue
+            if target.is_alive():
+                count += 1
+        return count
+
+    def _choose_gremlin_leader_key(self, game_state=None):
+        other_count = self._alive_other_count(game_state)
+        last = self._gremlin_leader_history[-1] if self._gremlin_leader_history else None
+
+        if other_count <= 0:
+            return random.choices(
+                ["c", "b"],
+                weights=[75, 25],
+                k=1
+            )[0]
+
+        if other_count == 1:
+            if last == "a":
+                return random.choice(["b", "c"])
+
+            if last == "b":
+                return random.choices(
+                    ["c", "a"],
+                    weights=[62.5, 37.5],
+                    k=1
+                )[0]
+
+            return random.choice(["b", "c"])
+
+        return random.choices(
+            ["a", "b"],
+            weights=[66, 34],
+            k=1
+        )[0]
+
+    def _intent_by_key(self, key):
+        if key == "a":
+            return GREMLIN_LEADER_A
+        if key == "b":
+            return GREMLIN_LEADER_B
+        if key == "c":
+            return GREMLIN_LEADER_C
+        return GREMLIN_LEADER_B
+
+    def _lock_intent_if_needed(self, game_state=None):
+        if self._locked_intent is None:
+            self._locked_gremlin_leader_key = self._choose_gremlin_leader_key(game_state)
+            self._locked_intent = self._intent_by_key(self._locked_gremlin_leader_key)
+
+    def get_current_intent(self):
+        self._lock_intent_if_needed(getattr(self, "_current_game_state", None))
+        return self._locked_intent
+
+    def get_intent_text(self, game_state=None):
+        if not self.is_alive():
+            return "已经走了有一会了"
+
+        self._lock_intent_if_needed(game_state)
+
+        if game_state is not None:
+            from game.intent_preview import format_enemy_intent_text
+            return format_enemy_intent_text(game_state, self)
+
+        return self._locked_intent.to_text()
+
+    def act(self):
+        self._lock_intent_if_needed(getattr(self, "_current_game_state", None))
+        return super(GremlinLeaderEnemy, self).act()
+
+    def advance_intent(self):
+        key = self._locked_gremlin_leader_key
+
+        if key:
+            self._gremlin_leader_history.append(key)
+            self._gremlin_leader_history = self._gremlin_leader_history[-3:]
+
+        self._locked_gremlin_leader_key = None
+        self._locked_intent = None
+def create_gremlin_leader():
+    return GremlinLeaderEnemy()
+
+TASKMASTER_A = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=7),
+        EnemyIntent(
+            kind="add_card_to_discard",
+            card_id="card.status.wound",
+            count=1,
+        ),
+    ],
+)
+class TaskmasterEnemy(PatternEnemy):
+    """
+    奴隶头子 Taskmaster。
+
+    行动固定：
+    - 造成 7 点伤害，并向玩家弃牌堆加入 1 张【伤口】。
+    """
+
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.taskmaster",
+            name="奴隶头子",
+            max_hp=random.randint(54, 60),
+            intent_cycle=[TASKMASTER_A],
+        )
+def create_taskmaster():
+    return TaskmasterEnemy()
+
+#boss
+CHAMP_DEFENSE = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="block", value=15),
+        EnemyIntent(kind="status", target="self", status="metallicize", value=5),
+    ],
+)
+CHAMP_FACE_SLAP = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=12),
+        EnemyIntent(kind="status", target="player", status="frail", value=2),
+        EnemyIntent(kind="status", target="player", status="vulnerable", value=2),
+    ],
+)
+CHAMP_TAUNT = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="status", target="player", status="weak", value=2),
+        EnemyIntent(kind="status", target="player", status="vulnerable", value=2),
+    ],
+)
+CHAMP_HEAVY_SLASH = EnemyIntent(
+    kind="attack",
+    value=16,
+)
+CHAMP_BUFF = EnemyIntent(
+    kind="status",
+    target="self",
+    status="strength",
+    value=2,
+)
+CHAMP_BURST = EnemyIntent(
+    kind="champ_burst",
+)
+CHAMP_EXECUTION = EnemyIntent(
+    kind="attack",
+    value=10,
+    repeat=2,
+)
+class ChampEnemy(PatternEnemy):
+    """
+    第一勇士 The Champ。
+
+    爆发：
+    - HP 降至 50% 以下时触发一次，覆盖原本意图。
+    - 移除所有负面效果，获得 6 点力量。
+    - 进入第二阶段。
+    - 下回合处刑。
+
+    处刑：
+    - 爆发后立即使用。
+    - 此后间隔 2 个非处刑回合再次使用。
+    """
+
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.champ",
+            name="第一勇士",
+            max_hp=420,
+            intent_cycle=[CHAMP_FACE_SLAP],
+        )
+        self._champ_history = []
+        self._locked_champ_key = None
+
+        self._champ_defense_used = 0
+        self._champ_burst_used = False
+        self._champ_pending_burst = False
+        self._champ_phase2 = False
+
+        self._champ_force_execution = False
+        self._champ_execution_cooldown = None
+
+        # 第 4、8、12... 个行动强制挑衅；爆发后不再挑衅。
+        self._champ_actions_since_taunt = 0
+
+    def on_event(self, event_name, context):
+        logs = []
+
+        if event_name == EVENT_BATTLE_START:
+            player = context.game_state.player
+            has_belt = any(
+                getattr(relic, "relic_id", "") == "relic.champion_belt"
+                for relic in getattr(player, "relics", []) or []
+            )
+            if has_belt:
+                logs.append("{}：「那是我的腰带！」".format(self.name))
+            return logs
+
+        if event_name != EVENT_DAMAGE_AFTER:
+            return logs
+        if context.target is not self:
+            return logs
+        if not self.is_alive():
+            return logs
+        if self._champ_burst_used:
+            return logs
+
+        if int(self.hp) * 2 <= int(self.max_hp):
+            self._champ_pending_burst = True
+            self._locked_champ_key = "burst"
+            self._locked_intent = CHAMP_BURST
+            logs.append("{} 的生命值降至一半以下，意图变为爆发。".format(self.name))
+
+        return logs
+
+    def _intent_by_key(self, key):
+        if key == "defense":
+            return CHAMP_DEFENSE
+        if key == "face":
+            return CHAMP_FACE_SLAP
+        if key == "taunt":
+            return CHAMP_TAUNT
+        if key == "heavy":
+            return CHAMP_HEAVY_SLASH
+        if key == "buff":
+            return CHAMP_BUFF
+        if key == "burst":
+            return CHAMP_BURST
+        if key == "execution":
+            return CHAMP_EXECUTION
+        return CHAMP_FACE_SLAP
+
+    def _choose_normal_key(self):
+        # 爆发覆盖所有普通行动。
+        if self._champ_pending_burst:
+            return "burst"
+
+        # 第二阶段处刑覆盖普通行动。
+        if self._champ_phase2:
+            if self._champ_force_execution:
+                return "execution"
+            if self._champ_execution_cooldown is not None and self._champ_execution_cooldown <= 0:
+                return "execution"
+
+        # 爆发后不再挑衅。第一阶段每四个行动挑衅一次。
+        if not self._champ_phase2 and self._champ_actions_since_taunt >= 3:
+            return "taunt"
+
+        weights = {
+            "defense": 15,
+            "face": 40,
+            "heavy": 45,
+            "buff": 15,
+        }
+
+        history = self._champ_history
+        last = history[-1] if history else None
+
+        if last == "defense":
+            weights["buff"] += 15
+        elif last == "face":
+            weights["heavy"] += 25
+        elif last == "heavy":
+            weights["face"] += 45
+        elif last == "buff":
+            weights["face"] += 15
+
+        candidates = []
+
+        for key, weight in weights.items():
+            if key == "defense":
+                if self._champ_defense_used >= 2:
+                    continue
+                if last == "defense":
+                    continue
+
+            if key in ("face", "heavy", "buff") and last == key:
+                continue
+
+            candidates.append((key, weight))
+
+        if not candidates:
+            candidates = [("face", 1)]
+
+        keys = [item[0] for item in candidates]
+        ws = [item[1] for item in candidates]
+        return random.choices(keys, weights=ws, k=1)[0]
+
+    def get_current_intent(self):
+        if self._locked_intent is None:
+            self._locked_champ_key = self._choose_normal_key()
+            self._locked_intent = self._intent_by_key(self._locked_champ_key)
+        return self._locked_intent
+
+    def act(self):
+        intent = self.get_current_intent()
+        logs = []
+
+        logs.append("{} 准备执行：{}。".format(
+            self.name,
+            intent.to_text()
+        ))
+
+        if self._locked_champ_key == "taunt":
+            logs.append("{}：「{}」".format(
+                self.name,
+                random.choice([
+                    "你管这叫攻击？",
+                    "来啊，我让你打！没用的弱者！",
+                ])
+            ))
+
+        if self._locked_champ_key == "burst":
+            logs.append("{}：「{}」".format(
+                self.name,
+                random.choice([
+                    "败北？！不可能的！！！",
+                    "迎接我的怒火吧！",
+                    "你惹火我了……去死……",
+                ])
+            ))
+
+        action = self._intent_to_action(intent)
+        self.advance_intent()
+        return EnemyActionResult(action=action, logs=logs)
+
+    def advance_intent(self):
+        key = self._locked_champ_key
+
+        if key:
+            self._champ_history.append(key)
+            self._champ_history = self._champ_history[-4:]
+
+        if key == "defense":
+            self._champ_defense_used += 1
+
+        if key == "taunt":
+            self._champ_actions_since_taunt = 0
+        elif not self._champ_phase2:
+            self._champ_actions_since_taunt += 1
+
+        if key == "burst":
+            self._champ_burst_used = True
+            self._champ_pending_burst = False
+            self._champ_phase2 = True
+            self._champ_force_execution = True
+            self._champ_execution_cooldown = None
+
+        elif key == "execution":
+            self._champ_force_execution = False
+            self._champ_execution_cooldown = 2
+
+        elif self._champ_phase2 and self._champ_execution_cooldown is not None:
+            self._champ_execution_cooldown -= 1
+
+        self._locked_champ_key = None
+        self._locked_intent = None
+def create_champ():
+    return ChampEnemy()
+
+BRONZE_AUTOMATON_A = EnemyIntent(
+    kind="summon_fixed_enemies",
+    actions=["enemy.bronze_orb", "enemy.bronze_orb"],
+    count=2,
+    message="召唤 2 个铜球",
+)
+BRONZE_AUTOMATON_B = EnemyIntent(
+    kind="attack",
+    value=7,
+    repeat=2,
+)
+BRONZE_AUTOMATON_C = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="status", target="self", status="strength", value=3),
+        EnemyIntent(kind="block", value=9),
+    ],
+)
+BRONZE_AUTOMATON_D = EnemyIntent(
+    kind="attack",
+    value=45,
+)
+BRONZE_AUTOMATON_E = EnemyIntent(
+    kind="wait",
+    message="过载眩晕",
+)
+class BronzeAutomatonEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.bronze_automaton",
+            name="铜制机械人偶",
+            max_hp=300,
+            intent_cycle=[
+                BRONZE_AUTOMATON_A,
+                BRONZE_AUTOMATON_B,
+                BRONZE_AUTOMATON_C,
+                BRONZE_AUTOMATON_B,
+                BRONZE_AUTOMATON_C,
+                BRONZE_AUTOMATON_D,
+                BRONZE_AUTOMATON_E,
+            ],
+            loop_start_index=1,
+        )
+def create_bronze_automaton():
+    return BronzeAutomatonEnemy()
+BRONZE_ORB_A = EnemyIntent(
+    kind="bronze_orb_capture_card",
+)
+BRONZE_ORB_B = EnemyIntent(
+    kind="attack",
+    value=8,
+)
+BRONZE_ORB_C = EnemyIntent(
+    kind="block_bronze_automaton",
+    value=12,
+)
+class BronzeOrbEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.bronze_orb",
+            name="铜球",
+            max_hp=52,
+            intent_cycle=[BRONZE_ORB_A],
+        )
+        self.is_minion = True
+        self._bronze_orb_capture_used = False
+        self._bronze_orb_history = []
+        self._locked_bronze_orb_key = None
+        self._captured_card = None
+        self._captured_card_returned = False
+
+    def _choose_key(self):
+        history = self._bronze_orb_history
+
+        if not self._bronze_orb_capture_used:
+            weighted = [
+                (75, "a"),
+                (7.5, "b"),
+                (17.5, "c"),
+            ]
+        else:
+            weighted = [
+                (30, "b"),
+                (70, "c"),
+            ]
+
+        candidates = []
+        for weight, key in weighted:
+            if key in ("b", "c") and len(history) >= 2 and history[-2:] == [key, key]:
+                continue
+            candidates.append((weight, key))
+
+        if not candidates:
+            candidates = weighted
+
+        keys = [item[1] for item in candidates]
+        weights = [item[0] for item in candidates]
+        return random.choices(keys, weights=weights, k=1)[0]
+
+    def _intent_by_key(self, key):
+        if key == "a":
+            return BRONZE_ORB_A
+        if key == "b":
+            return BRONZE_ORB_B
+        if key == "c":
+            return BRONZE_ORB_C
+        return BRONZE_ORB_B
+
+    def get_current_intent(self):
+        if self._locked_intent is None:
+            self._locked_bronze_orb_key = self._choose_key()
+            self._locked_intent = self._intent_by_key(self._locked_bronze_orb_key)
+        return self._locked_intent
+
+    def advance_intent(self):
+        key = self._locked_bronze_orb_key
+
+        if key == "a":
+            self._bronze_orb_capture_used = True
+
+        if key:
+            self._bronze_orb_history.append(key)
+            self._bronze_orb_history = self._bronze_orb_history[-3:]
+
+        self._locked_bronze_orb_key = None
+        self._locked_intent = None
+
+    def on_event(self, event_name, context):
+        logs = []
+
+        if event_name != EVENT_DAMAGE_AFTER:
+            return logs
+        if context.target is not self:
+            return logs
+        if not bool(context.extra.get("target_is_dead_after", False)):
+            return logs
+        if self._captured_card is None:
+            return logs
+        if self._captured_card_returned:
+            return logs
+
+        player = context.game_state.player
+        card = self._captured_card
+        self._captured_card_returned = True
+        self._captured_card = None
+
+        if len(player.hand) < player.max_hand_size:
+            player.hand.append(card)
+            logs.append("{} 被击杀，夺走的【{}】回到你的手牌。".format(
+                self.name,
+                card.name
+            ))
+        else:
+            player.discard_pile.append(card)
+            logs.append("{} 被击杀，但你的手牌已满，夺走的【{}】进入弃牌堆。".format(
+                self.name,
+                card.name
+            ))
+
+        return logs
+def create_bronze_orb():
+    return BronzeOrbEnemy()
+
+COLLECTOR_A = EnemyIntent(
+    kind="collector_buff",
+)
+COLLECTOR_B = EnemyIntent(
+    kind="attack",
+    value=18,
+)
+COLLECTOR_C = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="status", target="player", status="weak", value=3),
+        EnemyIntent(kind="status", target="player", status="vulnerable", value=3),
+        EnemyIntent(kind="status", target="player", status="frail", value=3),
+    ],
+)
+COLLECTOR_D = EnemyIntent(
+    kind="collector_summon_torch_heads",
+)
+class CollectorEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.collector",
+            name="收藏家",
+            max_hp=282,
+            intent_cycle=[COLLECTOR_D],
+        )
+        self._collector_action_count = 0
+        self._collector_c_used = False
+        self._collector_history = []
+        self._locked_collector_key = None
+
+    def _torch_head_count(self, game_state):
+        if game_state is None:
+            return 0
+        return sum(
+            1 for e in getattr(game_state, "enemies", []) or []
+            if e.is_alive() and getattr(e, "enemy_id", "") == "enemy.torch_head"
+        )
+
+    def _choose_key(self, game_state=None):
+        # 第一回合一定召唤。
+        if self._collector_action_count == 0:
+            return "d"
+
+        # 第四回合一定且仅一次 c。
+        if self._collector_action_count == 3 and not self._collector_c_used:
+            return "c"
+
+        torch_count = self._torch_head_count(game_state)
+        history = self._collector_history
+
+        if torch_count < 2:
+            weighted = [
+                (30, "a"),
+                (45, "b"),
+                (25, "d"),
+            ]
+        else:
+            weighted = [
+                (30, "a"),
+                (70, "b"),
+            ]
+
+        candidates = []
+        for weight, key in weighted:
+            if key == "a" and history and history[-1] == "a":
+                continue
+            if key == "b" and len(history) >= 2 and history[-2:] == ["b", "b"]:
+                continue
+            candidates.append((weight, key))
+
+        if not candidates:
+            candidates = weighted
+
+        keys = [item[1] for item in candidates]
+        weights = [item[0] for item in candidates]
+        return random.choices(keys, weights=weights, k=1)[0]
+
+    def _intent_by_key(self, key):
+        if key == "a":
+            return COLLECTOR_A
+        if key == "b":
+            return COLLECTOR_B
+        if key == "c":
+            return COLLECTOR_C
+        if key == "d":
+            return COLLECTOR_D
+        return COLLECTOR_B
+
+    def _lock_intent_if_needed(self, game_state=None):
+        if self._locked_intent is None:
+            self._locked_collector_key = self._choose_key(game_state)
+            self._locked_intent = self._intent_by_key(self._locked_collector_key)
+
+    def get_current_intent(self):
+        self._lock_intent_if_needed(getattr(self, "_current_game_state", None))
+        return self._locked_intent
+
+    def get_intent_text(self, game_state=None):
+        if not self.is_alive():
+            return "已经走了有一会了"
+
+        self._lock_intent_if_needed(game_state)
+
+        if game_state is not None:
+            from game.intent_preview import format_enemy_intent_text
+            return format_enemy_intent_text(game_state, self)
+
+        return self._locked_intent.to_text()
+
+    def act(self):
+        self._lock_intent_if_needed(getattr(self, "_current_game_state", None))
+
+        intent = self._locked_intent
+        logs = []
+
+        logs.append("{} 准备执行：{}。".format(
+            self.name,
+            intent.to_text()
+        ))
+
+        if self._locked_collector_key == "c":
+            logs.append("{}：「你是我的了！」".format(self.name))
+
+        action = self._intent_to_action(intent)
+        self.advance_intent()
+
+        return EnemyActionResult(action=action, logs=logs)
+
+    def advance_intent(self):
+        key = self._locked_collector_key
+
+        if key == "c":
+            self._collector_c_used = True
+
+        if key:
+            self._collector_history.append(key)
+            self._collector_history = self._collector_history[-3:]
+
+        self._collector_action_count += 1
+        self._locked_collector_key = None
+        self._locked_intent = None
+def create_collector():
+    return CollectorEnemy()
+TORCH_HEAD_A = EnemyIntent(
+    kind="attack",
+    value=7,
+)
+class TorchHeadEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.torch_head",
+            name="火炬头",
+            max_hp=40,
+            intent_cycle=[TORCH_HEAD_A],
+        )
+        self.is_minion = True
+def create_torch_head():
+    return TorchHeadEnemy()

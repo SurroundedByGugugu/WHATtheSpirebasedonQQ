@@ -2630,7 +2630,7 @@ def create_immolate():
             },
             {
                 "op": "add_card_to_discard_pile",
-                "card_id": "card.status.burn",
+                "card_id": "card.status.burn_i",
                 "amount": {
                     "var": "burn_count"
                 }

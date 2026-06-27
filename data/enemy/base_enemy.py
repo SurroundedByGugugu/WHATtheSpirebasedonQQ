@@ -83,7 +83,33 @@ class EnemyIntent:
                 int(self.value),
                 int(self.value)
             )
-        
+        if self.kind == "summon_gremlins":
+            return "召唤 {} 只随机地精".format(int(self.count))
+
+        if self.kind == "gremlin_leader_rally":
+            return "所有敌人获得 {} 点力量，所有爪牙获得 {} 点格挡".format(
+                int(self.value),
+                int(self.count)
+            )
+        if self.kind == "summon_fixed_enemies":
+            if self.message:
+                return self.message
+            return "召唤 {} 个敌人".format(int(self.count))
+
+        if self.kind == "champ_burst":
+            return "移除所有负面效果，获得 6 点力量"
+
+        if self.kind == "bronze_orb_capture_card":
+            return "将你抽牌堆中稀有度最高的牌之一移出战斗"
+
+        if self.kind == "block_bronze_automaton":
+            return "给予铜制机械人偶 {} 点格挡".format(int(self.value))
+
+        if self.kind == "collector_buff":
+            return "自身和所有火炬头获得 3 点力量，自身获得 15 点格挡"
+
+        if self.kind == "collector_summon_torch_heads":
+            return "召唤火炬头，将火炬头数量补至 2"
         if self.kind == "smart_ally_block_or_attack":
             return "给予随机队友 {} 点格挡；若无队友则攻击 {}".format(
                 self.value,
@@ -117,6 +143,7 @@ class EnemyIntent:
                 "poison": "中毒",
                 "poison_thorns": "毒荆棘",
                 "artifact": "人工制品",
+                "pain_stab": "疼痛戳刺",
                 "stun": "眩晕",
                 "ritual": "仪式",
                 "barricade": "壁垒",

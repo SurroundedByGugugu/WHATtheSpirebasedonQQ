@@ -44,6 +44,17 @@ from data.enemy.enemy_origin_1_2 import (
     create_snake_plant,
     create_mystic,
     create_centurion,
+
+    create_book_of_stabbing,
+    create_gremlin_leader,
+    create_taskmaster,
+
+    create_champ,
+    create_bronze_automaton,
+    create_bronze_orb,
+    create_collector,
+    create_torch_head,
+
 )
 
 ENEMY_REGISTRY = {
@@ -52,6 +63,7 @@ ENEMY_REGISTRY = {
     "enemy.corsoal": CorsoalEnemy,
     "enemy.mareanie": MareanieEnemy,
     "enemy.plastic_bag": PlasticBagEnemy,
+    #_1_1_common
     "enemy.cultist":create_cultist,
     "enemy.spike_slime_large": create_spike_slime_large,
     "enemy.spike_slime_middle": create_spike_slime_middle,
@@ -74,15 +86,18 @@ ENEMY_REGISTRY = {
     "enemy.shield_gremlin": create_shield_gremlin,
     "enemy.sneaky_gremlin": create_sneaky_gremlin,
     "enemy.gremlin_wizard": create_gremlin_wizard,
+    #_1_1_elite
     "enemy.gremlin_nob": create_gremlin_nob,
     "enemy.lagavulin": create_lagavulin,
     "enemy.lagavulin_awake": create_lagavulin_awake,
     "enemy.sentry_a": create_sentry_a,
     "enemy.sentry_b": create_sentry_b,
+    #_1_1_boss
     "enemy.hexaghost": create_hexaghost,
     "enemy.guardian": create_guardian,
     "enemy.slime_boss": create_slime_boss,
-    
+
+    #_1_2_common
     "enemy.byrd": create_byrd,
     "enemy.snecko": create_snecko,
     "enemy.shelled_parasite":create_shelled_parasite,
@@ -91,6 +106,17 @@ ENEMY_REGISTRY = {
     "enemy.snake_plant": create_snake_plant,
     "enemy.mystic": create_mystic,
     "enemy.centurion": create_centurion,
+    #_1_2_elite
+    "enemy.book_of_stabbing": create_book_of_stabbing,
+    "enemy.gremlin_leader": create_gremlin_leader,
+    "enemy.taskmaster": create_taskmaster,
+    #_1_2_boss
+    "enemy.champ": create_champ,
+    "enemy.bronze_automaton": create_bronze_automaton,
+    "enemy.bronze_orb": create_bronze_orb,
+    "enemy.collector": create_collector,
+    "enemy.torch_head": create_torch_head,
+
 }
 
 
@@ -102,11 +128,3 @@ def create_enemy(enemy_id):
 
     return enemy_class()
 
-
-'''以后你新增敌人，只要加：
-
-from enemy.xxx_enemy import XxxEnemy
-ENEMY_REGISTRY = {
-    "enemy.test_dummy": TestDummyEnemy,
-    "enemy.xxx": XxxEnemy
-}'''

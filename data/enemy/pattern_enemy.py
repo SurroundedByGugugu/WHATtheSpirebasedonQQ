@@ -143,6 +143,78 @@ class PatternEnemy(Enemy):
                 "message": intent.message,
             }
         
+        if intent.kind == "summon_gremlins":
+            return {
+                "op": "enemy_summon_gremlins",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "count": int(intent.count),
+                "message": intent.message,
+            }
+
+        if intent.kind == "gremlin_leader_rally":
+            return {
+                "op": "enemy_gremlin_leader_rally",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "strength": int(intent.value),
+                "minion_block": int(intent.count),
+                "message": intent.message,
+            }
+        if intent.kind == "summon_fixed_enemies":
+            return {
+                "op": "enemy_summon_fixed_enemies",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "enemy_ids": list(getattr(intent, "actions", []) or []),
+                "count": int(getattr(intent, "count", 0) or 0),
+                "message": intent.message,
+            }
+
+        if intent.kind == "champ_burst":
+            return {
+                "op": "enemy_champ_burst",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "message": intent.message,
+            }
+
+        if intent.kind == "bronze_orb_capture_card":
+            return {
+                "op": "enemy_bronze_orb_capture_card",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "message": intent.message,
+            }
+
+        if intent.kind == "block_bronze_automaton":
+            return {
+                "op": "enemy_block_bronze_automaton",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "block": int(intent.value),
+                "message": intent.message,
+            }
+
+        if intent.kind == "collector_buff":
+            return {
+                "op": "enemy_collector_buff",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "strength": 3,
+                "block": 15,
+                "message": intent.message,
+            }
+
+        if intent.kind == "collector_summon_torch_heads":
+            return {
+                "op": "enemy_collector_summon_torch_heads",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "target_count": 2,
+                "message": intent.message,
+            }
+        
         if intent.kind == "split":
             return {
                 "op": "enemy_split",

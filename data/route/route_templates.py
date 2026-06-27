@@ -211,6 +211,7 @@ NODE_NAME_BY_TYPE = {
     "rest": "火堆",
     "treasure": "宝箱",
     "boss": "一层 Boss",
+    "boss_empty": "Boss（未实现）",
 }
 
 
@@ -380,6 +381,62 @@ def replace_random_route_node_type(route, rng, candidate_floors, new_type):
     return True
 
 
+def floor_has_support_room(route, floor):
+    """判断某一整层是否已经有商店或火堆。"""
+    return any(
+        int(item.get("floor", -1)) == int(floor)
+        and item.get("node_type") in ("shop", "rest")
+        for item in route
+    )
+
+
+def is_mutable_support_floor(floor):
+    """可被保底逻辑替换成商店/火堆的普通楼层。"""
+    if floor <= 1:
+        return False
+    if floor in (ACT1_TREASURE_FLOOR, ACT1_PRE_BOSS_REST_FLOOR, ACT1_BOSS_FLOOR):
+        return False
+    return True
+
+
+def enforce_sliding_shop_rest_guarantee(route, rng, start_floor=2, end_floor=13, lookback=3):
+    """
+    滑动窗口保底商店/火堆密度。
+
+    规则近似：若前 lookback 层整层都没有商店或火堆，
+    则在当前层强行刷出 1~2 个商店/火堆。
+    例如玩家站在第 2 层时，如果第 3、4、5 层都没有补给，
+    第 6 层会被保底刷出补给点。玩家最终走不走得到由路线连接决定。
+    """
+    for floor in range(int(start_floor), int(end_floor) + 1):
+        if not is_mutable_support_floor(floor):
+            continue
+        if floor_has_support_room(route, floor):
+            continue
+
+        previous_floors = [f for f in range(floor - int(lookback), floor) if f >= 1]
+        if len(previous_floors) < int(lookback):
+            continue
+        if any(floor_has_support_room(route, f) for f in previous_floors):
+            continue
+
+        inject_count = 2 if rng.random() < 0.35 else 1
+        used_types = set()
+        for _ in range(inject_count):
+            allowed_types = ["shop"]
+            if floor >= 6:
+                allowed_types.append("rest")
+            if len(used_types) < len(allowed_types):
+                candidates = [t for t in allowed_types if t not in used_types]
+            else:
+                candidates = allowed_types
+            new_type = rng.choice(candidates)
+            if replace_random_route_node_type(route, rng, [floor], new_type):
+                used_types.add(new_type)
+
+    return route
+
+
 def enforce_act1_route_guarantees(route, rng):
     """
     避免随机结果在可变楼层完全没有商店或火堆。
@@ -415,6 +472,8 @@ def enforce_act1_route_guarantees(route, rng):
 
     if not has_rest:
         replace_random_route_node_type(route, rng, rest_floors, "rest")
+
+    enforce_sliding_shop_rest_guarantee(route, rng, start_floor=2, end_floor=13, lookback=3)
 
     return route
 
@@ -461,5 +520,50 @@ def generate_act1_grid_route(seed=None):
                 "col": col,
                 "next_node_ids": make_adjacent_next_ids(1, floor, col),
             })
+    enforce_act1_route_guarantees(route, rng)
+    return route
+
+
+def generate_act2_grid_route(seed=None):
+    """
+    生成固定 5 列、15 层的二层路线。
+
+    二层普通/精英遭遇已通过 run_engine 中的 pool_suffix 选择接到 1_2 池；
+    二层 Boss 当前留空，用 boss_empty 占位，避免误进一层 Boss 池。
+    """
+    rng = random.Random(seed)
+    route = []
+
+    route.append({
+        "node_id": make_grid_node_id(2, 0),
+        "node_type": "ancient",
+        "name": NODE_NAME_BY_TYPE["ancient"],
+        "floor": 0,
+        "col": -1,
+        "next_node_ids": make_full_next_ids(2, 0),
+    })
+
+    for floor in range(1, ACT1_BOSS_FLOOR + 1):
+        if floor == 1:
+            floor_types = ["starting"] * MAP_WIDTH
+        elif floor == ACT1_TREASURE_FLOOR:
+            floor_types = ["treasure"] * MAP_WIDTH
+        elif floor == ACT1_PRE_BOSS_REST_FLOOR:
+            floor_types = ["rest"] * MAP_WIDTH
+        elif floor == ACT1_BOSS_FLOOR:
+            floor_types = ["boss_empty"] * MAP_WIDTH
+        else:
+            floor_types = generate_random_floor_types(floor, rng)
+
+        for col, node_type in enumerate(floor_types):
+            route.append({
+                "node_id": make_grid_node_id(2, floor, col),
+                "node_type": node_type,
+                "name": NODE_NAME_BY_TYPE.get(node_type, node_type),
+                "floor": floor,
+                "col": col,
+                "next_node_ids": make_adjacent_next_ids(2, floor, col),
+            })
+
     enforce_act1_route_guarantees(route, rng)
     return route

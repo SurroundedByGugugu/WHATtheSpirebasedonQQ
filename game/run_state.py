@@ -30,6 +30,11 @@ class RunState:
     max_hp: int = 0
     hp: int = 0
     max_cost: int = 3
+
+    # Boss 后进入下一层时回复到的最大生命比例。
+    # 默认 1.0 即满血；部分遗物/难度规则可改为 0.8 等。
+    post_boss_heal_ratio: float = 1.0
+
     master_deck: List[Any] = field(default_factory=list)
     relics: List[Any] = field(default_factory=list)
     potions: List[Any] = field(default_factory=list)

@@ -1471,9 +1471,9 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.26",
-            "- 更新二层普通敌人",
-            "- 计划尽快完善boss后上楼逻辑和boss遗物三选一逻辑，同时预留后期搬塔2先古遗物形式兼容问题",
+            "当前版本：v26.06.27",
+            "- 新建通往二楼的楼梯！",
+            
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制是否启用私货内容，默认开启",

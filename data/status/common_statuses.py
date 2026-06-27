@@ -695,3 +695,25 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="pain_stab",
+    name="疼痛戳刺",
+    description="每当这个敌人对你造成未被格挡的攻击伤害时，向你的弃牌堆加入等同于层数的【伤口】。",
+    category="buff",
+    display_mode="stack",
+    order=17,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="reminiscence",
+    name="追思",
+    description="晶 Zone 下，每回合开始时每层额外抽 1 张牌。",
+    category="buff",
+    display_mode="stack",
+    order=78,
+    decay_timing="none",
+    decay_amount=0,
+))

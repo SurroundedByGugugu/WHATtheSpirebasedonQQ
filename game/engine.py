@@ -2351,6 +2351,287 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         )
         return
     
+    if op == "enemy_summon_fixed_enemies":
+        enemy_ids = list(action.get("enemy_ids", []) or [])
+        count = int(action.get("count", 0) or 0)
+
+        if count > 0:
+            enemy_ids = enemy_ids[:count]
+
+        if not enemy_ids:
+            logs.append("{} 试图召唤，但没有配置召唤物。".format(enemy.name))
+            return
+
+        max_enemies = int(action.get("max_enemies", 5))
+        alive_count = sum(1 for e in getattr(game_state, "enemies", []) or [] if e.is_alive())
+        slots = max_enemies - alive_count
+
+        if slots <= 0:
+            logs.append("{} 试图召唤，但场上已经没有位置。".format(enemy.name))
+            return
+
+        enemy_ids = enemy_ids[:slots]
+
+        from data.enemy.AAAregistry import create_enemy
+
+        summoned = []
+        for enemy_id in enemy_ids:
+            new_enemy = create_enemy(enemy_id)
+            new_enemy.is_minion = True
+            game_state.enemies.append(new_enemy)
+            summoned.append(new_enemy)
+
+        if summoned:
+            logs.append("{} 召唤了 {}。".format(
+                enemy.name,
+                "、".join(e.name for e in summoned)
+            ))
+        return
+
+    if op == "enemy_champ_burst":
+        removed = []
+
+        from game.status.status_defs import get_status_def, get_status_name
+        active = list(getattr(enemy.statuses, "values", {}).items())
+
+        for status_key, value in active:
+            status_def = get_status_def(status_key)
+            category = getattr(status_def, "category", "") if status_def is not None else ""
+
+            should_remove = False
+
+            if category == "debuff":
+                should_remove = True
+
+            # 负力量 / 负敏捷也按负面效果移除。
+            if status_key in ("strength", "dexterity") and int(value) < 0:
+                should_remove = True
+
+            if should_remove:
+                enemy.statuses.remove(status_key)
+                removed.append(get_status_name(status_key))
+
+        if removed:
+            logs.append("{} 移除了所有负面效果：{}。".format(
+                enemy.name,
+                "、".join(removed)
+            ))
+        else:
+            logs.append("{} 试图移除负面效果，但没有可移除的负面效果。".format(enemy.name))
+
+        result = enemy.gain_status_with_result("strength", 6)
+        from game.status.status_gain import format_status_gain_log
+        logs.append(format_status_gain_log(enemy, "strength", 6, result))
+        return
+
+    if op == "enemy_bronze_orb_capture_card":
+        player = game_state.player
+
+        if bool(getattr(enemy, "_bronze_orb_capture_used", False)):
+            logs.append("{} 已经使用过夺牌。".format(enemy.name))
+            return
+
+        setattr(enemy, "_bronze_orb_capture_used", True)
+
+        rarity_rank = {
+            "curse": 0,
+            "status": 0,
+            "starting": 1,
+            "common": 2,
+            "event": 2,
+            "uncommon": 3,
+            "rare": 4,
+            "myth": 5,
+        }
+
+        source_pile = player.draw_pile
+        source_name = "抽牌堆"
+
+        if not source_pile:
+            source_pile = player.discard_pile
+            source_name = "弃牌堆"
+
+        if not source_pile:
+            logs.append("{} 试图夺取卡牌，但你的抽牌堆和弃牌堆都没有牌。".format(enemy.name))
+            return
+
+        max_rank = max(rarity_rank.get(getattr(card, "quantity", ""), 1) for card in source_pile)
+        candidates = [
+            card for card in source_pile
+            if rarity_rank.get(getattr(card, "quantity", ""), 1) == max_rank
+        ]
+
+        import random
+        captured = random.choice(candidates)
+        source_pile.remove(captured)
+
+        setattr(enemy, "_captured_card", captured)
+
+        logs.append("{} 从你的{}中夺走了【{}】。击杀它即可取回。".format(
+            enemy.name,
+            source_name,
+            captured.name
+        ))
+        return
+
+    if op == "enemy_block_bronze_automaton":
+        block = int(action.get("block", 0))
+        if block <= 0:
+            logs.append("{} 试图给予格挡，但数值无效。".format(enemy.name))
+            return
+
+        target = None
+        for candidate in getattr(game_state, "enemies", []) or []:
+            if not candidate.is_alive():
+                continue
+            if getattr(candidate, "enemy_id", "") == "enemy.bronze_automaton":
+                target = candidate
+                break
+
+        if target is None:
+            target = enemy
+
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=enemy,
+            target=target,
+            amount=block,
+            block_source=BLOCK_SOURCE_ENEMY_ACTION,
+            card=None
+        ))
+        return
+
+    if op == "enemy_collector_buff":
+        strength = int(action.get("strength", 3))
+        block = int(action.get("block", 15))
+
+        from game.status.status_gain import format_status_gain_log
+
+        for target in getattr(game_state, "enemies", []) or []:
+            if not target.is_alive():
+                continue
+            if target is enemy or getattr(target, "enemy_id", "") == "enemy.torch_head":
+                result = target.gain_status_with_result("strength", strength)
+                logs.append(format_status_gain_log(target, "strength", strength, result))
+
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=enemy,
+            target=enemy,
+            amount=block,
+            block_source=BLOCK_SOURCE_ENEMY_ACTION,
+            card=None
+        ))
+        return
+
+    if op == "enemy_collector_summon_torch_heads":
+        target_count = int(action.get("target_count", 2))
+        current_count = sum(
+            1 for e in getattr(game_state, "enemies", []) or []
+            if e.is_alive() and getattr(e, "enemy_id", "") == "enemy.torch_head"
+        )
+        need = max(0, target_count - current_count)
+
+        if need <= 0:
+            logs.append("{} 试图召唤火炬头，但火炬头数量已经达到 {}。".format(
+                enemy.name,
+                target_count
+            ))
+            return
+
+        max_enemies = int(action.get("max_enemies", 5))
+        alive_count = sum(1 for e in getattr(game_state, "enemies", []) or [] if e.is_alive())
+        slots = max(0, max_enemies - alive_count)
+        need = min(need, slots)
+
+        if need <= 0:
+            logs.append("{} 试图召唤火炬头，但场上已经没有位置。".format(enemy.name))
+            return
+
+        from data.enemy.AAAregistry import create_enemy
+
+        summoned = []
+        for _ in range(need):
+            torch = create_enemy("enemy.torch_head")
+            torch.is_minion = True
+            game_state.enemies.append(torch)
+            summoned.append(torch)
+
+        logs.append("{} 召唤了 {}。".format(
+            enemy.name,
+            "、".join(e.name for e in summoned)
+        ))
+        return
+
+    if op == "enemy_summon_gremlins":
+        count = int(action.get("count", 2))
+        if count <= 0:
+            logs.append("{} 试图召唤地精，但数量无效。".format(enemy.name))
+            return
+
+        max_enemies = int(action.get("max_enemies", 5))
+        alive_count = sum(1 for e in getattr(game_state, "enemies", []) or [] if e.is_alive())
+        slots = max_enemies - alive_count
+
+        if slots <= 0:
+            logs.append("{} 试图召唤地精，但场上已经没有位置。".format(enemy.name))
+            return
+
+        summon_count = min(count, slots)
+
+        from data.route.encounters import build_random_gremlin_ids
+        from data.enemy.AAAregistry import create_enemy
+        import random
+
+        gremlin_ids = build_random_gremlin_ids(random, summon_count)
+
+        summoned = []
+        for enemy_id in gremlin_ids:
+            new_enemy = create_enemy(enemy_id)
+            new_enemy.is_minion = True
+            game_state.enemies.append(new_enemy)
+            summoned.append(new_enemy)
+
+        if summoned:
+            logs.append("{} 召唤了 {}。".format(
+                enemy.name,
+                "、".join(e.name for e in summoned)
+            ))
+        else:
+            logs.append("{} 试图召唤地精，但没有召唤成功。".format(enemy.name))
+
+        return
+
+    if op == "enemy_gremlin_leader_rally":
+        strength = int(action.get("strength", 3))
+        minion_block = int(action.get("minion_block", 6))
+
+        from game.status.status_gain import format_status_gain_log
+
+        alive_enemies = [
+            e for e in getattr(game_state, "enemies", []) or []
+            if e.is_alive()
+        ]
+
+        for target in alive_enemies:
+            result = target.gain_status_with_result("strength", strength)
+            logs.append(format_status_gain_log(target, "strength", strength, result))
+
+        for target in alive_enemies:
+            if not bool(getattr(target, "is_minion", False)):
+                continue
+
+            logs.extend(gain_block_without_modifiers(
+                game_state=game_state,
+                source=enemy,
+                target=target,
+                amount=minion_block,
+                block_source=BLOCK_SOURCE_ENEMY_ACTION,
+                card=None
+            ))
+
+        return
+    
     if op == "enemy_heal_all_allies":
         heal = int(action.get("heal", 0))
         if heal <= 0:

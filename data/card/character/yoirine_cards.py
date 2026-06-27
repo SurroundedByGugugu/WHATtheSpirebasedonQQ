@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.card.base_card import CardTemplate
+from game.constants import KEYWORD_EXHAUST
 
 #starting
 def create_crystal_piercing():
@@ -187,8 +188,73 @@ def create_spreading_wing():
             },
         }
     )
+def create_reminiscence():
+    return CardTemplate(
+        card_id="card.reminiscence",
+        name="追思",
+        card_type="power",
+        cost=2,
+        target="self",
+        description="晶 Zone 下，每回合开始时额外抽 1 张牌。",
+        quantity="uncommon",
+        attack_element="crystal",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "draw": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "reminiscence",
+                "amount": {
+                    "var": "draw"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "追思+",
+            "description": "晶 Zone 下，每回合开始时额外抽 2 张牌。",
+            "card_vars": {
+                "draw": 2
+            }
+        }
+    )
 
 #rare
+def create_rockbound_wish():
+    return CardTemplate(
+        card_id="card.rockbound_wish",
+        name="磐愿",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="消耗。消耗所有状态牌和诅咒牌。失去等于消耗牌数量 1/2 的生命，获得等于消耗牌数量 1/4 的力量和敏捷（保底 1）。",
+        quantity="rare",
+        attack_element="",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "exhaust_status_and_curse_hand_gain_stats",
+                "hp_divisor": 2,
+                "stat_divisor": 4
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "磐愿+",
+            "description": "消耗。消耗所有状态牌和诅咒牌。失去等于消耗牌数量 1/3 的生命，获得等于消耗牌数量 1/4 的力量和敏捷（保底 1）。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "hp_divisor"],
+                    "value": 3
+                }
+            ]
+        }
+    )
+
 def create_abyssal_form():
     return CardTemplate(
         card_id="card.abyssal_form",

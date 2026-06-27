@@ -131,6 +131,14 @@ ENCOUNTER_TABLE = {
     "encounter.chosen_cultist":{"enemy_ids": ["enemy.chosen","enemy.cultist"]},
     "encounter.snake_plant_single": {"enemy_ids": ["enemy.snake_plant"]},
     "encounter.mystic_centurion": {"enemy_ids": ["enemy.centurion", "enemy.mystic"]},
+
+    "encounter.elite.book_of_stabbing": {"enemy_ids": ["enemy.book_of_stabbing"]},
+    "encounter.elite.gremlin_leader": {"enemy_ids": ["enemy.gremlin_leader"]},
+    "encounter.elite.taskmaster_slavers": {"enemy_ids": ["enemy.red_slaver", "enemy.taskmaster", "enemy.blue_slaver"]},
+
+    "encounter.boss.champ": {"enemy_ids": ["enemy.champ"]},
+    "encounter.boss.bronze_automaton": {"enemy_ids": ["enemy.bronze_automaton"]},
+    "encounter.boss.collector": {"enemy_ids": ["enemy.collector"]},
 }
 
 
@@ -189,18 +197,34 @@ ELITE_ENCOUNTER_POOL_1_1 = [
     ("encounter.elite.plastic_bag", 1)
 ]
 
+ELITE_ENCOUNTER_POOL_1_2 = [
+    ("encounter.elite.book_of_stabbing", 4),
+    ("encounter.elite.gremlin_leader", 4),
+    ("encounter.elite.taskmaster_slavers", 4),
+]
+
 BOSS_ENCOUNTER_POOL_1_1 = [
     ("encounter.corsoal_mareanie_pack", 1),
     ("encounter.boss.hexaghost", 4),
     ("encounter.boss.guardian", 4),
     ("encounter.boss.slime_boss", 4),
 ]
+BOSS_ENCOUNTER_POOL_1_2 = [
+    ("encounter.boss.champ", 4),
+    ("encounter.boss.bronze_automaton", 4),
+    ("encounter.boss.collector", 4),
+]
+
+
 ENCOUNTER_DISPLAY_NAMES = {
     "encounter.boss.hexaghost": "六火亡魂",
     "encounter.boss.guardian": "守护者",
     "encounter.boss.slime_boss": "史莱姆老大",
     # 旧测试 Boss，如果你还保留在 BOSS_ENCOUNTER_POOL 里，就也给一个显示名。
     "encounter.corsoal_mareanie_pack": "旧日的珊瑚群……",
+    "encounter.boss.champ": "第一勇士",
+    "encounter.boss.bronze_automaton": "铜制机械人偶",
+    "encounter.boss.collector": "收藏家",
 }
 
 
@@ -218,9 +242,11 @@ ENCOUNTER_POOL_BY_NODE_TYPE_AND_SUFFIX = {
     },
     "elite": {
         "1_1": ELITE_ENCOUNTER_POOL_1_1,
+        "1_2": ELITE_ENCOUNTER_POOL_1_2,
     },
     "boss": {
         "1_1": BOSS_ENCOUNTER_POOL_1_1,
+        "1_2": BOSS_ENCOUNTER_POOL_1_2,
     },
 }
 
@@ -335,19 +361,36 @@ def resolve_encounter_enemy_ids(encounter_id, rng):
         for enemy_spec in enemy_specs
     ]
 
-def build_gremlin_gang(rng):
-    pool = [
-        "enemy.mad_gremlin",
-        "enemy.mad_gremlin",
-        "enemy.sneaky_gremlin",
-        "enemy.sneaky_gremlin",
-        "enemy.fat_gremlin",
-        "enemy.fat_gremlin",
-        "enemy.gremlin_wizard",
-        "enemy.shield_gremlin",
-    ]
-    return rng.sample(pool, 4)
+GREMLIN_GANG_RANDOM_POOL = [
+    "enemy.mad_gremlin",
+    "enemy.mad_gremlin",
+    "enemy.sneaky_gremlin",
+    "enemy.sneaky_gremlin",
+    "enemy.fat_gremlin",
+    "enemy.fat_gremlin",
+    "enemy.gremlin_wizard",
+    "enemy.shield_gremlin",
+]
+
+
+def build_random_gremlin_ids(rng, count=4):
+    """
+    复用地精组的抽取权重。
+    pool 中重复出现的敌人等价于更高权重。
+
+    encounter generator 会以 generator(rng) 调用，
+    所以 count 需要有默认值；地精群默认生成 4 只。
+    """
+    count = int(count)
+    if count <= 0:
+        return []
+
+    if count >= len(GREMLIN_GANG_RANDOM_POOL):
+        return list(GREMLIN_GANG_RANDOM_POOL)
+
+    return rng.sample(GREMLIN_GANG_RANDOM_POOL, count)
+
 
 ENCOUNTER_GENERATORS = {
-    "gremlin_gang": build_gremlin_gang,
+    "gremlin_gang": build_random_gremlin_ids,
 }

@@ -128,11 +128,14 @@ CARD_REWARD_POOL = [
 
     #yoi
     "card.crystal_piercing",
+    "card.spreading_wing",
     "card.crystal_zone",
     "card.crystal_cocoon",
     "card.crystal_thorns",
+    "card.reminiscence",
     "card.abyssal_form",
     "card.phantom_form",
+    "card.rockbound_wish",
 
     #昼
     "card.mirage_shadows",
@@ -419,7 +422,8 @@ class RewardState:
 
     def reward_text(self):
         lines = []
-        lines.append("=== 战斗奖励 ===")
+        title = "事件奖励" if self.node_type == "event" else "战斗奖励"
+        lines.append("=== {} ===".format(title))
 
         if not self.options:
             lines.append("没有可领取的奖励。")
@@ -538,12 +542,20 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
     # 4. 卡牌奖励
     upgrade_chance = get_card_reward_upgrade_chance(run_state)
     reward_card_count = get_card_reward_choice_count(run_state)
-    card_choices = roll_card_rewards(
-        count=reward_card_count,
-        rng=rng,
-        upgrade_chance=upgrade_chance,
-        run_state=run_state
-    )
+    if node_type == "boss":
+        card_choices = roll_boss_card_rewards(
+            count=reward_card_count,
+            rng=rng,
+            upgrade_chance=upgrade_chance,
+            run_state=run_state
+        )
+    else:
+        card_choices = roll_card_rewards(
+            count=reward_card_count,
+            rng=rng,
+            upgrade_chance=upgrade_chance,
+            run_state=run_state
+        )
 
     reward_state.options.append(RewardOption(
         option_type="card",
@@ -581,6 +593,20 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
         ))
 
     record_reward_options_offered(run_state, reward_state)
+    return reward_state
+
+
+def create_potion_reward_state(potions, node_type="event", title_prefix="事件药水"):
+    """把事件/特殊来源给出的药水包装成标准奖励，以复用药水替换流程。"""
+    reward_state = RewardState(node_type=node_type)
+    for potion in potions or []:
+        if potion is None:
+            continue
+        reward_state.options.append(RewardOption(
+            option_type="potion",
+            title="{}：【{}】".format(title_prefix, getattr(potion, "name", "药水")),
+            payload={"potion": potion}
+        ))
     return reward_state
 
 def record_reward_options_offered(run_state, reward_state):
@@ -792,6 +818,57 @@ def get_card_reward_choice_count(run_state):
         count = 1
     return count
 
+
+
+def roll_boss_card_rewards(count, rng, upgrade_chance, run_state=None):
+    """
+    Boss 卡牌奖励：优先全稀有；稀有数量不足时才用罕见补足。
+    若稀有+罕见仍不足，再退回完整奖励池补足，尽量避免空奖励。
+    """
+    pool = get_card_reward_pool(run_state) if run_state is not None else filter_card_ids(CARD_REWARD_POOL)
+    if not pool:
+        return []
+
+    by_quantity = {"rare": [], "uncommon": [], "fallback": []}
+    for card_id in pool:
+        card = create_card(card_id)
+        quantity = getattr(card, "quantity", "")
+        if quantity == "rare":
+            by_quantity["rare"].append(card_id)
+        elif quantity == "uncommon":
+            by_quantity["uncommon"].append(card_id)
+        else:
+            by_quantity["fallback"].append(card_id)
+
+    chosen_ids = []
+
+    def take_from(candidates, need):
+        candidates = [cid for cid in candidates if cid not in chosen_ids]
+        if need <= 0 or not candidates:
+            return []
+        if len(candidates) <= need:
+            result = list(candidates)
+            rng.shuffle(result)
+            return result[:need]
+        return rng.sample(candidates, need)
+
+    chosen_ids.extend(take_from(by_quantity["rare"], int(count) - len(chosen_ids)))
+    chosen_ids.extend(take_from(by_quantity["uncommon"], int(count) - len(chosen_ids)))
+    chosen_ids.extend(take_from(by_quantity["fallback"], int(count) - len(chosen_ids)))
+
+    while len(chosen_ids) < int(count):
+        refill_pool = by_quantity["rare"] or by_quantity["uncommon"] or pool
+        chosen_ids.append(rng.choice(refill_pool))
+
+    cards = []
+    for card_id in chosen_ids[:int(count)]:
+        card = create_card(card_id)
+        if run_state is not None:
+            card = apply_card_gain_preview_relics(run_state, card)
+        if has_upgrade(card) and rng.random() < upgrade_chance:
+            card = upgrade_card(card)
+        cards.append(card)
+    return cards
 
 def roll_rare_card_rewards(count, rng, upgrade_chance, run_state=None):
     pool = get_card_reward_pool(run_state) if run_state is not None else filter_card_ids(CARD_REWARD_POOL)
@@ -1199,11 +1276,13 @@ def format_card_choices(cards):
         lines.append("没有可选卡牌。")
         return "\n".join(lines)
     for index, card in enumerate(cards):
-        lines.append("[{}] {}".format(
-            index,
-            format_card_reward_summary(card)
-        ))
-    lines.append("")
+        detail_lines = format_card_reward_choice(card).splitlines()
+        if not detail_lines:
+            lines.append("[{}] {}".format(index, format_card_reward_summary(card)))
+        else:
+            lines.append("[{}] {}".format(index, detail_lines[0]))
+            lines.extend(detail_lines[1:])
+        lines.append("")
     lines.append("格式：稀有度 / 牌类型 / 伤害类型 / 属性。没有对应标注时显示 -。")
     lines.append(command_tip("pick", "使用 /card pick 0 选择卡牌。"))
     lines.append(command_tip("bowl", "若拥有颂钵，可使用 /card bowl 将本次卡牌奖励转为 +2 最大生命值。"))
