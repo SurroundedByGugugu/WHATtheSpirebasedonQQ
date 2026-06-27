@@ -1288,9 +1288,14 @@ def choose_event_option(run_state, choice_index, seed=None):
         deck = getattr(run_state, "master_deck", []) or []
         if deck_index < 0 or deck_index >= len(deck):
             return False, "卡牌编号无效。"
+
+        from game.relic_logic.run_relic_utils import assign_new_card_master_uid
+
         old_card = deck[deck_index]
         new_card = copy_card_for_master_deck(old_card)
+        assign_new_card_master_uid(run_state, new_card)
         deck.append(new_card)
+
         after_text = payload.get("after_text", "")
         logs = []
         if after_text:
@@ -1819,7 +1824,18 @@ def choose_event_option(run_state, choice_index, seed=None):
 
         if effect == "skull_potion":
             logs.append("“喝了吧！”")
-            logs.extend(add_random_potions_to_run(run_state, rng, 1))
+
+            from game.relic_logic.run_relic_utils import try_gain_potion_with_relics
+
+            potions = roll_random_potions_for_event(run_state, rng, 1)
+            if potions:
+                logs.extend(try_gain_potion_with_relics(
+                    run_state,
+                    potions[0],
+                    source="全知头骨"
+                ))
+            else:
+                logs.append("没有可获得的药水。")
 
         elif effect == "skull_gold":
             logs.append("“你们这些人类真是从来都不会变。愿望达成了。”")

@@ -268,7 +268,6 @@ def build_joust_event(run_state, rng=None, seed=None, source_node_type="event"):
 
 def build_great_library_event(run_state, rng=None, seed=None, source_node_type="event"):
     sleep_line = "傻子才读书呢。"
-
     if getattr(run_state, "character_id", "") == "character.yoirine":
         sleep_line = "你真的感觉很累。"
 

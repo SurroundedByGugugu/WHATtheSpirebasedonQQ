@@ -2208,7 +2208,21 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
 
     message = action.get("message", "")
     if message:
-        logs.append("{}：「{}」".format(enemy.name, message))
+        suppress_message = False
+
+        if (
+            getattr(enemy, "enemy_id", "") == "enemy.romeo"
+            and message == "上啊，熊！"
+        ):
+            bear_alive = any(
+                getattr(other, "enemy_id", "") == "enemy.bear" and other.is_alive()
+                for other in getattr(game_state, "enemies", []) or []
+            )
+            if not bear_alive:
+                suppress_message = True
+
+        if not suppress_message:
+            logs.append("{}：「{}」".format(enemy.name, message))
 
     from game.zone_utils import (
         get_effective_zone_element_for_enemy_action,
