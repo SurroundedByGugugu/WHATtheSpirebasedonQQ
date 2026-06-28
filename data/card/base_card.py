@@ -26,7 +26,7 @@ class CardTemplate:
 
     attack_type: str = ""       #slash/piercing/blunt/magic
     attack_element: str = ""    #fire/earth/wind/water/thunder/shade/crystal
-
+    skip_auto_zone_hp_loss: bool = False
     owner_character_id: str = ""
     # 卡牌变量，例如 damage、block、base_damage、strength_multiplier
     card_vars: Dict[str, Any] = field(default_factory=dict)

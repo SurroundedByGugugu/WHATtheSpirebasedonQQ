@@ -190,6 +190,9 @@ from data.card.character.yoirine_cards import (
     create_abyssal_erosion,
     create_brave_bird,
     create_roost,
+    create_fleeting_shadow,
+    create_call_of_the_abyss,
+    create_to_your_tranquility,
 )
 
 from data.card.character.lumine_cards import (
@@ -386,6 +389,9 @@ CARD_REGISTRY = {
     "card.abyssal_erosion": create_abyssal_erosion,
     "card.brave_bird": create_brave_bird,
     "card.roost": create_roost,
+    "card.fleeting_shadow": create_fleeting_shadow,
+    "card.call_of_the_abyss": create_call_of_the_abyss,
+    "card.to_your_tranquility": create_to_your_tranquility,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.god_in_hand": create_god_in_hand,

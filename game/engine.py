@@ -3171,6 +3171,8 @@ def end_turn(game_state):
     # 进入下一回合
     game_state.turn_count += 1
     game_state.player_card_type_played_counts_this_turn = make_empty_player_card_type_played_counts()
+    game_state.player_lost_hp_this_turn = False
+    game_state.player_lost_hp_total_this_turn = 0
     cleared_temp_costs = clear_turn_temporary_card_costs(player)
     start_turn_block_logs = player.start_turn(game_state)
     if start_turn_block_logs:

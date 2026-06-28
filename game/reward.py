@@ -139,7 +139,10 @@ CARD_REWARD_POOL = [
     "card.abyssal_erosion",
     "card.brave_bird",
     "card.roost",
-
+    "card.fleeting_shadow",
+    "card.call_of_the_abyss",
+    "card.to_your_tranquility",
+    
     #昼
     "card.mirage_shadows",
     "card.god_in_hand",

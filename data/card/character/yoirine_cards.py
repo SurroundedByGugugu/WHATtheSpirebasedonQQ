@@ -322,6 +322,78 @@ def create_roost():
             ]
         }
     )
+def create_call_of_the_abyss():
+    return CardTemplate(
+        card_id="card.call_of_the_abyss",
+        name="唤渊",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="消耗。抽 1 张牌。若你本回合失去过生命，额外抽 1 张牌，并获得 1 点费用。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "base_draw": 1,
+            "extra_draw": 1,
+            "energy": 1
+        },
+        effects=[
+            {
+                "op": "draw_gain_energy_if_player_lost_hp_this_turn",
+                "base_draw": {
+                    "var": "base_draw"
+                },
+                "extra_draw": {
+                    "var": "extra_draw"
+                },
+                "energy": {
+                    "var": "energy"
+                }
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "唤渊+",
+            "description": "消耗。抽 1 张牌。若你本回合失去过生命，额外抽 2 张牌，并获得 2 点费用。",
+            "card_vars": {
+                "extra_draw": 2,
+                "energy": 2
+            }
+        }
+    )
+def create_fleeting_shadow():
+    return CardTemplate(
+        card_id="card.fleeting_shadow",
+        name="掠影",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="触发一次阴 Zone 自伤效果，然后抽 2 张牌。",
+        quantity="uncommon",
+        attack_element="shade",
+        skip_auto_zone_hp_loss=True,
+        owner_character_id="character.yoirine",
+        card_vars={
+            "draw": 2
+        },
+        effects=[
+            {
+                "op": "trigger_shade_hp_loss_then_draw",
+                "draw": {
+                    "var": "draw"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "掠影+",
+            "description": "触发一次阴 Zone 自伤效果，然后抽 3 张牌。",
+            "card_vars": {
+                "draw": 3
+            }
+        }
+    )
 
 def create_reminiscence():
     return CardTemplate(
@@ -358,6 +430,45 @@ def create_reminiscence():
     )
 
 #rare
+def create_to_your_tranquility():
+    return CardTemplate(
+        card_id="card.to_your_tranquility",
+        name="献给你的安宁",
+        card_type="attack",
+        cost=3,
+        target="enemy",
+        description="造成 28 点伤害。如果使一名生命满的敌人死亡，恢复 2 点生命。",
+        quantity="rare",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 28,
+            "heal": 2
+        },
+        effects=[
+            {
+                "op": "deal_damage_heal_on_full_hp_kill",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                },
+                "heal": {
+                    "var": "heal"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "献给你的安宁+",
+            "description": "造成 38 点伤害。如果使一名生命满的敌人死亡，恢复 3 点生命。",
+            "card_vars": {
+                "damage": 38,
+                "heal": 3
+            }
+        }
+    )
+
 def create_rockbound_wish():
     return CardTemplate(
         card_id="card.rockbound_wish",

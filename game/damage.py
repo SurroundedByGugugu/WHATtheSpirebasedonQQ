@@ -289,11 +289,22 @@ def deal_damage(
             logs.append("{} 获得 2 点易伤。当前易伤：{}。".format(getattr(target, "name", "敌人"), current))
 
     if target is game_state.player and real_damage > 0:
+        game_state.player_lost_hp_this_turn = True
+        game_state.player_lost_hp_total_this_turn = int(
+            getattr(game_state, "player_lost_hp_total_this_turn", 0)
+        ) + int(real_damage)
+
         game_state.player_life_loss_count_this_battle = int(
             getattr(game_state, "player_life_loss_count_this_battle", 0)
         ) + 1
 
         if bool(count_as_player_self_action_hp_loss):
+            game_state.player_self_action_hp_loss_count_this_battle = int(
+                getattr(game_state, "player_self_action_hp_loss_count_this_battle", 0)
+            ) + 1
+            game_state.player_self_action_hp_loss_total_this_battle = int(
+                getattr(game_state, "player_self_action_hp_loss_total_this_battle", 0)
+            ) + int(real_damage)
             game_state.player_self_action_hp_loss_count_this_battle = int(
                 getattr(game_state, "player_self_action_hp_loss_count_this_battle", 0)
             ) + 1

@@ -797,6 +797,193 @@ def handle_brave_bird_self_cost(game_state, card, effect, target_index, effect_c
 
     return logs
 
+@register_effect("deal_damage_heal_on_full_hp_kill")
+def handle_deal_damage_heal_on_full_hp_kill(game_state, card, effect, target_index, effect_context):
+    logs = []
+
+    attack_type, attack_element = get_effect_attack_tags(card, effect)
+    zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+    local_context = make_zone_effect_context(effect_context, zone_element)
+
+    target_key = effect.get("target", "selected_enemy")
+    target_entity = get_effect_target_entity(
+        game_state=game_state,
+        target_key=target_key,
+        target_index=target_index
+    )
+
+    if target_entity is None:
+        logs.append("目标敌人无效。")
+        return logs
+
+    damage = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=game_state.player,
+        target=target_entity,
+        damage_source="played_card",
+        effect_context=local_context,
+        attack_type=attack_type,
+        attack_element=attack_element
+    )
+
+    was_alive = target_entity.is_alive()
+    was_full_hp = int(getattr(target_entity, "hp", 0)) >= int(getattr(target_entity, "max_hp", 0))
+
+    logs.append("【{}】造成 {} 点攻击伤害。".format(
+        card.name,
+        damage
+    ))
+
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=game_state.player,
+        target=target_entity,
+        amount=damage,
+        damage_kind="attack",
+        card=card,
+        attack_type=attack_type,
+        attack_element=attack_element,
+        zone_element=zone_element
+    ))
+
+    from game.zone_utils import apply_fire_zone_burn
+    apply_fire_zone_burn(
+        game_state=game_state,
+        source=game_state.player,
+        target=target_entity,
+        card=card,
+        zone_element=zone_element,
+        logs=logs
+    )
+
+    if was_alive and was_full_hp and not target_entity.is_alive():
+        heal_amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("heal"),
+            source=game_state.player,
+            target=game_state.player,
+            effect_context=local_context
+        )
+        heal_amount = int(heal_amount)
+
+        if heal_amount > 0:
+            from game.relic_logic.combat_relic_utils import heal_player_in_combat
+            logs.extend(heal_player_in_combat(
+                game_state,
+                heal_amount,
+                "【{}】满血斩杀".format(card.name)
+            ))
+
+    return logs
+
+@register_effect("draw_gain_energy_if_player_lost_hp_this_turn")
+def handle_draw_gain_energy_if_player_lost_hp_this_turn(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    base_draw = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("base_draw"),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    base_draw = int(base_draw)
+
+    if base_draw > 0:
+        logs.extend(draw_cards_with_no_draw_check(
+            game_state,
+            base_draw,
+            draw_source="card_effect"
+        ))
+
+    if not bool(getattr(game_state, "player_lost_hp_this_turn", False)):
+        logs.append("本回合还没有失去过生命，【{}】没有触发额外效果。".format(card.name))
+        return logs
+
+    extra_draw = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("extra_draw"),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    energy = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("energy"),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+
+    extra_draw = int(extra_draw)
+    energy = int(energy)
+
+    logs.append("本回合已经失去过生命，【{}】触发额外效果。".format(card.name))
+
+    if extra_draw > 0:
+        logs.extend(draw_cards_with_no_draw_check(
+            game_state,
+            extra_draw,
+            draw_source="card_effect"
+        ))
+
+    if energy > 0:
+        player.cost += energy
+        logs.append("{} 获得 {} 点费用。当前费用：{}。".format(
+            player.name,
+            energy,
+            player.cost
+        ))
+
+    return logs
+
+@register_effect("trigger_shade_hp_loss_then_draw")
+def handle_trigger_shade_hp_loss_then_draw(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    from game.zone_utils import apply_zone_source_hp_loss_if_needed
+
+    apply_zone_source_hp_loss_if_needed(
+        game_state=game_state,
+        source=player,
+        zone_element="shade",
+        logs=logs,
+        label="唤渊",
+        card=card,
+        count_as_player_self_action_hp_loss=True
+    )
+
+    if game_state.battle_over or not player.is_alive():
+        logs.append("【{}】的反噬已经使玩家无法继续抽牌。".format(card.name))
+        return logs
+
+    draw = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("draw"),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    draw = int(draw)
+
+    if draw > 0:
+        logs.extend(draw_cards_with_no_draw_check(
+            game_state,
+            draw,
+            draw_source="card_effect"
+        ))
+
+    return logs
+
 @register_effect("shuffle_discard_into_draw")
 def handle_shuffle_discard_into_draw(game_state, card, effect, target_index, effect_context):
     player = game_state.player
@@ -3625,15 +3812,16 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         effect_context=effect_context,
         logs=logs
     )
-    apply_zone_source_hp_loss_if_needed(
-        game_state=game_state,
-        source=game_state.player,
-        zone_element=card_zone_element,
-        logs=logs,
-        label="阴 Zone",
-        card=card,
-        count_as_player_self_action_hp_loss=True
-    )
+    if not bool(getattr(card, "skip_auto_zone_hp_loss", False)):
+        apply_zone_source_hp_loss_if_needed(
+            game_state=game_state,
+            source=game_state.player,
+            zone_element=card_zone_element,
+            logs=logs,
+            label="阴 Zone",
+            card=card,
+            count_as_player_self_action_hp_loss=True
+        )
     replay_extra = int(getattr(card, "replay_extra", 0))
     replay_extra += int(effect_context.get("replay_extra", 0))
     replay_extra += get_zone_replay_extra(game_state, card_zone_element)
