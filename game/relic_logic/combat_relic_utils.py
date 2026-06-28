@@ -23,6 +23,10 @@ def apply_status_with_player_relics(game_state, source, target, status_key, amou
         if player_has_relic(game_state, "relic.snake_skull"):
             amount += 1
             logs.append("【异蛇头骨】触发：中毒层数额外 +1。")
+    if status_key == "abyss_gaze" and source is player and target_is_enemy and amount > 0:
+        if player_has_relic(game_state, "relic.matte_false_eye"):
+            amount += 2
+            logs.append("【灰暗的假眼】触发：深渊凝视层数额外 +2。")
 
     applied = True
     if hasattr(target, "gain_status_with_result"):

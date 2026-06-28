@@ -305,12 +305,6 @@ def deal_damage(
             game_state.player_self_action_hp_loss_total_this_battle = int(
                 getattr(game_state, "player_self_action_hp_loss_total_this_battle", 0)
             ) + int(real_damage)
-            game_state.player_self_action_hp_loss_count_this_battle = int(
-                getattr(game_state, "player_self_action_hp_loss_count_this_battle", 0)
-            ) + 1
-            game_state.player_self_action_hp_loss_total_this_battle = int(
-                getattr(game_state, "player_self_action_hp_loss_total_this_battle", 0)
-            ) + int(real_damage)
         
     context = BattleContext(
         game_state=game_state,
@@ -335,7 +329,19 @@ def deal_damage(
     )
 
     logs.extend(dispatch_event(game_state, EVENT_DAMAGE_AFTER, context))
-
+    if (
+        damage_kind == "attack"
+        and hasattr(target, "enemy_id")
+        and int(_get_status_value(target, "abyss_gaze")) > 0
+    ):
+        effective_attack_element = str(attack_element or zone_element or "").strip().lower()
+        if effective_attack_element == "shade":
+            old_gaze = int(_get_status_value(target, "abyss_gaze"))
+            target.statuses.remove("abyss_gaze")
+            logs.append("{} 被阴属性攻击命中，{} 层深渊凝视被清空。".format(
+                target.name,
+                old_gaze
+            ))
     if was_alive and not target.is_alive() and not context.extra.get("suppress_death_message", False):
         if hasattr(target, "enemy_id"):
             if getattr(target, "enemy_id", "") == "enemy.bear":

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.relic.lumine_relic import CrossEarringRelic
-from data.relic.yoirine_relic import SaturatedFissureRelic
+from data.relic.yoirine_relic import FlowerInAbyssRelic, MatteFalseEyeRelic, SaturatedFissureRelic
 from data.relic.armored_warrior_relic import (BurningBloodRelic, CharonAshesRelic)
 from data.relic.common_relics import (
     JuzuBraceletRelic, TinyChestRelic,
@@ -203,6 +203,9 @@ RELIC_REGISTRY = {
     "relic.wrist_blade": WristBladeRelic,
     "relic.sacred_bark": SacredBarkRelic,
     "relic.slavers_collar": SlaversCollarRelic,
+
+    "relic.matte_false_eye": MatteFalseEyeRelic,
+    "relic.flower_in_abyss": FlowerInAbyssRelic,
 }
 
 

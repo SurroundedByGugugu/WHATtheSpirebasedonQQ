@@ -116,6 +116,48 @@ def create_brave_bird():
             }
         }
     )
+def create_trace_pursuit():
+    return CardTemplate(
+        card_id="card.trace_pursuit",
+        name="追迹",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 5 点伤害。添加 5 层深渊凝视。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 5,
+            "abyss_gaze": 5
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "gain_status",
+                "target": "selected_enemy",
+                "status": "abyss_gaze",
+                "amount": {
+                    "var": "abyss_gaze"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "追迹+",
+            "description": "造成 8 点伤害。添加 8 层深渊凝视。",
+            "card_vars": {
+                "damage": 8,
+                "abyss_gaze": 8
+            }
+        }
+    )
 
 def create_crystal_thorns():
     return CardTemplate(
@@ -392,6 +434,43 @@ def create_fleeting_shadow():
             "card_vars": {
                 "draw": 3
             }
+        }
+    )
+def create_abyss_gaze():
+    return CardTemplate(
+        card_id="card.abyss_gaze",
+        name="深渊凝视",
+        card_type="skill",
+        cost=1,
+        target="enemy",
+        description="消耗。对目标添加 10 层深渊凝视。",
+        quantity="uncommon",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "abyss_gaze": 10
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "selected_enemy",
+                "status": "abyss_gaze",
+                "amount": {
+                    "var": "abyss_gaze"
+                }
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "深渊凝视+",
+            "description": "对目标添加 15 层深渊凝视。",
+            "card_vars": {
+                "abyss_gaze": 15
+            },
+            "remove_keywords": [
+                KEYWORD_EXHAUST
+            ]
         }
     )
 

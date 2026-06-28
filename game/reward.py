@@ -142,7 +142,9 @@ CARD_REWARD_POOL = [
     "card.fleeting_shadow",
     "card.call_of_the_abyss",
     "card.to_your_tranquility",
-    
+    "card.trace_pursuit",
+    "card.abyss_gaze",
+
     #昼
     "card.mirage_shadows",
     "card.god_in_hand",
@@ -215,6 +217,7 @@ COMMON_RELIC_POOL = [
     "relic.ancient_tea_set",
     "relic.art_of_war",
     "relic.anchor",
+    "relic.matte_false_eye",
 ]
 
 UNCOMMON_RELIC_POOL = [
@@ -284,6 +287,7 @@ RARE_RELIC_POOL = [
     "relic.old_coin",
     "relic.prayer_wheel",
     "relic.the_specimen",
+    "relic.flower_in_abyss",
     "relic.thread_and_needle",
     "relic.tingsha",
     "relic.torii",

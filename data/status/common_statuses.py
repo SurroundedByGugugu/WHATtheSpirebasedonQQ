@@ -717,3 +717,14 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="abyss_gaze",
+    name="深渊凝视",
+    description="每层使受到的阴属性攻击伤害增加 1%；被阴属性攻击后清空。拥有该状态的敌人造成的攻击伤害额外 ×0.9。",
+    category="debuff",
+    display_mode="stack",
+    order=54,
+    decay_timing="none",
+    decay_amount=0,
+))

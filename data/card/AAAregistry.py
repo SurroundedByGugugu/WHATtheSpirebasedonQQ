@@ -193,6 +193,8 @@ from data.card.character.yoirine_cards import (
     create_fleeting_shadow,
     create_call_of_the_abyss,
     create_to_your_tranquility,
+    create_trace_pursuit,
+    create_abyss_gaze,
 )
 
 from data.card.character.lumine_cards import (
@@ -392,6 +394,8 @@ CARD_REGISTRY = {
     "card.fleeting_shadow": create_fleeting_shadow,
     "card.call_of_the_abyss": create_call_of_the_abyss,
     "card.to_your_tranquility": create_to_your_tranquility,
+    "card.trace_pursuit": create_trace_pursuit,
+    "card.abyss_gaze": create_abyss_gaze,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.god_in_hand": create_god_in_hand,

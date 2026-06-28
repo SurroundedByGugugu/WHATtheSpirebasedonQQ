@@ -88,6 +88,8 @@ def get_attack_status_multiplier(source, target, damage_source):
 
     if get_status_value(source, "burn") > 0:
         multiplier *= 0.5
+    if get_status_value(source, "abyss_gaze") > 0:
+        multiplier *= 0.9
 
     if get_status_value(target, "vulnerable") > 0:
         if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
@@ -187,6 +189,14 @@ def apply_attack_damage_modifiers(
         damage_source=damage_source
     )
     value = int(value * status_multiplier)
+    # 深渊凝视：每层使受到的阴属性攻击伤害 +1%。
+    # attack_element 是卡牌/行动自身属性；zone_element 是实际吃到的 Zone 属性。
+    # 两者任一为 shade，就视为阴属性攻击。
+    effective_attack_element = str(attack_element or zone_element or "").strip().lower()
+    if effective_attack_element == "shade":
+        abyss_gaze = get_status_value(target, "abyss_gaze")
+        if abyss_gaze > 0:
+            value = int(value * (1.0 + 0.01 * abyss_gaze))
     # 3. 锁定目标乘区：好，下一个
     if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
         from game.target_lock import get_next_target_damage_multiplier
