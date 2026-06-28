@@ -57,19 +57,19 @@ def create_crystal_zone():
         card_type="skill",
         cost=2,
         target="none",
-        description="场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。已在极·辉晶期间再次使用时，延长持续回合。",
+        description="场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。已在极·辉晶期间再次使用时，延长持续回合2t。",
         quantity="starting",
-        attack_element="crystal",
         owner_character_id="character.yoirine",
         effects=[
             {
-                "op": "set_zone"
+                "op": "set_zone",
+                "element": "crystal"
             }
         ],
         upgraded=False,
         upgrade_patch={
             "name": "辉晶领域+",
-            "description": "费用减少1。场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。已在极·辉晶期间再次使用时，延长持续回合。",
+            "description": "费用减少1。场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。已在极·辉晶期间再次使用时，延长持续回合2t。",
             "cost": 1
         }
     )
@@ -483,7 +483,6 @@ def create_reminiscence():
         target="self",
         description="晶 Zone 下，每回合开始时额外抽 1 张牌。",
         quantity="uncommon",
-        attack_element="crystal",
         owner_character_id="character.yoirine",
         card_vars={
             "draw": 1

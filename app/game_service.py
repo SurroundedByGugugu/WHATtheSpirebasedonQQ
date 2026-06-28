@@ -283,19 +283,29 @@ class GameService(object):
             return self.handle_private_content_command(parts)
 
         if command == "new":
-            if self.get_run(session_id) is not None and self.is_owned_by_other_user(session_id, user_id):
-                return self.SAME_GROUP_SINGLE_GAME_MESSAGE
             character_id = self.resolve_character_id(parts)
             if character_id is None:
                 return "角色编号无效。\n{}".format(self.character_choices_text())
-            run_state, reply = start_run(
-                session_id=session_id,
-                character_id=character_id,
-                seed=DEBUG_SEED
-            )
-            self.set_run(session_id, run_state, user_id)
-            self.pending_confirmations.pop(session_id, None)
-            return reply
+
+            current_run = self.get_run(session_id)
+
+            # 没有 Run，或旧 Run 已结束但尚未清理：直接开新 Run。
+            if current_run is None or getattr(current_run, "run_over", False):
+                run_state, reply = start_run(
+                    session_id=session_id,
+                    character_id=character_id,
+                    seed=DEBUG_SEED
+                )
+                self.set_run(session_id, run_state, user_id)
+                self.pending_confirmations.pop(session_id, None)
+                return reply
+
+            # 已有正在进行的 Run 时，仍然保持同群单人操作限制。
+            if self.is_owned_by_other_user(session_id, user_id):
+                return self.SAME_GROUP_SINGLE_GAME_MESSAGE
+
+            # 当前 owner 主动 new：进入二次确认。
+            return self.request_new_run(session_id, character_id, user_id)
 
         run_state = self.get_run(session_id)
 
@@ -886,6 +896,22 @@ class GameService(object):
             command_tip("no", "使用 /card no 取消。"),
         ])
 
+    def request_new_run(self, session_id, character_id, user_id):
+        self.pending_confirmations[session_id] = {
+            "action": "new_run",
+            "character_id": character_id,
+            "owner_user_id": str(user_id),
+        }
+
+        character_name = self.get_character_display_name(character_id)
+
+        return "\n".join([
+            "当前已有正在进行的 Run。确认放弃当前 Run 并开始新 Run？",
+            "新 Run 角色：{}。".format(character_name),
+            command_tip("yes", "使用 /card yes 确认。"),
+            command_tip("no", "使用 /card no 取消。"),
+        ])
+
     def handle_yes(self, session_id, run_state):
         pending = self.pending_confirmations.pop(session_id, None)
         if pending is None:
@@ -908,13 +934,29 @@ class GameService(object):
             run_state.victory = False
             self.clear_run(session_id)
             return "已结束当前 Run，按失败处理。\n可以使用 /card new [角色序号] 开始下一把。"
-
+        
         if action == "sl":
             new_run_state, reply = reset_current_node_from_snapshot(run_state, seed=DEBUG_SEED)
             self.sessions[session_id] = new_run_state
             if new_run_state.run_over:
                 self.clear_run(session_id)
             return reply
+
+        if action == "new_run":
+            character_id = pending.get("character_id")
+            if character_id is None:
+                return "新 Run 确认信息缺少角色。请重新使用 /card new [角色序号]。"
+
+            owner_user_id = pending.get("owner_user_id") or self.get_owner(session_id)
+
+            run_state, reply = start_run(
+                session_id=session_id,
+                character_id=character_id,
+                seed=DEBUG_SEED
+            )
+            self.set_run(session_id, run_state, owner_user_id)
+
+            return "已确认放弃当前 Run，并开始新 Run。\n\n" + reply
 
         return "未知确认操作：{}。".format(action)
 
@@ -1142,7 +1184,13 @@ class GameService(object):
                 return item["character_id"]
 
         return None
-
+    
+    def get_character_display_name(self, character_id):
+        for item in CHARACTER_CHOICES:
+            if item["character_id"] == character_id:
+                return "{} ({})".format(item["name"], item["character_id"])
+        return character_id
+    
     def character_choices_text(self):
         lines = []
         lines.append("=== 可选角色 ===")
