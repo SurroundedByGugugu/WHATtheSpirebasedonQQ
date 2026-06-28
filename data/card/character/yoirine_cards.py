@@ -234,7 +234,7 @@ def create_abyssal_erosion():
         card_id="card.abyssal_erosion",
         name="渊蚀",
         card_type="attack",
-        cost=1,
+        cost=2,
         target="enemy",
         description="造成 3 点伤害。本场战斗中每因自身行动失去 1 点生命，本牌伤害 +3。",
         quantity="uncommon",
@@ -409,15 +409,15 @@ def create_fleeting_shadow():
         card_id="card.fleeting_shadow",
         name="掠影",
         card_type="skill",
-        cost=0,
+        cost=1,
         target="self",
-        description="触发一次阴 Zone 自伤效果，然后抽 2 张牌。",
+        description="触发一次阴 Zone 自伤效果，然后抽 3 张牌。",
         quantity="uncommon",
         attack_element="shade",
         skip_auto_zone_hp_loss=True,
         owner_character_id="character.yoirine",
         card_vars={
-            "draw": 2
+            "draw": 3
         },
         effects=[
             {
@@ -430,9 +430,9 @@ def create_fleeting_shadow():
         upgraded=False,
         upgrade_patch={
             "name": "掠影+",
-            "description": "触发一次阴 Zone 自伤效果，然后抽 3 张牌。",
+            "description": "触发一次阴 Zone 自伤效果，然后抽 4 张牌。",
             "card_vars": {
-                "draw": 3
+                "draw": 4
             }
         }
     )
@@ -586,7 +586,7 @@ def create_abyssal_form():
         card_type="power",
         cost=3,
         target="self",
-        description="攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+        description="阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         quantity="rare",
         attack_element="shade",
         owner_character_id="character.yoirine",
@@ -607,7 +607,7 @@ def create_abyssal_form():
         upgrade_patch={
             "name": "深渊形态+",
             "cost": 2,
-            "description": "攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+            "description": "阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         }
     )
 def create_phantom_form():
