@@ -149,7 +149,7 @@ def start_run(session_id, character_id="character.test", seed=DEBUG_SEED):
         gold=getattr(character, "starting_gold", 0),
         route_nodes=build_route(generate_act1_grid_route(seed=run_seed))
     )
-    prepare_visible_boss_for_route(run_state, seed=seed)
+    prepare_visible_boss_for_route(run_state, seed=seed, act=1)
     if run_state.route_nodes:
         run_state.current_node_id = run_state.route_nodes[0].node_id
     enter_reply = enter_current_node(run_state, seed=seed)
@@ -163,7 +163,7 @@ def start_run(session_id, character_id="character.test", seed=DEBUG_SEED):
 
     return run_state, "\n".join(reply)
 
-def prepare_visible_boss_for_route(run_state, seed=DEBUG_SEED):
+def prepare_visible_boss_for_route(run_state, seed=DEBUG_SEED, act=None):
     """
     在新路线开始时提前确定本层 Boss，并写入所有 Boss 节点。
 
@@ -171,9 +171,23 @@ def prepare_visible_boss_for_route(run_state, seed=DEBUG_SEED):
     如果只写入第一个 boss 节点，其他列进入时会重新随机 boss，
     造成“地图显示史莱姆老大，实际进入六火亡魂”的货不对板。
     """
+    if act is None:
+        current_node = None
+        try:
+            current_node = run_state.get_current_node()
+        except Exception:
+            current_node = None
+        if current_node is not None:
+            act = get_route_act_from_node(current_node)
+        else:
+            act = 1
+
+    act = int(act or 1)
+
     boss_nodes = [
         node for node in run_state.route_nodes
         if getattr(node, "node_type", "") == "boss"
+        and get_route_act_from_node(node) == act
     ]
 
     if not boss_nodes:
@@ -1603,6 +1617,11 @@ def advance_to_next_act_after_boss_if_needed(run_state, current_node):
     run_state.current_node_id = "act{}.floor00".format(next_act)
     run_state.boss_encounter_id = ""
     run_state.boss_name = ""
+    prepare_visible_boss_for_route(
+        run_state,
+        seed=getattr(run_state, "run_seed", DEBUG_SEED),
+        act=next_act
+    )
     heal_text = apply_post_boss_act_heal(run_state)
     entry_text = enter_current_node(run_state, seed=getattr(run_state, "run_seed", DEBUG_SEED))
     return "\n\n".join([

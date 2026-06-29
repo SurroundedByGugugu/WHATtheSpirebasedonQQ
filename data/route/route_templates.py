@@ -529,7 +529,8 @@ def generate_act2_grid_route(seed=None):
     生成固定 5 列、15 层的二层路线。
 
     二层普通/精英遭遇已通过 run_engine 中的 pool_suffix 选择接到 1_2 池；
-    二层 Boss 当前留空，用 boss_empty 占位，避免误进一层 Boss 池。
+    二层 Boss 使用 boss 节点，并由 run_engine.prepare_visible_boss_for_route
+    提前写入二层 Boss encounter，保证地图预告与实际战斗一致。
     """
     rng = random.Random(seed)
     route = []
@@ -551,7 +552,7 @@ def generate_act2_grid_route(seed=None):
         elif floor == ACT1_PRE_BOSS_REST_FLOOR:
             floor_types = ["rest"] * MAP_WIDTH
         elif floor == ACT1_BOSS_FLOOR:
-            floor_types = ["boss_empty"] * MAP_WIDTH
+            floor_types = ["boss"] * MAP_WIDTH
         else:
             floor_types = generate_random_floor_types(floor, rng)
 

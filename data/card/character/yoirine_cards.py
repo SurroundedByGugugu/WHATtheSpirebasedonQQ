@@ -82,7 +82,7 @@ def create_brave_bird():
         card_type="attack",
         cost=1,
         target="enemy",
-        description="造成 13 点伤害。失去 2 点生命；若有飞行，改为消耗 1 层飞行并消去自伤。",
+        description="造成 13 点伤害。失去 2 点生命；若有飞行，消去自伤。",
         quantity="common",
         owner_character_id="character.yoirine",
         card_vars={
@@ -109,7 +109,7 @@ def create_brave_bird():
         upgraded=False,
         upgrade_patch={
             "name": "勇鸟+",
-            "description": "造成 17 点伤害。失去 1 点生命；若有飞行，改为消耗 1 层飞行并消去自伤。",
+            "description": "造成 17 点伤害。失去 1 点生命；若有飞行，消去自伤。",
             "card_vars": {
                 "damage": 17,
                 "self_loss": 1
@@ -213,7 +213,7 @@ def create_spreading_wing():
         owner_character_id="character.yoirine",
         card_vars={"flying": 2},
         effects=[{
-            "op": "apply_status",
+            "op": "gain_status",
             "target": "self",
             "status": "flying",
             "amount": {"base_var": "flying"}
@@ -234,7 +234,7 @@ def create_abyssal_erosion():
         card_id="card.abyssal_erosion",
         name="渊蚀",
         card_type="attack",
-        cost=2,
+        cost=1,
         target="enemy",
         description="造成 3 点伤害。本场战斗中每因自身行动失去 1 点生命，本牌伤害 +3。",
         quantity="uncommon",
@@ -317,20 +317,14 @@ def create_roost():
         card_type="skill",
         cost=1,
         target="self",
-        description="只能在有飞行时打出。消耗。获得 1 层易伤。结束当前回合。恢复 10% 最大生命值。不失去飞行层数。",
+        description="消耗。获得 1 层易伤。结束当前回合。若有飞行，恢复 10% 最大生命值；否则恢复 5% 最大生命值。不失去飞行层数。",
         quantity="uncommon",
         owner_character_id="character.yoirine",
         card_vars={
             "vulnerable": 1,
-            "heal_percent": 0.10
+            "heal_with_flying_percent": 0.10,
+            "heal_without_flying_percent": 0.05
         },
-        play_conditions=[
-            {
-                "op": "has_status_at_least",
-                "status": "flying",
-                "amount": 1
-            }
-        ],
         effects=[
             {
                 "op": "gain_status",
@@ -341,8 +335,9 @@ def create_roost():
                 }
             },
             {
-                "op": "heal_player_by_max_hp_percent",
-                "percent": 0.10
+                "op": "roost_heal_by_flying_state",
+                "with_flying_percent": 0.10,
+                "without_flying_percent": 0.05
             },
             {
                 "op": "force_end_turn"
@@ -352,14 +347,19 @@ def create_roost():
         upgraded=False,
         upgrade_patch={
             "name": "羽栖+",
-            "description": "只能在有飞行时打出。消耗。获得 1 层易伤。结束当前回合。恢复 15% 最大生命值。不失去飞行层数。",
+            "description": "消耗。获得 1 层易伤。结束当前回合。若有飞行，恢复 15% 最大生命值；否则恢复 7% 最大生命值。不失去飞行层数。",
             "card_vars": {
-                "heal_percent": 0.15
+                "heal_with_flying_percent": 0.15,
+                "heal_without_flying_percent": 0.07
             },
             "patches": [
                 {
-                    "path": ["effects", 1, "percent"],
+                    "path": ["effects", 1, "with_flying_percent"],
                     "value": 0.15
+                },
+                {
+                    "path": ["effects", 1, "without_flying_percent"],
+                    "value": 0.07
                 }
             ]
         }
@@ -409,15 +409,15 @@ def create_fleeting_shadow():
         card_id="card.fleeting_shadow",
         name="掠影",
         card_type="skill",
-        cost=1,
+        cost=0,
         target="self",
-        description="触发一次阴 Zone 自伤效果，然后抽 3 张牌。",
+        description="触发一次阴 Zone 自伤效果，然后抽 2 张牌。",
         quantity="uncommon",
         attack_element="shade",
         skip_auto_zone_hp_loss=True,
         owner_character_id="character.yoirine",
         card_vars={
-            "draw": 3
+            "draw": 2
         },
         effects=[
             {
@@ -430,9 +430,9 @@ def create_fleeting_shadow():
         upgraded=False,
         upgrade_patch={
             "name": "掠影+",
-            "description": "触发一次阴 Zone 自伤效果，然后抽 4 张牌。",
+            "description": "触发一次阴 Zone 自伤效果，然后抽 3 张牌。",
             "card_vars": {
-                "draw": 4
+                "draw": 3
             }
         }
     )
@@ -586,7 +586,7 @@ def create_abyssal_form():
         card_type="power",
         cost=3,
         target="self",
-        description="阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+        description="阴分类的攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         quantity="rare",
         attack_element="shade",
         owner_character_id="character.yoirine",
@@ -607,7 +607,7 @@ def create_abyssal_form():
         upgrade_patch={
             "name": "深渊形态+",
             "cost": 2,
-            "description": "阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+            "description": "阴分类的攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         }
     )
 def create_phantom_form():

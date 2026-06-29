@@ -31,6 +31,7 @@ def collect_zone_deploy_modifiers(game_state, source=None, card=None, element=""
     result = {
         "force_extreme": False,
         "extreme_extend_bonus": 0,
+        "make_extreme_infinite": False,
         "logs": []
     }
 
@@ -59,7 +60,8 @@ def collect_zone_deploy_modifiers(game_state, source=None, card=None, element=""
 
         if relic_result.get("force_extreme", False):
             result["force_extreme"] = True
-
+        if relic_result.get("make_extreme_infinite", False):
+            result["make_extreme_infinite"] = True
         result["extreme_extend_bonus"] += int(
             relic_result.get("extreme_extend_bonus", 0)
         )
@@ -108,6 +110,12 @@ def deploy_element_zone(game_state, element, source=None, card=None, force_extre
 
             logs.extend(modifier_result.get("logs", []))
 
+            if bool(modifier_result.get("make_extreme_infinite", False)):
+                setattr(current_zone, "unsealed_abyss_infinite", True)
+                current_zone.duration = 999999
+                logs.append("当前为同属性极 Zone，【解封的深渊】使其持续时间固定为无限。")
+                return logs
+
             base_extend = 2
             extra_extend = int(modifier_result.get("extreme_extend_bonus", 0))
             total_extend = base_extend + extra_extend
@@ -137,16 +145,26 @@ def deploy_element_zone(game_state, element, source=None, card=None, force_extre
     make_extreme = bool(force_extreme or same_normal_zone)
 
     if make_extreme:
+        duration = EXTREME_ZONE_DURATION
+
         game_state.active_zone = ElementZone(
             element=element,
             is_extreme=True,
-            duration=EXTREME_ZONE_DURATION
+            duration=duration
         )
+
+        if bool(modifier_result.get("make_extreme_infinite", False)):
+            setattr(game_state.active_zone, "unsealed_abyss_infinite", True)
+            game_state.active_zone.duration = 999999
 
         if same_normal_zone and not force_extreme:
             logs.append("再次展开同属性 Zone，Zone 升级为极 Zone。")
 
         logs.append(game_state.active_zone.prompt_text())
+
+        if bool(getattr(game_state.active_zone, "unsealed_abyss_infinite", False)):
+            logs.append("【解封的深渊】使该极 Zone 的持续时间变为无限。")
+
         return logs
 
     if current_zone is not None:
@@ -605,6 +623,10 @@ def tick_zone_turn_end(game_state):
     if not getattr(zone, "is_extreme", False):
         return logs
 
+    if bool(getattr(zone, "unsealed_abyss_infinite", False)):
+        logs.append("{} 持续时间为无限。".format(zone.name))
+        return logs
+
     zone.tick_turn_end()
 
     if zone.is_expired():
@@ -657,7 +679,10 @@ def format_zone_field_detail(game_state):
             lines.append("当前：{}".format(zone.name))
             lines.append("提示：场地上充满了{}元素。".format(element_name))
             lines.append("能力：{}".format(getattr(zone, "ability_text", "暂未定义")))
-            lines.append("剩余：{} 回合".format(getattr(zone, "duration", 0)))
+            if bool(getattr(zone, "unsealed_abyss_infinite", False)):
+                lines.append("剩余：无限")
+            else:
+                lines.append("剩余：{} 回合".format(getattr(zone, "duration", 0)))
             lines.append("覆盖规则：极 Zone 持续期间不可覆盖。")
         else:
             lines.append("当前：{}".format(zone.name))

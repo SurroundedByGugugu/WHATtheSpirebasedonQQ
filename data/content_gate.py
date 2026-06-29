@@ -8,18 +8,27 @@ private 内容默认开启，关闭后会从随机池、奖励池、商店池、
 
 PRIVATE_CONTENT_ENABLED = True
 
-# 上面能不能注释掉？
-
 PRIVATE_CARD_IDS = [
     "card.fire_strike",
     "card.fire_zone",
 
     "card.crystal_piercing",
+    "card.spreading_wing",
     "card.crystal_zone",
     "card.crystal_cocoon",
     "card.crystal_thorns",
+    "card.reminiscence",
     "card.abyssal_form",
     "card.phantom_form",
+    "card.rockbound_wish",
+    "card.abyssal_erosion",
+    "card.brave_bird",
+    "card.roost",
+    "card.fleeting_shadow",
+    "card.call_of_the_abyss",
+    "card.to_your_tranquility",
+    "card.trace_pursuit",
+    "card.abyss_gaze",
 
     "card.mirage_shadows",
     "card.god_in_hand",
@@ -40,6 +49,7 @@ PRIVATE_RELIC_IDS = [
     "relic.cross_earring",
     "relic.placeholder_stone",
     "relic.ether_medium",
+    "relic.unsealed_abyss",
 
 ]
 PRIVATE_EVENT_IDS = []

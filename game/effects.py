@@ -747,6 +747,40 @@ def handle_heal_player_by_max_hp_percent(game_state, card, effect, target_index,
     from game.relic_logic.combat_relic_utils import heal_player_in_combat
     return heal_player_in_combat(game_state, amount, getattr(card, "name", "卡牌"))
 
+@register_effect("roost_heal_by_flying_state")
+def handle_roost_heal_by_flying_state(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    from game.modifiers import get_status_value
+
+    flying = get_status_value(player, "flying")
+
+    if flying > 0:
+        percent = float(effect.get("with_flying_percent", 0.0) or 0.0)
+        label = "有飞行"
+    else:
+        percent = float(effect.get("without_flying_percent", 0.0) or 0.0)
+        label = "没有飞行"
+
+    amount = int(int(getattr(player, "max_hp", 0)) * percent)
+    if amount <= 0 and percent > 0:
+        amount = 1
+
+    logs.append("【{}】{}，恢复 {}% 最大生命值。".format(
+        card.name,
+        label,
+        int(percent * 100)
+    ))
+
+    from game.relic_logic.combat_relic_utils import heal_player_in_combat
+    logs.extend(heal_player_in_combat(
+        game_state,
+        amount,
+        getattr(card, "name", "卡牌")
+    ))
+
+    return logs
 
 @register_effect("brave_bird_self_cost")
 def handle_brave_bird_self_cost(game_state, card, effect, target_index, effect_context):
@@ -757,10 +791,9 @@ def handle_brave_bird_self_cost(game_state, card, effect, target_index, effect_c
 
     flying = get_status_value(player, "flying")
     if flying > 0:
-        current = player.statuses.add("flying", -1)
-        logs.append("【{}】消耗 1 层飞行，消去了自伤。当前飞行：{}。".format(
+        logs.append("【{}】受到飞行保护，消去了自伤。当前飞行：{}。".format(
             card.name,
-            current
+            flying
         ))
         return logs
 
@@ -3693,11 +3726,23 @@ def handle_exhaust_status_and_curse_hand_gain_stats(game_state, card, effect, ta
     logs = []
     player = game_state.player
 
-    cards_to_exhaust = [
-        hand_card
-        for hand_card in list(getattr(player, "hand", []) or [])
-        if getattr(hand_card, "card_type", "") in ("status", "curse")
+    def is_status_or_curse(target_card):
+        return getattr(target_card, "card_type", "") in ("status", "curse")
+
+    pile_specs = [
+        ("hand", "手牌"),
+        ("draw_pile", "抽牌堆"),
+        ("discard_pile", "弃牌堆"),
     ]
+
+    cards_to_exhaust = []
+    for pile_attr, pile_name in pile_specs:
+        pile = getattr(player, pile_attr, None)
+        if pile is None:
+            continue
+        for pile_card in list(pile):
+            if is_status_or_curse(pile_card):
+                cards_to_exhaust.append((pile_attr, pile_name, pile_card))
 
     if not cards_to_exhaust:
         logs.append("没有可消耗的状态牌或诅咒牌。")
@@ -3707,18 +3752,21 @@ def handle_exhaust_status_and_curse_hand_gain_stats(game_state, card, effect, ta
 
     exhausted_count = 0
     exhausted_names = []
+    exhausted_by_pile = {}
 
-    for hand_card in cards_to_exhaust:
-        if hand_card not in player.hand:
+    for pile_attr, pile_name, pile_card in cards_to_exhaust:
+        pile = getattr(player, pile_attr, None)
+        if pile is None or pile_card not in pile:
             continue
 
-        player.hand.remove(hand_card)
-        exhausted_names.append(hand_card.name)
+        pile.remove(pile_card)
+        exhausted_names.append(pile_card.name)
+        exhausted_by_pile.setdefault(pile_name, []).append(pile_card.name)
         exhausted_count += 1
 
         logs.extend(move_card_to_exhaust_pile(
             game_state=game_state,
-            card=hand_card,
+            card=pile_card,
             reason="rockbound_wish"
         ))
 
@@ -3745,10 +3793,16 @@ def handle_exhaust_status_and_curse_hand_gain_stats(game_state, card, effect, ta
     if stat_gain < 1:
         stat_gain = 1
 
+    pile_summaries = []
+    for _, pile_name in pile_specs:
+        names = exhausted_by_pile.get(pile_name, [])
+        if names:
+            pile_summaries.append("{}：{}".format(pile_name, "、".join(names)))
+
     logs.append("【{}】消耗了 {} 张状态牌/诅咒牌：{}。".format(
         card.name,
         exhausted_count,
-        "、".join(exhausted_names)
+        "；".join(pile_summaries) if pile_summaries else "、".join(exhausted_names)
     ))
 
     if hp_loss > 0:

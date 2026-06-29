@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.relic.lumine_relic import CrossEarringRelic
-from data.relic.yoirine_relic import FlowerInAbyssRelic, MatteFalseEyeRelic, SaturatedFissureRelic
+from data.relic.yoirine_relic import FlowerInAbyssRelic, MatteFalseEyeRelic, SaturatedFissureRelic, UnsealedAbyssRelic
 from data.relic.armored_warrior_relic import (BurningBloodRelic, CharonAshesRelic)
 from data.relic.common_relics import (
     JuzuBraceletRelic, TinyChestRelic,
@@ -31,7 +31,6 @@ RELIC_REGISTRY = {
     "relic.homunculus_prototype":HomunculusPrototypeRelic,
     
     "relic.burning_blood":BurningBloodRelic,
-    "relic.saturated_fissure": SaturatedFissureRelic,
     "relic.cross_earring": CrossEarringRelic,
 
     "relic.placeholder_stone": PlaceholderStoneRelic,
@@ -206,6 +205,8 @@ RELIC_REGISTRY = {
 
     "relic.matte_false_eye": MatteFalseEyeRelic,
     "relic.flower_in_abyss": FlowerInAbyssRelic,
+    "relic.saturated_fissure": SaturatedFissureRelic,
+    "relic.unsealed_abyss": UnsealedAbyssRelic,
 }
 
 
