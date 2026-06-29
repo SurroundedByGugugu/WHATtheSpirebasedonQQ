@@ -1088,6 +1088,81 @@ def choose_pending_upgrade_hand_card(game_state, choice_index):
         upgraded_card.name
     )
 
+def clear_pending_element_plating_selection(game_state):
+    clear_pending_choice(game_state, "element_plating")
+
+
+def choose_pending_element_plating(game_state, choice_index):
+    """
+    处理【深渊镀层】/【结晶镀层】：
+    选择一张当前手牌中的无属性攻击牌，临时添加属性标签。
+    """
+    if not pending_choice_is(game_state, "element_plating"):
+        return "当前没有需要处理的镀层选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    options = list(getattr(pending_choice, "options", []) or [])
+    source = getattr(pending_choice, "source", "镀层")
+    payload = getattr(pending_choice, "payload", {}) or {}
+
+    if not options:
+        clear_pending_element_plating_selection(game_state)
+        return "没有可选择的无属性攻击牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(choice_index)
+
+    player = game_state.player
+    chosen_card = options[choice_index]
+
+    if chosen_card not in player.hand:
+        clear_pending_element_plating_selection(game_state)
+        return "所选牌已经不在手牌中，选择已取消。"
+
+    if getattr(chosen_card, "card_type", "") != "attack":
+        clear_pending_element_plating_selection(game_state)
+        return "【{}】不是攻击牌，无法添加镀层。".format(chosen_card.name)
+
+    if str(getattr(chosen_card, "attack_element", "") or "").strip():
+        clear_pending_element_plating_selection(game_state)
+        return "【{}】已经有属性，无法添加镀层。".format(chosen_card.name)
+
+    element = str(payload.get("element", "") or "").strip().lower()
+    suffix = str(payload.get("suffix", "") or "")
+
+    if not element:
+        clear_pending_element_plating_selection(game_state)
+        return "镀层缺少属性，选择已取消。"
+
+    if not suffix:
+        suffix = {
+            "shade": "·阴",
+            "crystal": "·晶",
+        }.get(element, "·{}".format(element))
+
+    old_name = chosen_card.name
+    base_name = getattr(chosen_card, "_element_plating_original_name", old_name)
+
+    setattr(chosen_card, "_element_plating_original_name", base_name)
+    setattr(chosen_card, "attack_element", element)
+    setattr(chosen_card, "temporary_combat_attack_element", element)
+    setattr(chosen_card, "temporary_element_plating_suffix", suffix)
+    setattr(chosen_card, "name", "{}{}".format(base_name, suffix))
+
+    clear_pending_element_plating_selection(game_state)
+
+    element_name = {
+        "shade": "阴",
+        "crystal": "晶",
+    }.get(element, element)
+
+    return "【{}】为【{}】添加{}属性镀层，本场战斗中临时显示为【{}】。".format(
+        source,
+        old_name,
+        element_name,
+        chosen_card.name
+    )
+
 def clear_pending_exhume_selection(game_state):
     game_state.pending_exhume_selection = False
     game_state.pending_exhume_source = ""

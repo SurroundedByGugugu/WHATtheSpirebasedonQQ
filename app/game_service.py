@@ -21,6 +21,7 @@ from game.engine import (
     get_zone_field_view,
     choose_pending_upgrade_hand_card,
     choose_pending_duplicate_hand_card,
+    choose_pending_element_plating,
     choose_pending_exhume_card,
     choose_pending_potion_card,
     choose_pending_elixir_cards,
@@ -197,6 +198,7 @@ class GameService(object):
     def is_known_card_command(self, command):
         return command in {
             "help", "帮助",
+            "plate", "plating", "镀层", "选择镀层",
             "characters", "character", "chars", "角色", "角色选择", "查看角色",
             "info", "说明", "查看说明", "buffinfo", "状态说明",
             "private", "私货",
@@ -683,7 +685,21 @@ class GameService(object):
 
         if game_state is None:
             return "当前不在战斗中。可以使用 /card route 查看路线，或 /card next 0 进入下一节点。"
+        if command in ("plate", "plating", "镀层", "选择镀层"):
+            if not pending_choice_is(game_state, "element_plating"):
+                return "当前没有需要处理的镀层选择。"
+            if len(parts) < 3:
+                return "用法：/card plate 0"
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "镀层选择编号必须是数字。"
+            reply = choose_pending_element_plating(game_state, choice_index)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
 
+        if pending_choice_is(game_state, "element_plating"):
+            return get_pending_player_choice_hint(game_state)
+        
         if command in ("toolbox", "工具箱"):
             if not getattr(game_state, "pending_toolbox_selection", False):
                 return "当前没有需要处理的【工具箱】选择。"

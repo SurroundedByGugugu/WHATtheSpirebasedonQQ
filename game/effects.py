@@ -301,7 +301,12 @@ def get_effect_target_entity(game_state, target_key, target_index):
 
 def get_effect_attack_tags(card, effect):
     attack_type = effect.get("attack_type", getattr(card, "attack_type", ""))
-    attack_element = effect.get("attack_element", getattr(card, "attack_element", ""))
+
+    if "attack_element" in effect and str(effect.get("attack_element", "") or "").strip():
+        attack_element = effect.get("attack_element", "")
+    else:
+        attack_element = getattr(card, "attack_element", "")
+
     return attack_type, attack_element
 
 def get_effect_zone_element(game_state, card, effect, effect_context):
@@ -1014,6 +1019,65 @@ def handle_trigger_shade_hp_loss_then_draw(game_state, card, effect, target_inde
             draw,
             draw_source="card_effect"
         ))
+
+    return logs
+
+@register_effect("choose_hand_attack_without_element_apply_plating")
+def handle_choose_hand_attack_without_element_apply_plating(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+
+    element = str(effect.get("element", "") or "").strip().lower()
+    suffix = str(effect.get("suffix", "") or "")
+
+    if not element:
+        return ["【{}】镀层失败：缺少属性。".format(card.name)]
+
+    if not suffix:
+        suffix = {
+            "shade": "·阴",
+            "crystal": "·晶",
+        }.get(element, "·{}".format(element))
+
+    options = [
+        hand_card
+        for hand_card in list(getattr(player, "hand", []) or [])
+        if getattr(hand_card, "card_type", "") == "attack"
+        and not str(getattr(hand_card, "attack_element", "") or "").strip()
+    ]
+
+    if not options:
+        return ["【{}】没有可添加镀层的无属性攻击牌。".format(card.name)]
+
+    from game.pending_choice import PendingChoice, set_pending_choice
+
+    set_pending_choice(game_state, PendingChoice(
+        kind="element_plating",
+        source=card.name,
+        prompt="=== {}：选择 1 张无属性攻击牌添加镀层 ===".format(card.name),
+        command_hint="用法：/card plate 0\nplate 等效 plating，镀层，选择镀层。",
+        block_message="当前需要先处理镀层选择。用法：/card plate 0。",
+        options=options,
+        payload={
+            "element": element,
+            "suffix": suffix,
+        }
+    ))
+
+    logs = [
+        "=== {}：选择 1 张无属性攻击牌添加{}镀层 ===".format(
+            card.name,
+            {
+                "shade": "阴",
+                "crystal": "晶",
+            }.get(element, element)
+        )
+    ]
+
+    for index, hand_card in enumerate(options):
+        logs.append("[{}] {}".format(index, hand_card.summary_text()))
+
+    logs.append("")
+    logs.append("用法：/card plate 0")
 
     return logs
 

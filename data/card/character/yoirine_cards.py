@@ -227,6 +227,82 @@ def create_spreading_wing():
             },
         }
     )
+def create_abyss_plating():
+    return CardTemplate(
+        card_id="card.abyss_plating",
+        name="深渊镀层",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="获得 4 点格挡。消耗。选择一张没有属性的攻击牌手牌，添加阴属性标签，持续本场战斗。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 4
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "var": "block",
+                    "modifier_profile": "block"
+                }
+            },
+            {
+                "op": "choose_hand_attack_without_element_apply_plating",
+                "element": "shade",
+                "suffix": "·阴"
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "深渊镀层+",
+            "description": "获得 7 点格挡。消耗。选择一张没有属性的攻击牌手牌，添加阴属性标签，持续本场战斗。",
+            "card_vars": {
+                "block": 7
+            }
+        }
+    )
+def create_crystal_plating():
+    return CardTemplate(
+        card_id="card.crystal_plating",
+        name="结晶镀层",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="获得 4 点格挡。消耗。选择一张没有属性的攻击牌手牌，添加晶属性标签，持续本场战斗。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 4
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "var": "block",
+                    "modifier_profile": "block"
+                }
+            },
+            {
+                "op": "choose_hand_attack_without_element_apply_plating",
+                "element": "crystal",
+                "suffix": "·晶"
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "结晶镀层+",
+            "description": "获得 7 点格挡。消耗。选择一张没有属性的攻击牌手牌，添加晶属性标签，持续本场战斗。",
+            "card_vars": {
+                "block": 7
+            }
+        }
+    )
 
 #uncommon
 def create_abyssal_erosion():

@@ -144,6 +144,8 @@ CARD_REWARD_POOL = [
     "card.to_your_tranquility",
     "card.trace_pursuit",
     "card.abyss_gaze",
+    "card.abyss_plating",
+    "card.crystal_plating",
 
     #昼
     "card.mirage_shadows",

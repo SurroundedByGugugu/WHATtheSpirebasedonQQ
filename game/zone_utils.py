@@ -412,7 +412,7 @@ def get_active_zone(game_state):
 def get_card_or_effect_element(card=None, effect=None):
     if effect is not None:
         effect_element = effect.get("attack_element", None)
-        if effect_element is not None:
+        if effect_element is not None and str(effect_element).strip():
             return normalize_element(effect_element)
     return normalize_element(getattr(card, "attack_element", ""))
 

@@ -195,6 +195,8 @@ from data.card.character.yoirine_cards import (
     create_to_your_tranquility,
     create_trace_pursuit,
     create_abyss_gaze,
+    create_abyss_plating,
+    create_crystal_plating,
 )
 
 from data.card.character.lumine_cards import (
@@ -396,6 +398,8 @@ CARD_REGISTRY = {
     "card.to_your_tranquility": create_to_your_tranquility,
     "card.trace_pursuit": create_trace_pursuit,
     "card.abyss_gaze": create_abyss_gaze,
+    "card.abyss_plating": create_abyss_plating,
+    "card.crystal_plating": create_crystal_plating,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.god_in_hand": create_god_in_hand,
