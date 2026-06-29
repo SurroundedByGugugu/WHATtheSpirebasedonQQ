@@ -43,10 +43,10 @@ def create_crystal_piercing():
         upgraded=False,
         upgrade_patch={
             "name": "晶刺+",
-            "description": "对随机敌人造成 2 点伤害 6 次。晶 Zone 条件下费用 -1。",
+            "description": "对随机敌人造成 3 点伤害 4 次。晶 Zone 条件下费用 -1。",
             "card_vars": {
-                "damage": 2,
-                "repeat": 6
+                "damage": 3,
+                "repeat": 4
             },
         }
     )
@@ -409,15 +409,15 @@ def create_fleeting_shadow():
         card_id="card.fleeting_shadow",
         name="掠影",
         card_type="skill",
-        cost=0,
+        cost=1,
         target="self",
-        description="触发一次阴 Zone 自伤效果，然后抽 2 张牌。",
+        description="触发一次阴 Zone 自伤效果，然后抽 3 张牌。",
         quantity="uncommon",
         attack_element="shade",
         skip_auto_zone_hp_loss=True,
         owner_character_id="character.yoirine",
         card_vars={
-            "draw": 2
+            "draw": 3
         },
         effects=[
             {
@@ -430,9 +430,9 @@ def create_fleeting_shadow():
         upgraded=False,
         upgrade_patch={
             "name": "掠影+",
-            "description": "触发一次阴 Zone 自伤效果，然后抽 3 张牌。",
+            "description": "触发一次阴 Zone 自伤效果，然后抽 4 张牌。",
             "card_vars": {
-                "draw": 3
+                "draw": 4
             }
         }
     )
@@ -506,6 +506,37 @@ def create_reminiscence():
             }
         }
     )
+def create_phantom_form():
+    return CardTemplate(
+        card_id="card.phantom_form",
+        name="虚影形态",
+        card_type="power",
+        cost=2,
+        target="self",
+        description="攻击牌无视格挡。",
+        quantity="uncommon",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "phantom_form": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "phantom_form",
+                "amount": {
+                    "var": "phantom_form"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "虚影形态+",
+            "cost": 1,
+            "description": "攻击牌无视格挡。",
+        }
+    )
 
 #rare
 def create_to_your_tranquility():
@@ -552,7 +583,7 @@ def create_rockbound_wish():
         card_id="card.rockbound_wish",
         name="磐愿",
         card_type="skill",
-        cost=0,
+        cost=1,
         target="self",
         description="消耗。消耗所有状态牌和诅咒牌。失去等于消耗牌数量 1/2 的生命，获得等于消耗牌数量 1/4 的力量和敏捷（保底 1）。",
         quantity="rare",
@@ -610,40 +641,6 @@ def create_abyssal_form():
             "description": "阴分类的攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         }
     )
-def create_phantom_form():
-    return CardTemplate(
-        card_id="card.phantom_form",
-        name="虚影形态",
-        card_type="power",
-        cost=3,
-        target="self",
-        description="攻击牌无视格挡。",
-        quantity="rare",
-        attack_element="shade",
-        owner_character_id="character.yoirine",
-        card_vars={
-            "phantom_form": 1
-        },
-        effects=[
-            {
-                "op": "gain_status",
-                "target": "self",
-                "status": "phantom_form",
-                "amount": {
-                    "var": "phantom_form"
-                }
-            }
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "虚影形态+",
-            "cost": 2,
-            "description": "攻击牌无视格挡。",
-        }
-    )
-
-
-
 
 
 
