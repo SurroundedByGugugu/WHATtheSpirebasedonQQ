@@ -121,9 +121,11 @@ class GameState:
             return ""
 
         lines = []
+        from game.display_names import format_relic_display_name
+
         for relic in relics:
             relic_id = getattr(relic, "relic_id", "")
-            name = getattr(relic, "name", "遗物")
+            name = format_relic_display_name(relic)
 
             if relic_id == "relic.incense_burner":
                 count = int(getattr(relic, "turn_counter", 0) or 0)

@@ -30,8 +30,10 @@ class PotionTemplate:
     consume_on_use: bool = True
 
     def summary_text(self):
-        return "【{}】{}：{}".format(
-            self.name,
+        from game.display_names import format_potion_display_name
+
+        return "{}{}：{}".format(
+            format_potion_display_name(self),
             self.potion_id,
             self.description
         )

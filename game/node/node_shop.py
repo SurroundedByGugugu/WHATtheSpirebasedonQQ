@@ -12,6 +12,11 @@ from data.potion.AAAregistry import create_potion
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
 from game.deck_utils import remove_card_from_master_deck
+from game.display_names import (
+    format_card_display_name,
+    format_potion_display_name,
+    format_relic_display_name,
+)
 from game.reward import (
     POTION_REWARD_POOL,
     roll_potion_id_by_rarity,
@@ -224,7 +229,7 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
         relic = create_relic(relic_id)
         items.append(ShopItem(
             item_type="relic",
-            title="遗物：【{}】".format(relic.name),
+            title="遗物：{}".format(format_relic_display_name(relic)),
             price=get_relic_shop_price(relic, rng),
             payload={
                 "relic": relic
@@ -240,7 +245,7 @@ def create_shop_state(run_state, seed=None, source_node_type="shop"):
         potion = create_potion(potion_id)
         items.append(ShopItem(
             item_type="potion",
-            title="药水：【{}】".format(potion.name),
+            title="药水：{}".format(format_potion_display_name(potion)),
             price=get_potion_shop_price(potion, rng),
             payload={
                 "potion": potion
@@ -371,7 +376,7 @@ def create_colored_card_shop_item(rng, owner_character_id, card_type, used_card_
 
     return ShopItem(
         item_type="card",
-        title="卡牌：【{}】".format(card.name),
+        title="卡牌：{}".format(format_card_display_name(card)),
         price=get_card_shop_price(
             card=card,
             rng=rng,
@@ -417,7 +422,7 @@ def create_colorless_card_shop_item(rng, target_quantity, used_card_ids=None, ru
 
     return ShopItem(
         item_type="card",
-        title="无色卡牌：【{}】".format(card.name),
+        title="无色卡牌：{}".format(format_card_display_name(card)),
         price=get_card_shop_price(
             card=card,
             rng=rng,

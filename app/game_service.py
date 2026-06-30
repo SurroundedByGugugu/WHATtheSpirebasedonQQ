@@ -71,7 +71,9 @@ from game.run_engine import (
 )
 from game.route import format_route_text
 from game.reward import format_card_reward_choice
+from game.display_names import format_potion_display_name, format_relic_display_name
 from game.pending_choice import pending_choice_is
+from app.debug_console import handle_debug_console, resolve_status_key, resolve_zone_spec
 from data.content_gate import (
     get_private_content_status_text,
     set_private_content_enabled,
@@ -265,12 +267,28 @@ class GameService(object):
         不认识 QQ，不认识 LLOB。
         """
         text = raw_message.strip()
-        if not (text.startswith("/card")  or text.startswith(".card") or text.startswith("。card")):
+        is_card_command = (
+            text.startswith("/card") or text.startswith(".card") or text.startswith("。card")
+        )
+        is_ctrl_command = (
+            text.startswith("/ctrl") or text.startswith(".ctrl") or text.startswith("。ctrl") or text.startswith("ctrl")
+        )
+        if not (is_card_command or is_ctrl_command):
             return None
         parts = text.split()
         if len(parts) == 1:
+            if is_ctrl_command:
+                return handle_debug_console(None, parts)
             return self.help_text()
         command = parts[1].lower()
+
+        if is_ctrl_command:
+            run_state = self.get_run(session_id)
+            if run_state is None:
+                return "当前会话还没有路线。使用 /card new [角色序号] 开始。"
+            if self.is_owned_by_other_user(session_id, user_id):
+                return self.SAME_GROUP_SINGLE_GAME_MESSAGE
+            return handle_debug_console(run_state, parts)
 
         if command in ("help", "帮助"):
             return self.opening_help_text()
@@ -983,46 +1001,13 @@ class GameService(object):
         return self.format_status_or_zone_info(raw_key)
 
     def format_status_or_zone_info(self, raw_key):
-        status_aliases = {
-            "weak": "weak", "虚弱": "weak",
-            "vulnerable": "vulnerable", "易伤": "vulnerable",
-            "frail": "frail", "脆弱": "frail",
-            "strength": "strength", "力量": "strength",
-            "dexterity": "dexterity", "敏捷": "dexterity",
-            "ritual": "ritual", "仪式": "ritual",
-            "artifact": "artifact", "人工制品": "artifact",
-            "stun": "stun", "眩晕": "stun",
-            "poison": "poison", "中毒": "poison",
-            "burn": "burn", "烧伤": "burn",
-            "regen": "regeneration", "regeneration": "regeneration", "再生": "regeneration",
-            "barricade": "barricade", "壁垒": "barricade",
-        }
+        status_key = resolve_status_key(raw_key)
+        if status_key:
+            return self.format_status_info(status_key)
 
-        key = raw_key.replace(" ", "")
-        if key in status_aliases:
-            return self.format_status_info(status_aliases[key])
-
-        # 支持 /card info weak 这类原始 key。
-        from game.status.status_defs import has_status_def
-        if has_status_def(raw_key):
-            return self.format_status_info(raw_key)
-
-        zone_key = key.replace("zone", "")
-        is_extreme = False
-        if zone_key.startswith("极"):
-            is_extreme = True
-            zone_key = zone_key[1:]
-        element_aliases = {
-            "fire": "fire", "火": "fire","极火": "fire","烈火": "fire",
-            "earth": "earth", "地": "earth","极地": "earth","地裂": "earth",
-            "wind": "wind", "风": "wind","极风": "wind","风王": "wind",
-            "water": "water", "水": "water","极水": "water","水天": "water",
-            "thunder": "thunder", "雷": "thunder","极雷": "thunder","招雷": "thunder",
-            "shade": "shade", "阴": "shade","极阴": "shade","刻阴": "shade",
-            "crystal": "crystal", "晶": "crystal", "极晶": "crystal","辉晶": "crystal",
-        }
-        if zone_key in element_aliases:
-            return self.format_zone_info(element_aliases[zone_key], is_extreme=is_extreme)
+        element, is_extreme = resolve_zone_spec(raw_key)
+        if element:
+            return self.format_zone_info(element, is_extreme=is_extreme)
 
         return "没有找到【{}】的说明。可用示例：/card info weak，/card info 虚弱，/card info 火Zone。".format(raw_key)
 
@@ -1074,9 +1059,9 @@ class GameService(object):
         lines.append("=== 当前遗物 ===")
 
         for index, relic in enumerate(relics):
-            lines.append("[{}] 【{}】：{}".format(
+            lines.append("[{}] {}：{}".format(
                 index,
-                relic.name,
+                format_relic_display_name(relic),
                 relic.description
             ))
         lines.append("")
@@ -1090,9 +1075,9 @@ class GameService(object):
         lines = []
         lines.append("=== 当前遗物 ===")
         for index, relic in enumerate(relics):
-            lines.append("[{}] 【{}】：{}".format(
+            lines.append("[{}] {}：{}".format(
                 index,
-                relic.name,
+                format_relic_display_name(relic),
                 relic.description
             ))
         lines.append("")
@@ -1108,10 +1093,10 @@ class GameService(object):
         relic = relics[relic_index]
         story = getattr(relic, "story", "")
         if not story:
-            return "【{}】没有记录故事。".format(relic.name)
+            return "{}没有记录故事。".format(format_relic_display_name(relic))
         return "\n".join([
             "=== 遗物故事 ===",
-            "[{}] 【{}】".format(relic_index, relic.name),
+            "[{}] {}".format(relic_index, format_relic_display_name(relic)),
             # "",
             story
         ])
@@ -1126,9 +1111,9 @@ class GameService(object):
         lines.append("=== 当前药水 ===")
 
         for index, potion in enumerate(potions):
-            lines.append("[{}] 【{}】：{}".format(
+            lines.append("[{}] {}：{}".format(
                 index,
-                potion.name,
+                format_potion_display_name(potion),
                 potion.description
             ))
 
@@ -1535,10 +1520,9 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.27",
-            "- 新建通往二楼的楼梯！",
-            "- 补全二层事件",
-            
+            "当前版本：v26.06.30",
+            "- 更新控制台和.md说明，具体请在github查看",
+            "- 纯文本格式（不如.md排版好看）可使用(.help控制台)查看", 
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制是否启用私货内容，默认开启",

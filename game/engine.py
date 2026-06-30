@@ -478,7 +478,6 @@ def move_played_card_to_destination(game_state, card):
     if should_exhaust_after_play(card):
         has_spoon = any(getattr(relic, "relic_id", "") == "relic.strange_spoon" for relic in getattr(player, "relics", []) or [])
         if has_spoon:
-            import random
             if random.random() < 0.5:
                 player.discard_pile.append(card)
                 logs.append("【奇怪的勺子】触发：【{}】没有被消耗，改为进入弃牌堆。".format(card.name))
@@ -2029,7 +2028,6 @@ def choose_pending_elixir_cards(game_state, indices):
 
 
 def queue_nilrys_codex_selection(game_state, source_name="尼利的宝典"):
-    import random
     from data.card.AAAregistry import create_card
     from data.content_gate import filter_card_ids
     from game.reward import get_card_reward_pool, CARD_REWARD_POOL
@@ -2121,7 +2119,6 @@ def choose_pending_nilrys_card(game_state, choice_index=None, skip=False):
     options = getattr(game_state, "pending_nilrys_options", []) or []
     if choice_index is None or choice_index < 0 or choice_index >= len(options):
         return "卡牌编号无效。"
-    import random
     card = copy.deepcopy(options[choice_index])
     player = game_state.player
     # 随机洗入抽牌堆。
@@ -2686,7 +2683,6 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             if rarity_rank.get(getattr(card, "quantity", ""), 1) == max_rank
         ]
 
-        import random
         captured = random.choice(candidates)
         source_pile.remove(captured)
 
@@ -2806,7 +2802,6 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
 
         from data.route.encounters import build_random_gremlin_ids
         from data.enemy.AAAregistry import create_enemy
-        import random
 
         gremlin_ids = build_random_gremlin_ids(random, summon_count)
 
@@ -3542,15 +3537,17 @@ def format_relic_list(relics):
     lines = []
     lines.append("=== 当前遗物 ===")
 
+    from game.display_names import format_relic_display_name
+
     for relic_id, relic in relic_map.items():
         count = relic_count_map[relic_id]
 
         if count > 1:
-            name_text = "{}（{}）".format(relic.name, count)
+            name_text = "{}（{}）".format(format_relic_display_name(relic), count)
         else:
-            name_text = relic.name
+            name_text = format_relic_display_name(relic)
 
-        lines.append("【{}】：{}".format(
+        lines.append("{}：{}".format(
             name_text,
             relic.description
         ))
@@ -3603,7 +3600,6 @@ def _get_toolbox_colorless_pool():
 
 
 def queue_toolbox_selection(game_state, source_name="工具箱"):
-    import random
     from data.card.AAAregistry import create_card
     pool = _get_toolbox_colorless_pool()
     if not pool:

@@ -63,20 +63,22 @@ class CardTemplate:
         手牌显示用文本。
         """
         from data.card.keyword_rules import get_card_keyword_display_text
+        from game.display_names import format_card_display_name
 
         keyword_text = get_card_keyword_display_text(self)
+        display_name = format_card_display_name(self)
 
         if keyword_text:
-            return "【{}】{}费 {} [{}]：{}".format(
-                self.name,
+            return "{}{}费 {} [{}]：{}".format(
+                display_name,
                 self.cost,
                 self.card_type,
                 keyword_text,
                 self.description
             )
 
-        return "【{}】{}费 {}：{}".format(
-            self.name,
+        return "{}{}费 {}：{}".format(
+            display_name,
             self.cost,
             self.card_type,
             self.description

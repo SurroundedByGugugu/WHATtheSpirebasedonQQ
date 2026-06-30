@@ -3808,38 +3808,33 @@ def handle_exhaust_status_and_curse_hand_gain_stats(game_state, card, effect, ta
             if is_status_or_curse(pile_card):
                 cards_to_exhaust.append((pile_attr, pile_name, pile_card))
 
-    if not cards_to_exhaust:
-        logs.append("没有可消耗的状态牌或诅咒牌。")
-        return logs
-
     from game.engine import move_card_to_exhaust_pile
 
     exhausted_count = 0
     exhausted_names = []
     exhausted_by_pile = {}
 
-    for pile_attr, pile_name, pile_card in cards_to_exhaust:
-        pile = getattr(player, pile_attr, None)
-        if pile is None or pile_card not in pile:
-            continue
+    if not cards_to_exhaust:
+        logs.append("没有可消耗的状态牌或诅咒牌。")
+    else:
+        for pile_attr, pile_name, pile_card in cards_to_exhaust:
+            pile = getattr(player, pile_attr, None)
+            if pile is None or pile_card not in pile:
+                continue
 
-        pile.remove(pile_card)
-        exhausted_names.append(pile_card.name)
-        exhausted_by_pile.setdefault(pile_name, []).append(pile_card.name)
-        exhausted_count += 1
+            pile.remove(pile_card)
+            exhausted_names.append(pile_card.name)
+            exhausted_by_pile.setdefault(pile_name, []).append(pile_card.name)
+            exhausted_count += 1
 
-        logs.extend(move_card_to_exhaust_pile(
-            game_state=game_state,
-            card=pile_card,
-            reason="rockbound_wish"
-        ))
+            logs.extend(move_card_to_exhaust_pile(
+                game_state=game_state,
+                card=pile_card,
+                reason="rockbound_wish"
+            ))
 
-        if game_state.battle_over:
-            return logs
-
-    if exhausted_count <= 0:
-        logs.append("没有实际消耗任何状态牌或诅咒牌。")
-        return logs
+            if game_state.battle_over:
+                return logs
 
     hp_divisor = int(effect.get("hp_divisor", 2) or 2)
     stat_divisor = int(effect.get("stat_divisor", 4) or 4)
@@ -3849,25 +3844,27 @@ def handle_exhaust_status_and_curse_hand_gain_stats(game_state, card, effect, ta
     if stat_divisor <= 0:
         stat_divisor = 4
 
-    # 按当前工程常见写法使用整数除法向下取整。
     hp_loss = exhausted_count // hp_divisor
 
-    # 力量和敏捷在消耗数量 > 0 时保底 1。
+    # 力量和敏捷保底 1：即使没有实际消耗牌，也获得 1 点力量和 1 点敏捷。
     stat_gain = exhausted_count // stat_divisor
     if stat_gain < 1:
         stat_gain = 1
 
-    pile_summaries = []
-    for _, pile_name in pile_specs:
-        names = exhausted_by_pile.get(pile_name, [])
-        if names:
-            pile_summaries.append("{}：{}".format(pile_name, "、".join(names)))
+    if exhausted_count > 0:
+        pile_summaries = []
+        for _, pile_name in pile_specs:
+            names = exhausted_by_pile.get(pile_name, [])
+            if names:
+                pile_summaries.append("{}：{}".format(pile_name, "、".join(names)))
 
-    logs.append("【{}】消耗了 {} 张状态牌/诅咒牌：{}。".format(
-        card.name,
-        exhausted_count,
-        "；".join(pile_summaries) if pile_summaries else "、".join(exhausted_names)
-    ))
+        logs.append("【{}】消耗了 {} 张状态牌/诅咒牌：{}。".format(
+            card.name,
+            exhausted_count,
+            "；".join(pile_summaries) if pile_summaries else "、".join(exhausted_names)
+        ))
+    else:
+        logs.append("【{}】没有实际消耗任何状态牌或诅咒牌。".format(card.name))
 
     if hp_loss > 0:
         from game.damage import deal_damage
@@ -3886,7 +3883,8 @@ def handle_exhaust_status_and_curse_hand_gain_stats(game_state, card, effect, ta
             damage_kind="life_loss",
             card=card,
             is_reaction_damage=False,
-            ignore_block=True
+            ignore_block=True,
+            count_as_player_self_action_hp_loss=True
         ))
 
         if game_state.battle_over or not player.is_alive():

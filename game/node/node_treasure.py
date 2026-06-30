@@ -9,6 +9,7 @@ from data.relic.AAAregistry import create_relic
 from data.card.AAAregistry import create_card, CARD_REGISTRY
 from data.content_gate import is_content_enabled
 from game.command_help import command_tip
+from game.display_names import format_relic_display_name
 from game.reward import get_available_relic_ids
 from game.relic_logic.run_relic_utils import (
     gain_gold_with_relics,
@@ -213,7 +214,7 @@ def open_pending_treasure(run_state):
         relic = create_relic(relic_id)
         treasure.items.append(TreasureItem(
             item_type="relic",
-            title="遗物：【{}】".format(relic.name),
+            title="遗物：{}".format(format_relic_display_name(relic)),
             payload={"relic": relic},
         ))
     else:
@@ -227,7 +228,7 @@ def open_pending_treasure(run_state):
             extra_relic = create_relic(extra_relic_id)
             treasure.items.append(TreasureItem(
                 item_type="relic",
-                title="套娃：额外遗物：【{}】".format(extra_relic.name),
+                title="套娃：额外遗物：{}".format(format_relic_display_name(extra_relic)),
                 payload={"relic": extra_relic, "source": "matryoshka"},
             ))
             logs.append("【套娃】触发：宝箱中额外出现 1 件遗物。剩余次数：{}。".format(int(getattr(matryoshka, "charges", 0))))

@@ -194,7 +194,9 @@ class IncenseBurnerRelic(RelicTemplate):
         return ["【{}】触发：计数达到 6，获得 1 层无实体。当前无实体：{}。".format(self.name, current)]
 
     def summary_text(self):
-        return "{}：{}（计数 {}/6）".format(self.name, self.description, int(getattr(self, 'turn_counter', 0)))
+        from game.display_names import format_relic_display_name
+
+        return "{}：{}（计数 {}/6）".format(format_relic_display_name(self), self.description, int(getattr(self, 'turn_counter', 0)))
 
 
 class StoneCalendarRelic(RelicTemplate):
@@ -423,7 +425,9 @@ class GiryaRelic(RelicTemplate):
         return ["【{}】触发：根据锻炼次数获得 {} 点力量。当前力量：{}。".format(self.name, lifts, current)]
 
     def summary_text(self):
-        return "{}：{}（已锻炼 {}/3 次）".format(self.name, self.description, int(getattr(self, 'lifts', 0)))
+        from game.display_names import format_relic_display_name
+
+        return "{}：{}（已锻炼 {}/3 次）".format(format_relic_display_name(self), self.description, int(getattr(self, 'lifts', 0)))
 
 
 class PeacePipeRelic(RelicTemplate):
@@ -463,7 +467,9 @@ class LizardTailRelic(RelicTemplate):
 
     def summary_text(self):
         suffix = "已使用" if getattr(self, "used", False) else "未使用"
-        return "{}：{}（{}）".format(self.name, self.description, suffix)
+        from game.display_names import format_relic_display_name
+
+        return "{}：{}（{}）".format(format_relic_display_name(self), self.description, suffix)
 
 
 class MagicFlowerRelic(RelicTemplate):

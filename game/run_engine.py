@@ -23,6 +23,7 @@ from data.route.encounters import (
 from game.achievement import check_run_end_achievements, format_unlocked_achievements
 from game.battle_context import BattleContext
 from game.constants import EVENT_BATTLE_END, DEBUG_SEED
+from game.display_names import format_potion_display_name, format_relic_display_name
 from game.engine import start_battle_with_player, get_combat_view
 from game.event_bus import dispatch_event
 from game.player_state import PlayerState
@@ -1030,7 +1031,7 @@ def process_post_battle_effects(run_state, rng=None):
                 injections = list(getattr(run_state, "pending_reward_injections", []) or [])
                 injections.append(RewardOption(
                     option_type="relic",
-                    title="心灵绽放：稀有遗物：【{}】".format(relic.name),
+                    title="心灵绽放：稀有遗物：{}".format(format_relic_display_name(relic)),
                     payload={"relic": relic, "source": "mind_bloom"},
                 ))
                 run_state.pending_reward_injections = injections
@@ -1096,7 +1097,7 @@ def process_post_battle_effects(run_state, rng=None):
                 relic = create_relic(relic_id)
                 injections.append(RewardOption(
                     option_type="relic",
-                    title="{}：【{}】".format(title_prefix, relic.name),
+                    title="{}：{}".format(title_prefix, format_relic_display_name(relic)),
                     payload={
                         "relic": relic,
                         "source": "arena",
@@ -1300,7 +1301,7 @@ def format_run_potion_summary(run_state):
 
     parts = []
     for index, potion in enumerate(potions):
-        parts.append("[{}]{}".format(index, potion.name))
+        parts.append("[{}]{}".format(index, format_potion_display_name(potion)))
 
     return "药水：{}（{}/{})".format(
         "，".join(parts),
@@ -1317,7 +1318,7 @@ def format_run_relic_summary(run_state):
 
     parts = []
     for index, relic in enumerate(relics):
-        parts.append("[{}]{}".format(index, relic.name))
+        parts.append("[{}]{}".format(index, format_relic_display_name(relic)))
 
     return "遗物：{}".format("，".join(parts))
 

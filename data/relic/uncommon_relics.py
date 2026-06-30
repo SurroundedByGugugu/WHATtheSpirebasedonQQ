@@ -415,7 +415,9 @@ class MatryoshkaRelic(RelicTemplate):
         self.charges = 2
 
     def summary_text(self):
-        return "{}：{}（剩余 {} 次）".format(self.name, self.description, int(getattr(self, "charges", 0)))
+        from game.display_names import format_relic_display_name
+
+        return "{}：{}（剩余 {} 次）".format(format_relic_display_name(self), self.description, int(getattr(self, "charges", 0)))
 
 
 class MeatOnTheBoneRelic(RelicTemplate):
@@ -741,4 +743,3 @@ class SundialRelic(RelicTemplate):
         return ["【{}】触发：第 {} 次洗牌，获得 2 点能量。当前费用：{}/{}。".format(
             self.name, self.shuffle_count, player.cost, player.max_cost
         )]
-

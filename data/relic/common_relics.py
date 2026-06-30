@@ -261,7 +261,9 @@ class OmamoriRelic(RelicTemplate):
         self.max_reward_floor = 47
 
     def summary_text(self):
-        return "{}：{}（剩余 {} 次）".format(self.name, self.description, int(getattr(self, "charges", 0)))
+        from game.display_names import format_relic_display_name
+
+        return "{}：{}（剩余 {} 次）".format(format_relic_display_name(self), self.description, int(getattr(self, "charges", 0)))
 
 
 class OrichalcumRelic(RelicTemplate):

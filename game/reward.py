@@ -14,6 +14,11 @@ from data.potion.AAAregistry import create_potion, POTION_REGISTRY
 from data.relic.AAAregistry import create_relic
 from game.command_help import command_tip
 from game.constants import DEBUG_SEED
+from game.display_names import (
+    format_card_display_name,
+    format_potion_display_name,
+    format_relic_display_name,
+)
 from game.relic_logic.run_relic_utils import (
     add_card_to_master_deck_with_relics,
     can_upgrade_starting_relic,
@@ -523,7 +528,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
         for relic in boss_relics:
             reward_state.options.append(RewardOption(
                 option_type="boss_relic",
-                title="Boss 遗物：【{}】".format(relic.name),
+                title="Boss 遗物：{}".format(format_relic_display_name(relic)),
                 payload={"relic": relic, "group": "boss_relic"}
             ))
     else:
@@ -531,7 +536,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
         if relic is not None:
             reward_state.options.append(RewardOption(
                 option_type="relic",
-                title="遗物：【{}】".format(relic.name),
+                title="遗物：{}".format(format_relic_display_name(relic)),
                 payload={
                     "relic": relic
                 }
@@ -541,7 +546,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
             if extra_relic is not None:
                 reward_state.options.append(RewardOption(
                     option_type="relic",
-                    title="黑星：额外遗物：【{}】".format(extra_relic.name),
+                    title="黑星：额外遗物：{}".format(format_relic_display_name(extra_relic)),
                     payload={"relic": extra_relic}
                 ))
 
@@ -550,7 +555,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
     if potion is not None:
         reward_state.options.append(RewardOption(
             option_type="potion",
-            title="药水：【{}】".format(potion.name),
+            title="药水：{}".format(format_potion_display_name(potion)),
             payload={
                 "potion": potion
             }
@@ -621,7 +626,7 @@ def create_potion_reward_state(potions, node_type="event", title_prefix="事件�
             continue
         reward_state.options.append(RewardOption(
             option_type="potion",
-            title="{}：【{}】".format(title_prefix, getattr(potion, "name", "药水")),
+            title="{}：{}".format(title_prefix, format_potion_display_name(potion)),
             payload={"potion": potion}
         ))
     return reward_state
@@ -1098,8 +1103,8 @@ def format_card_element_name(element):
 
 
 def format_card_header(card):
-    return "【{}】（{} / {} / {} / {}）".format(
-        card.name,
+    return "{}（{} / {} / {} / {}）".format(
+        format_card_display_name(card),
         format_card_quantity_name(getattr(card, "quantity", "")),
         format_card_type_name(getattr(card, "card_type", "")),
         format_card_attack_type_name(getattr(card, "attack_type", "")),
@@ -1167,8 +1172,8 @@ def format_related_card_line(card_id):
         related_card = create_card(card_id)
     except Exception:
         return "- 相关卡牌（{}）：无法创建。".format(card_id)
-    return "- 相关卡牌【{}】（{} / {}）：{}".format(
-        related_card.name,
+    return "- 相关卡牌{}（{} / {}）：{}".format(
+        format_card_display_name(related_card),
         format_card_quantity_name(getattr(related_card, "quantity", "")),
         format_card_type_name(getattr(related_card, "card_type", "")),
         related_card.description
@@ -1269,7 +1274,7 @@ def take_reward_option(run_state, reward_state, option_index):
         max_slots = getattr(run_state, "max_potion_slots", 3)
         if len(run_state.potions) >= max_slots:
             return "\n".join([
-                "药水栏已满，无法直接获得【{}】。".format(potion.name),
+                "药水栏已满，无法直接获得{}。".format(format_potion_display_name(potion)),
                 "",
                 format_potion_slots(run_state),
                 "",
@@ -1424,9 +1429,9 @@ def format_potion_slots(run_state):
         return "\n".join(lines)
 
     for index, potion in enumerate(potions):
-        lines.append("[{}] 【{}】：{}".format(
+        lines.append("[{}] {}：{}".format(
             index,
-            potion.name,
+            format_potion_display_name(potion),
             potion.description
         ))
 
@@ -1461,9 +1466,9 @@ def replace_potion_reward(run_state, reward_state, option_index, potion_index):
     extra = ""
     if getattr(potion, "potion_id", "") == "potion.fairy_in_a_bottle" and getattr(run_state, "character_id", "") == "character.yoirine":
         extra = "\n昼·里辛塔法：“我没见过这个。但本能地……不太喜欢它。”"
-    return "丢弃【{}】，获得药水：【{}】。{}".format(
-        old_potion.name,
-        potion.name,
+    return "丢弃{}，获得药水：{}。{}".format(
+        format_potion_display_name(old_potion),
+        format_potion_display_name(potion),
         extra
     )
 

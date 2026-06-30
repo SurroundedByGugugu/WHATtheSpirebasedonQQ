@@ -47,4 +47,6 @@ class RelicTemplate:
         return []
     
     def summary_text(self):
-        return "{}：{}".format(self.name, self.description)
+        from game.display_names import format_relic_display_name
+
+        return "{}：{}".format(format_relic_display_name(self), self.description)
