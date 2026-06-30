@@ -6,7 +6,13 @@
 private 内容默认开启，关闭后会从随机池、奖励池、商店池、事件池等入口过滤。
 """
 
-PRIVATE_CONTENT_ENABLED = True
+import contextlib
+import contextvars
+
+
+PRIVATE_CONTENT_DEFAULT_ENABLED = True
+PRIVATE_CONTENT_SESSION_SETTINGS = {}
+_CURRENT_SESSION_ID = contextvars.ContextVar("private_content_session_id", default=None)
 
 PRIVATE_CARD_IDS = [
     "card.fire_strike",
@@ -64,17 +70,71 @@ PRIVATE_ENCOUNTER_IDS = [
 ]
 
 
-def is_private_content_enabled():
-    return bool(PRIVATE_CONTENT_ENABLED)
+def normalize_session_id(session_id):
+    if session_id is None:
+        return None
+    session_id = str(session_id).strip()
+    if not session_id:
+        return None
+    return session_id
 
 
-def set_private_content_enabled(enabled):
-    global PRIVATE_CONTENT_ENABLED
-    PRIVATE_CONTENT_ENABLED = bool(enabled)
+def set_private_content_settings(default_enabled=None, session_settings=None):
+    """
+    从外部配置整体刷新 private 开关。
+    session_settings 的 key 使用 group:{group_id} 或 private:{user_id}。
+    """
+    global PRIVATE_CONTENT_DEFAULT_ENABLED
+    global PRIVATE_CONTENT_SESSION_SETTINGS
+
+    if default_enabled is not None:
+        PRIVATE_CONTENT_DEFAULT_ENABLED = bool(default_enabled)
+
+    if session_settings is not None:
+        cleaned = {}
+        for session_id, enabled in session_settings.items():
+            session_id = normalize_session_id(session_id)
+            if session_id is not None:
+                cleaned[session_id] = bool(enabled)
+        PRIVATE_CONTENT_SESSION_SETTINGS = cleaned
 
 
-def get_private_content_status_text():
-    return "开启" if is_private_content_enabled() else "关闭"
+def is_private_content_enabled(session_id=None):
+    session_id = normalize_session_id(session_id)
+    if session_id is None:
+        session_id = normalize_session_id(_CURRENT_SESSION_ID.get())
+
+    if session_id is not None and session_id in PRIVATE_CONTENT_SESSION_SETTINGS:
+        return bool(PRIVATE_CONTENT_SESSION_SETTINGS[session_id])
+
+    return bool(PRIVATE_CONTENT_DEFAULT_ENABLED)
+
+
+def set_private_content_enabled(enabled, session_id=None):
+    global PRIVATE_CONTENT_DEFAULT_ENABLED
+
+    session_id = normalize_session_id(session_id)
+    if session_id is None:
+        session_id = normalize_session_id(_CURRENT_SESSION_ID.get())
+
+    if session_id is None:
+        PRIVATE_CONTENT_DEFAULT_ENABLED = bool(enabled)
+        return
+
+    PRIVATE_CONTENT_SESSION_SETTINGS[session_id] = bool(enabled)
+
+
+def get_private_content_status_text(session_id=None):
+    return "开启" if is_private_content_enabled(session_id=session_id) else "关闭"
+
+
+@contextlib.contextmanager
+def private_content_session(session_id):
+    token = _CURRENT_SESSION_ID.set(normalize_session_id(session_id))
+    try:
+        yield
+    finally:
+        _CURRENT_SESSION_ID.reset(token)
 
 
 def is_private_content(kind, content_id):

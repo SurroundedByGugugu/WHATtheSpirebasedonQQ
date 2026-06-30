@@ -174,9 +174,11 @@ class GameService(object):
     def has_active_runs(self):
         return bool(self.sessions)
 
-    def handle_private_content_command(self, parts):
+    def handle_private_content_command(self, session_id, parts):
         if len(parts) <= 2 or parts[2].lower() in ("status", "状态", "查看"):
-            return "private 内容开关：{}。".format(get_private_content_status_text())
+            return "当前会话 private 内容开关：{}。".format(
+                get_private_content_status_text(session_id=session_id)
+            )
 
         action = parts[2].lower()
 
@@ -185,17 +187,20 @@ class GameService(object):
         elif action in ("off", "close", "disable", "disabled", "关", "关闭"):
             enabled = False
         else:
-            return "用法：/card private on 或 /card private off。当前：{}。".format(
-                get_private_content_status_text()
+            return "用法：/card private on 或 /card private off。当前会话：{}。".format(
+                get_private_content_status_text(session_id=session_id)
             )
 
-        if self.has_active_runs():
-            return "已有进行中的 Run，不能在 Run 过程中修改 private 内容开关。当前：{}。".format(
-                get_private_content_status_text()
+        current_run = self.get_run(session_id)
+        if current_run is not None and not getattr(current_run, "run_over", False):
+            return "当前会话已有进行中的 Run，不能在 Run 过程中修改 private 内容开关。当前：{}。".format(
+                get_private_content_status_text(session_id=session_id)
             )
 
-        set_private_content_enabled(enabled)
-        return "private 内容开关：已{}。".format(get_private_content_status_text())
+        set_private_content_enabled(enabled, session_id=session_id)
+        return "当前会话 private 内容开关：已{}。".format(
+            get_private_content_status_text(session_id=session_id)
+        )
 
     def is_known_card_command(self, command):
         return command in {
@@ -300,7 +305,7 @@ class GameService(object):
             return self.get_general_info(parts)
 
         if command in ("private", "私货"):
-            return self.handle_private_content_command(parts)
+            return self.handle_private_content_command(session_id, parts)
 
         if command == "new":
             character_id = self.resolve_character_id(parts)
@@ -1525,7 +1530,7 @@ class GameService(object):
             "- 纯文本格式（不如.md排版好看）可使用(.help控制台)查看", 
             "",
             "/card characters 查看可选角色",
-            "/card private on/off      控制是否启用私货内容，默认开启",
+            "/card private on/off      控制当前会话是否启用私货内容，默认开启",
             "/card new 0      选择 0 号测试角色并开始测试战斗",
             "/card view       查看战斗状态和手牌",
             "/card run        查看角色 hp/金币/药水/遗物 总览",

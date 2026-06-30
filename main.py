@@ -7,6 +7,11 @@ import configparser
 import websockets
 
 from app.game_service import GameService
+from data.content_gate import (
+    get_private_content_status_text,
+    private_content_session,
+    set_private_content_settings,
+)
 
 
 HOST = "127.0.0.1"
@@ -25,7 +30,9 @@ BOT_CONFIG = {
     "admin_user_ids": set(),
     "enabled_group_ids": set(),
     "blacklist_user_ids": set(),
-    "blacklist_group_ids": set()
+    "blacklist_group_ids": set(),
+    "private_content_default_enabled": True,
+    "private_content_session_settings": {}
 }
 
 
@@ -80,6 +87,72 @@ def split_id_list(text):
     return result
 
 
+def parse_ini_switch(value, default=None):
+    """
+    解析 ini 中的 1/0、on/off、开启/关闭。
+    不认识的值返回 default。
+    """
+    if value is None:
+        return default
+
+    text = str(value).strip().lower()
+    if not text:
+        return default
+
+    if text in ("1", "true", "yes", "y", "on", "open", "enable", "enabled", "开", "开启"):
+        return True
+
+    if text in ("0", "false", "no", "n", "off", "close", "disable", "disabled", "关", "关闭"):
+        return False
+
+    return default
+
+
+def load_private_content_config(parser):
+    """
+    private 内容开关：
+    - [private_content] default 控制未配置会话的默认状态
+    - [private_content_groups] 群号 = 1/0
+    - [private_content_private] QQ号 = 1/0
+    """
+    default_enabled = True
+    session_settings = {}
+
+    if parser.has_section("private_content"):
+        parsed_default = parse_ini_switch(
+            parser.get("private_content", "default", fallback=""),
+            default=None
+        )
+        if parsed_default is not None:
+            default_enabled = parsed_default
+
+        for session_id, value in parser.items("private_content"):
+            session_id = str(session_id).strip()
+            if session_id == "default":
+                continue
+            if not (session_id.startswith("group:") or session_id.startswith("private:")):
+                continue
+            enabled = parse_ini_switch(value, default=None)
+            if enabled is not None:
+                session_settings[session_id] = enabled
+
+    if parser.has_section("private_content_groups"):
+        for group_id, value in parser.items("private_content_groups"):
+            group_id = str(group_id).strip()
+            enabled = parse_ini_switch(value, default=None)
+            if group_id and enabled is not None:
+                session_settings["group:{}".format(group_id)] = enabled
+
+    if parser.has_section("private_content_private"):
+        for user_id, value in parser.items("private_content_private"):
+            user_id = str(user_id).strip()
+            enabled = parse_ini_switch(value, default=None)
+            if user_id and enabled is not None:
+                session_settings["private:{}".format(user_id)] = enabled
+
+    return default_enabled, session_settings
+
+
 def ensure_default_config():
     """
     如果配置文件不存在，自动创建一个默认配置。
@@ -98,6 +171,20 @@ user_ids =
 ; 群号不存在，或值不是 1，都视为关闭
 ; 例如：
 ; 1030875571 = 1
+
+[private_content]
+; default = 1 表示默认启用私货内容，0 表示默认关闭
+default = 1
+
+[private_content_groups]
+; 群号 = 1/0 覆盖默认 private 内容开关
+; 例如：
+; 1030875571 = 0
+
+[private_content_private]
+; QQ号 = 1/0 覆盖默认 private 内容开关
+; 例如：
+; 2415066238 = 0
 
 [blacklist]
 ; 用户黑名单：命中后私聊和群聊都拦截
@@ -128,6 +215,8 @@ def load_bot_config():
     enabled_group_ids = set()
     blacklist_user_ids = set()
     blacklist_group_ids = set()
+    private_content_default_enabled = True
+    private_content_session_settings = {}
 
     if parser.has_section("admin"):
         admin_user_ids = split_id_list(parser.get("admin", "user_ids", fallback=""))
@@ -144,11 +233,19 @@ def load_bot_config():
         blacklist_user_ids = split_id_list(parser.get("blacklist", "user_ids", fallback=""))
         blacklist_group_ids = split_id_list(parser.get("blacklist", "group_ids", fallback=""))
 
+    private_content_default_enabled, private_content_session_settings = load_private_content_config(parser)
+    set_private_content_settings(
+        default_enabled=private_content_default_enabled,
+        session_settings=private_content_session_settings
+    )
+
     BOT_CONFIG = {
         "admin_user_ids": admin_user_ids,
         "enabled_group_ids": enabled_group_ids,
         "blacklist_user_ids": blacklist_user_ids,
-        "blacklist_group_ids": blacklist_group_ids
+        "blacklist_group_ids": blacklist_group_ids,
+        "private_content_default_enabled": private_content_default_enabled,
+        "private_content_session_settings": private_content_session_settings
     }
 
     print("配置读取完成：")
@@ -156,6 +253,21 @@ def load_bot_config():
     print("  启用群聊：{}".format(BOT_CONFIG["enabled_group_ids"]))
     print("  用户黑名单：{}".format(BOT_CONFIG["blacklist_user_ids"]))
     print("  群黑名单：{}".format(BOT_CONFIG["blacklist_group_ids"]))
+    print("  private 默认：{}".format("开启" if private_content_default_enabled else "关闭"))
+    print("  private 会话覆盖：{}".format(private_content_session_settings))
+
+
+def get_event_session_id(event):
+    message_type = event.get("message_type")
+
+    if message_type == "group":
+        return "group:{}".format(event.get("group_id"))
+
+    if message_type == "private":
+        user_id = event.get("user_id")
+        return "private:{}".format(user_id)
+
+    return None
 
 
 def is_admin(user_id):
@@ -316,6 +428,8 @@ async def handle_main_control(ws, event):
     if action == "status":
         message_type = event.get("message_type")
         group_id = event.get("group_id")
+        session_id = get_event_session_id(event)
+        private_status = get_private_content_status_text(session_id=session_id)
 
         if BOT_ENABLED:
             bot_status = "开启"
@@ -329,9 +443,16 @@ async def handle_main_control(ws, event):
             else:
                 group_status = "当前群未启用"
 
-            reply = "Python 插件总开关：{}。\n{}。".format(bot_status, group_status)
+            reply = "Python 插件总开关：{}。\n{}。\n当前会话 private 内容：{}。".format(
+                bot_status,
+                group_status,
+                private_status
+            )
         else:
-            reply = "Python 插件总开关：{}。\n私聊默认启用。".format(bot_status)
+            reply = "Python 插件总开关：{}。\n私聊默认启用。\n当前会话 private 内容：{}。".format(
+                bot_status,
+                private_status
+            )
 
         await send_reply(ws, event, reply)
         return True
@@ -359,17 +480,15 @@ async def dispatch_to_plugins(ws, event):
     - 私聊 session_id 使用 private:{user_id}
     """
     raw_message = event.get("raw_message", "")
-    message_type = event.get("message_type")
     user_id = str(event.get("user_id", ""))
+    session_id = get_event_session_id(event)
 
-    if message_type == "group":
-        session_id = "group:{}".format(event.get("group_id"))
-    elif message_type == "private":
-        session_id = "private:{}".format(user_id)
-    else:
+    if session_id is None:
         return
 
-    reply = game_service.handle_message(session_id, user_id, raw_message)
+    with private_content_session(session_id):
+        reply = game_service.handle_message(session_id, user_id, raw_message)
+
     if reply:
         for part in split_reply_text(reply, limit=1500):
             await send_reply(ws, event, part)
