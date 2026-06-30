@@ -549,6 +549,73 @@ def create_abyss_gaze():
             ]
         }
     )
+def create_crystal_mist():
+    return CardTemplate(
+        card_id="card.crystal_mist",
+        name="结晶薄雾",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="下 1 张打出的牌视为在晶 Zone 下。无属性牌也会占用次数。真实场地 Zone 存在时不触发。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "mist": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "crystal_mist",
+                "amount": {
+                    "var": "mist"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "结晶薄雾+",
+            "description": "下 2 张打出的牌视为在晶 Zone 下。无属性牌也会占用次数。真实场地 Zone 存在时不触发。",
+            "card_vars": {
+                "mist": 2
+            }
+        }
+    )
+def create_abyss_mist():
+    return CardTemplate(
+        card_id="card.abyss_mist",
+        name="深渊薄雾",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="下 1 张打出的攻击牌视为在阴 Zone 下。真实场地 Zone 存在时不触发。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "mist": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "abyss_mist",
+                "amount": {
+                    "var": "mist"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "深渊薄雾+",
+            "description": "下 1 张打出的攻击牌视为在极阴 Zone 下。真实场地 Zone 存在时不触发。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "status"],
+                    "value": "abyss_mist_extreme"
+                }
+            ]
+        }
+    )
 
 def create_reminiscence():
     return CardTemplate(
@@ -683,6 +750,36 @@ def create_rockbound_wish():
                     "value": 3
                 }
             ]
+        }
+    )
+def create_tailwind():
+    return CardTemplate(
+        card_id="card.tailwind",
+        name="顺风",
+        card_type="power",
+        cost=3,
+        target="self",
+        description="有飞行状态时，受到的攻击伤害变为 30%。",
+        quantity="rare",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "tailwind": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "tailwind",
+                "amount": {
+                    "var": "tailwind"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "顺风+",
+            "description": "费用减少 1。有飞行状态时，受到的攻击伤害变为 30%。",
+            "cost": 2
         }
     )
 

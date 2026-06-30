@@ -406,7 +406,19 @@ def card_has_ether_medium_override(game_state, effect_context=None):
 
 
 def get_active_zone(game_state):
-    return getattr(game_state, "active_zone", None)
+    """
+    真实 Zone 优先。
+    如果没有真实 Zone，允许当前打出的牌使用薄雾提供的临时虚拟 Zone。
+    """
+    real_zone = getattr(game_state, "active_zone", None)
+    if real_zone is not None and not real_zone.is_expired():
+        return real_zone
+
+    virtual_zone = getattr(game_state, "_current_virtual_mist_zone", None)
+    if virtual_zone is not None:
+        return virtual_zone
+
+    return real_zone
 
 
 def get_card_or_effect_element(card=None, effect=None):
@@ -425,12 +437,10 @@ def get_effective_zone_element_for_card(game_state, card=None, effect=None, effe
     以太介质：该场战斗中第一次打出该牌时，无视 tag，直接吃当前 Zone。
     """
     zone = get_active_zone(game_state)
-    if zone is None:
+    if zone is None or zone.is_expired():
         return ""
 
     zone_element = normalize_element(getattr(zone, "element", ""))
-    if not zone_element:
-        return ""
 
     if card_has_ether_medium_override(game_state, effect_context):
         return zone_element

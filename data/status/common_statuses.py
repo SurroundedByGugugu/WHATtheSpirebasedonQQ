@@ -728,3 +728,47 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="crystal_mist",
+    name="结晶薄雾",
+    description="没有真实场地 Zone 时，接下来每层使 1 张打出的牌视为在晶 Zone 下。无属性牌也会消耗层数。",
+    category="buff",
+    display_mode="stack",
+    order=75,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="abyss_mist",
+    name="深渊薄雾",
+    description="没有真实场地 Zone 时，接下来 1 张打出的攻击牌视为在阴 Zone 下。",
+    category="buff",
+    display_mode="stack",
+    order=76,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="abyss_mist_extreme",
+    name="极·深渊薄雾",
+    description="没有真实场地 Zone 时，接下来 1 张打出的攻击牌视为在极阴 Zone 下。",
+    category="buff",
+    display_mode="stack",
+    order=77,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="tailwind",
+    name="顺风",
+    description="拥有飞行时，受到的攻击伤害变为 30%。",
+    category="buff",
+    display_mode="stack",
+    order=78,
+    decay_timing="none",
+    decay_amount=0,
+))

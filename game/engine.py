@@ -2,12 +2,14 @@
 
 import random
 import copy
-from game.block import gain_block_without_modifiers
 from data.character.AAAregistry import create_character
 from data.card.AAAregistry import create_deck
 from data.relic.AAAregistry import create_relics
 from data.enemy.AAAregistry import create_enemy
 from data.potion.AAAregistry import create_potions
+from data.zones.element_zones import ElementZone
+
+from game.block import gain_block_without_modifiers
 from game.status.status_defs import get_status_name
 from game.card_cost import get_card_current_cost
 from game.constants import (DEBUG_SEED, EVENT_POTION_USE_AFTER,
@@ -1423,6 +1425,122 @@ def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
 
     return effect_context
 
+def clear_current_virtual_mist_zone(game_state):
+    if hasattr(game_state, "_current_virtual_mist_zone"):
+        delattr(game_state, "_current_virtual_mist_zone")
+
+
+def _real_active_zone_exists(game_state):
+    zone = getattr(game_state, "active_zone", None)
+    if zone is None:
+        return False
+    try:
+        return not zone.is_expired()
+    except Exception:
+        return True
+
+
+def _set_current_virtual_mist_zone(game_state, element, is_extreme=False):
+    virtual_zone = ElementZone(
+        element=element,
+        is_extreme=bool(is_extreme),
+        duration=0
+    )
+    setattr(virtual_zone, "is_virtual_mist_zone", True)
+    setattr(game_state, "_current_virtual_mist_zone", virtual_zone)
+    return virtual_zone
+
+
+def apply_next_card_virtual_zone_statuses(game_state, card, effect_context, logs):
+    """
+    处理【结晶薄雾】/【深渊薄雾】。
+
+    规则：
+    - 真实 active_zone 存在时，薄雾不触发、不消耗。
+    - 深渊薄雾只等待攻击牌。
+    - 结晶薄雾等待任意牌；无属性牌也会消耗层数。
+    - 同时存在时，攻击牌优先触发深渊薄雾。
+    """
+    player = game_state.player
+
+    clear_current_virtual_mist_zone(game_state)
+
+    if _real_active_zone_exists(game_state):
+        return effect_context
+
+    card_type = getattr(card, "card_type", "")
+
+    # 深渊薄雾：下一张攻击牌一定占用次数，但只有阴属性攻击牌实际吃效果。
+    if card_type == "attack":
+        if player.statuses.get("abyss_mist_extreme") > 0:
+            remaining = player.statuses.add("abyss_mist_extreme", -1)
+            _set_current_virtual_mist_zone(
+                game_state=game_state,
+                element="shade",
+                is_extreme=True
+            )
+            effect_context["virtual_mist_zone_element"] = "shade"
+            effect_context["virtual_mist_zone_is_extreme"] = True
+
+            if str(getattr(card, "attack_element", "") or "").strip().lower() == "shade":
+                logs.append("【极·深渊薄雾】触发：【{}】在极阴 Zone 下结算。剩余：{}。".format(
+                    card.name,
+                    remaining
+                ))
+            else:
+                logs.append("【极·深渊薄雾】被【{}】占用，但该牌不是阴属性，未触发 Zone 效果。剩余：{}。".format(
+                    card.name,
+                    remaining
+                ))
+            return effect_context
+
+        if player.statuses.get("abyss_mist") > 0:
+            remaining = player.statuses.add("abyss_mist", -1)
+            _set_current_virtual_mist_zone(
+                game_state=game_state,
+                element="shade",
+                is_extreme=False
+            )
+            effect_context["virtual_mist_zone_element"] = "shade"
+            effect_context["virtual_mist_zone_is_extreme"] = False
+
+            if str(getattr(card, "attack_element", "") or "").strip().lower() == "shade":
+                logs.append("【深渊薄雾】触发：【{}】在阴 Zone 下结算。剩余：{}。".format(
+                    card.name,
+                    remaining
+                ))
+            else:
+                logs.append("【深渊薄雾】被【{}】占用，但该牌不是阴属性，未触发 Zone 效果。剩余：{}。".format(
+                    card.name,
+                    remaining
+                ))
+            return effect_context
+
+    # 结晶薄雾：下一张任意牌一定占用次数，但只有晶属性牌实际吃效果。
+    if player.statuses.get("crystal_mist") > 0:
+        remaining = player.statuses.add("crystal_mist", -1)
+        _set_current_virtual_mist_zone(
+            game_state=game_state,
+            element="crystal",
+            is_extreme=False
+        )
+        effect_context["virtual_mist_zone_element"] = "crystal"
+        effect_context["virtual_mist_zone_is_extreme"] = False
+
+        if str(getattr(card, "attack_element", "") or "").strip().lower() == "crystal":
+            logs.append("【结晶薄雾】触发：【{}】在晶 Zone 下结算。剩余：{}。".format(
+                card.name,
+                remaining
+            ))
+        else:
+            logs.append("【结晶薄雾】被【{}】占用，但该牌不是晶属性，未触发 Zone 效果。剩余：{}。".format(
+                card.name,
+                remaining
+            ))
+        return effect_context
+
+    return effect_context
+
 def play_card(game_state, hand_index, target_index=None):
     """
     打出一张手牌。
@@ -1522,12 +1640,21 @@ def play_card(game_state, hand_index, target_index=None):
             "spent_cost": spent_cost
         }
     effect_context["card_first_play_this_battle"] = is_card_first_play_this_battle(game_state, card)
+
+    apply_next_card_virtual_zone_statuses(
+        game_state=game_state,
+        card=card,
+        effect_context=effect_context,
+        logs=logs
+    )
+
     apply_next_card_replay_statuses(
         game_state=game_state,
         card=card,
         effect_context=effect_context,
         logs=logs
     )
+
     logs.extend(apply_card_play_start_relics(game_state, card))
     logs.extend(apply_card_effects(
         game_state,
@@ -1535,6 +1662,8 @@ def play_card(game_state, hand_index, target_index=None):
         target_index,
         effect_context=effect_context
     ))
+
+    clear_current_virtual_mist_zone(game_state)
     mark_card_played_this_battle(game_state, card)
     record_player_card_played_this_turn(game_state, card, player)
 

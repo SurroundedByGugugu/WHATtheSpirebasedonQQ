@@ -197,6 +197,9 @@ from data.card.character.yoirine_cards import (
     create_abyss_gaze,
     create_abyss_plating,
     create_crystal_plating,
+    create_crystal_mist,
+    create_abyss_mist,
+    create_tailwind,
 )
 
 from data.card.character.lumine_cards import (
@@ -400,6 +403,9 @@ CARD_REGISTRY = {
     "card.abyss_gaze": create_abyss_gaze,
     "card.abyss_plating": create_abyss_plating,
     "card.crystal_plating": create_crystal_plating,
+    "card.crystal_mist": create_crystal_mist,
+    "card.abyss_mist": create_abyss_mist,
+    "card.tailwind": create_tailwind,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.god_in_hand": create_god_in_hand,

@@ -146,6 +146,9 @@ CARD_REWARD_POOL = [
     "card.abyss_gaze",
     "card.abyss_plating",
     "card.crystal_plating",
+    "card.crystal_mist",
+    "card.abyss_mist",
+    "card.tailwind",
 
     #昼
     "card.mirage_shadows",

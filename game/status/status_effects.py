@@ -55,6 +55,10 @@ STATUS_EVENT_PRIORITY = {
     "reminiscence": 10,
     "abyssal_form": 10,
     "phantom_form": 10,
+    "crystal_mist": 10,
+    "abyss_mist": 10,
+    "abyss_mist_extreme": 10,
+    "tailwind": 10,
     "no_draw": 9,
 }
 
