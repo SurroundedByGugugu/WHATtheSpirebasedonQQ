@@ -158,6 +158,7 @@ CARD_REWARD_POOL = [
     "card.abyss_mire",
     "card.divine_bird",
     "card.crystal_dust_explosion",
+    "card.precipitate",
     
     #昼
     "card.mirage_shadows",

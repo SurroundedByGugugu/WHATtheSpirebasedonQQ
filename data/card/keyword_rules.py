@@ -208,8 +208,36 @@ def check_card_play_conditions(game_state, card, play_reason="normal"):
                     required_element,
                     current_element or "无"
                 )
+            continue
+        if op == "active_zone_in":
+            required_elements = condition.get("elements", [])
+            required_elements = [
+                str(element or "").strip().lower()
+                for element in required_elements
+                if str(element or "").strip()
+            ]
+
+            zone = getattr(game_state, "active_zone", None)
+            if zone is None:
+                return False, "【{}】不能被打出：当前没有 Zone。".format(card.name)
+
+            try:
+                if zone.is_expired():
+                    return False, "【{}】不能被打出：当前 Zone 已失效。".format(card.name)
+            except Exception:
+                pass
+
+            current_element = str(getattr(zone, "element", "") or "").strip().lower()
+
+            if current_element not in required_elements:
+                return False, "【{}】不能被打出：需要当前 Zone 为{}之一，当前为{}。".format(
+                    card.name,
+                    " / ".join(required_elements),
+                    current_element or "无"
+                )
 
             continue
+
         return False, "【{}】存在未知出牌条件：{}。".format(
             card.name,
             op

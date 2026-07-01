@@ -204,6 +204,7 @@ from data.card.character.yoirine_cards import (
     create_abyss_mire,
     create_divine_bird,
     create_crystal_dust_explosion,
+    create_precipitate,
 )
 
 from data.card.character.lumine_cards import (
@@ -416,6 +417,7 @@ CARD_REGISTRY = {
     "card.abyss_mire": create_abyss_mire,
     "card.divine_bird": create_divine_bird,
     "card.crystal_dust_explosion": create_crystal_dust_explosion,
+    "card.precipitate":create_precipitate,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.deva_form": create_deva_form,

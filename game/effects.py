@@ -1392,6 +1392,81 @@ def handle_crystal_dust_explosion(game_state, card, effect, target_index, effect
 
     return logs
 
+@register_effect("precipitate_zone_to_plating")
+def handle_precipitate_zone_to_plating(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    zone = getattr(game_state, "active_zone", None)
+    if zone is None:
+        logs.append("【{}】没有已展开的晶或阴 Zone，无法析出。".format(card.name))
+        return logs
+
+    try:
+        if zone.is_expired():
+            logs.append("【{}】当前 Zone 已失效，无法析出。".format(card.name))
+            return logs
+    except Exception:
+        pass
+
+    element = str(getattr(zone, "element", "") or "").strip().lower()
+    if element not in ("crystal", "shade"):
+        logs.append("【{}】只能破坏晶或阴 Zone，当前 Zone 为 {}。".format(
+            card.name,
+            element or "无"
+        ))
+        return logs
+
+    is_extreme = bool(getattr(zone, "is_extreme", False))
+    zone_name = getattr(zone, "name", "Zone")
+
+    card_id_by_element = {
+        "crystal": "card.crystal_plating",
+        "shade": "card.abyss_plating",
+    }
+    element_name = {
+        "crystal": "晶",
+        "shade": "阴",
+    }.get(element, element)
+
+    plating_card_id = card_id_by_element[element]
+
+    from data.card.AAAregistry import create_card
+    from data.card.upgrade_rules import upgrade_card
+
+    plating = create_card(plating_card_id)
+    if is_extreme:
+        plating = upgrade_card(plating)
+
+    setattr(plating, "temporary", True)
+    setattr(plating, "created_in_battle", True)
+
+    game_state.active_zone = None
+
+    player.draw_pile.append(plating)
+    random.shuffle(player.draw_pile)
+
+    if is_extreme:
+        logs.append("【{}】破坏了当前极{} Zone：{}。".format(
+            card.name,
+            element_name,
+            zone_name
+        ))
+        logs.append("将 1 张【{}】加入抽牌堆，并重洗抽牌堆。".format(
+            plating.name
+        ))
+    else:
+        logs.append("【{}】破坏了当前{} Zone：{}。".format(
+            card.name,
+            element_name,
+            zone_name
+        ))
+        logs.append("将 1 张【{}】加入抽牌堆，并重洗抽牌堆。".format(
+            plating.name
+        ))
+
+    return logs
+
 @register_effect("choose_hand_attack_without_element_apply_plating")
 def handle_choose_hand_attack_without_element_apply_plating(game_state, card, effect, target_index, effect_context):
     player = game_state.player

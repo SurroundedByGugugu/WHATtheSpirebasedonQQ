@@ -338,6 +338,35 @@ def create_lightless_prayer():
             }
         }
     )
+def create_precipitate():
+    return CardTemplate(
+        card_id="card.precipitate",
+        name="析出",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="破坏已展开的晶或阴 Zone，在抽牌堆中加入 1 张对应镀层；若破坏的是极 Zone，改为加入对应镀层+。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        play_conditions=[
+            {
+                "op": "active_zone_in",
+                "elements": ["crystal", "shade"]
+            }
+        ],
+        effects=[
+            {
+                "op": "precipitate_zone_to_plating"
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "析出+",
+            "description": "费用减少 1。破坏已展开的晶或阴 Zone，在抽牌堆中加入 1 张对应镀层；若破坏的是极 Zone，改为加入对应镀层+。",
+            "cost": 0
+        }
+    )
+
 
 #uncommon
 def create_abyssal_erosion():
