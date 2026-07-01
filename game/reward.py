@@ -389,6 +389,23 @@ POTION_RARITY_WEIGHTS = [
     ("rare", 10),
 ]
 
+# 战斗后普通卡牌奖励稀有度权重。
+# 第 1 次战斗奖励使用 13:6:1；随后按奖励次数线性靠近 10:7:3。
+CARD_REWARD_RARITY_START_WEIGHTS = {
+    "common": 13.0,
+    "uncommon": 6.0,
+    "rare": 1.0,
+}
+
+CARD_REWARD_RARITY_TARGET_WEIGHTS = {
+    "common": 10.0,
+    "uncommon": 7.0,
+    "rare": 3.0,
+}
+
+# 经过多少次战斗奖励后完全达到目标权重。
+CARD_REWARD_RARITY_TRANSITION_REWARDS = 20
+
 # 卡牌升级概率：
 # 已完成节点数 * 每节点基础概率 * 系数
 CARD_UPGRADE_CHANCE_PER_COMPLETED_NODE = 0.05
@@ -721,17 +738,46 @@ def roll_gold_reward(node_type, rng):
 
 
 def _weighted_choice_quantity(rng, weights):
-    total = sum(int(weight) for _, weight in weights)
+    total = sum(float(weight) for _, weight in weights)
     if total <= 0:
         return weights[0][0]
+
     roll = rng.uniform(0, total)
-    upto = 0
+    upto = 0.0
+
     for quantity, weight in weights:
-        upto += int(weight)
+        upto += float(weight)
         if roll <= upto:
             return quantity
+
     return weights[-1][0]
 
+def get_card_reward_rarity_weights(run_state=None):
+    """
+    普通战斗 / 精英战斗后的卡牌奖励稀有度权重。
+
+    第 1 次战斗奖励：13:6:1
+    之后按 reward_count 线性靠近：10:7:3
+    """
+    if run_state is None:
+        progress_index = 0
+    else:
+        # run_engine 在 create_battle_reward 前已经将 reward_count +1，
+        # 因此这里 -1，让第 1 次奖励仍使用起始权重。
+        progress_index = max(0, int(getattr(run_state, "reward_count", 0) or 0) - 1)
+
+    transition = max(1, int(CARD_REWARD_RARITY_TRANSITION_REWARDS))
+    progress = min(1.0, float(progress_index) / float(transition))
+
+    result = []
+
+    for quantity in ("common", "uncommon", "rare"):
+        start = float(CARD_REWARD_RARITY_START_WEIGHTS.get(quantity, 0.0))
+        target = float(CARD_REWARD_RARITY_TARGET_WEIGHTS.get(quantity, start))
+        weight = start + (target - start) * progress
+        result.append((quantity, weight))
+
+    return result
 
 def get_available_potion_ids_by_quantity(run_state=None, include_event=False, include_test=False):
     current_character_id = getattr(run_state, "character_id", "") if run_state is not None else ""
@@ -934,6 +980,7 @@ def get_available_relic_ids(run_state):
     - allow_duplicate=False 的遗物，已有后不再进入奖励池
     - allow_duplicate=True 的遗物，可以重复进入奖励池
     - relic.homunculus_prototype 不进入正常遗物池
+    - event / shop 遗物不进入战斗、宝箱、挖掘、商店普通遗物池
     - 只有没有其他可获取遗物时，才返回 relic.homunculus_prototype 作为兜底
     """
     owned_relic_ids = set()
@@ -950,8 +997,8 @@ def get_available_relic_ids(run_state):
         relic = create_relic(relic_id)
         if not is_relic_available_by_floor(run_state, relic):
             continue
-        # 商店遗物不进入战斗 / 宝箱等普通遗物奖励池。
-        if getattr(relic, "quantity", "") == "shop":
+        # 事件 / 商店遗物只能通过各自的专门来源获得。
+        if getattr(relic, "quantity", "") in ("event", "shop"):
             continue
         relic_owner = getattr(relic, "owner_character_id", "")
         current_character_id = getattr(run_state, "character_id", "")
@@ -1008,32 +1055,68 @@ def roll_card_rewards(count, rng, upgrade_chance, run_state=None):
     if not pool:
         return []
 
+    by_quantity = {
+        "common": [],
+        "uncommon": [],
+        "rare": [],
+    }
+
+    for card_id in pool:
+        card = create_card(card_id)
+        quantity = getattr(card, "quantity", "common")
+
+        if quantity in by_quantity:
+            by_quantity[quantity].append(card_id)
+
+    rarity_weights = get_card_reward_rarity_weights(run_state)
+
     if run_state is not None and has_run_relic(run_state, "relic.nloths_gift"):
-        rare_pool = []
-        non_rare_pool = []
-        for cid in pool:
-            c = create_card(cid)
-            if getattr(c, "quantity", "") == "rare":
-                rare_pool.append(cid)
-            else:
-                non_rare_pool.append(cid)
-        card_ids = []
-        for _ in range(count):
-            # 简化实现：恩洛斯的礼物使稀有牌被抽中的权重约 3 倍。
-            weighted_pool = list(non_rare_pool) + rare_pool * 3
-            card_ids.append(rng.choice(weighted_pool or pool))
-    elif count <= len(pool):
-        card_ids = rng.sample(pool, count)
-    else:
-        card_ids = [
-            rng.choice(pool)
-            for _ in range(count)
+        # 恩洛斯的礼物：在当前动态稀有度权重基础上，使稀有牌权重约 3 倍。
+        rarity_weights = [
+            (quantity, float(weight) * 3.0 if quantity == "rare" else float(weight))
+            for quantity, weight in rarity_weights
         ]
+
+    card_ids = []
+    unique_pool = list(pool)
+
+    for _ in range(int(count)):
+        available_by_quantity = {}
+
+        for quantity, ids in by_quantity.items():
+            available_by_quantity[quantity] = [
+                card_id for card_id in ids
+                if card_id not in card_ids
+            ]
+
+        available_weights = [
+            (quantity, weight)
+            for quantity, weight in rarity_weights
+            if available_by_quantity.get(quantity)
+        ]
+
+        if available_weights:
+            target_quantity = _weighted_choice_quantity(rng, available_weights)
+            candidates = available_by_quantity.get(target_quantity, [])
+            card_ids.append(rng.choice(candidates))
+            continue
+
+        remaining_unique = [
+            card_id for card_id in unique_pool
+            if card_id not in card_ids
+        ]
+
+        if remaining_unique:
+            card_ids.append(rng.choice(remaining_unique))
+            continue
+
+        card_ids.append(rng.choice(pool))
 
     cards = []
 
     for card_id in card_ids:
         card = create_card(card_id)
+
         if run_state is not None:
             card = apply_card_gain_preview_relics(run_state, card)
 
@@ -1043,7 +1126,6 @@ def roll_card_rewards(count, rng, upgrade_chance, run_state=None):
         cards.append(card)
 
     return cards
-
 
 def take_card_reward(reward_state, index):
     if reward_state is None:

@@ -10,7 +10,7 @@ from data.potion.AAAregistry import create_potions
 from data.zones.element_zones import ElementZone
 
 from game.block import gain_block_without_modifiers
-from game.status.status_defs import get_status_name
+from game.status.status_defs import get_status_def, get_status_name
 from game.card_cost import get_card_current_cost
 from game.constants import (DEBUG_SEED, EVENT_POTION_USE_AFTER,
                             EVENT_BATTLE_START,
@@ -198,6 +198,35 @@ def format_enemy_start_info(enemies, game_state=None):
         ))
     return "\n".join(lines)
 
+def apply_initial_enemy_flags(enemies):
+    """
+    处理遭遇生成后需要根据阵容补充的敌人标记。
+
+    地精首领精英战中，开局自带的小地精全部是爪牙；
+    后续由地精首领召唤的小地精已在 enemy_summon_gremlins 中标记。
+    """
+    enemy_list = list(enemies or [])
+
+    has_gremlin_leader = any(
+        getattr(enemy, "enemy_id", "") == "enemy.gremlin_leader"
+        for enemy in enemy_list
+    )
+
+    if not has_gremlin_leader:
+        return
+
+    gremlin_minion_ids = {
+        "enemy.mad_gremlin",
+        "enemy.sneaky_gremlin",
+        "enemy.fat_gremlin",
+        "enemy.gremlin_wizard",
+        "enemy.shield_gremlin",
+    }
+
+    for enemy in enemy_list:
+        if getattr(enemy, "enemy_id", "") in gremlin_minion_ids:
+            enemy.is_minion = True
+
 def start_battle(session_id, character_id="character.test", enemy_ids=None, seed=DEBUG_SEED):
     """
     创建一场新战斗。
@@ -213,9 +242,9 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
     deck = create_deck(character.starting_deck_ids)
     potions = create_potions(getattr(character, "starting_potion_ids", []))
     enemies = [create_enemy(enemy_id) for enemy_id in enemy_ids]
+    apply_initial_enemy_flags(enemies)
 
     random.shuffle(deck)
-
     player = PlayerState(
         character_id=character.character_id,
         name=character.name,
@@ -278,7 +307,7 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
     if seed is not None:
         random.seed(seed)
     enemies = [create_enemy(enemy_id) for enemy_id in enemy_ids]
-
+    apply_initial_enemy_flags(enemies)
     # 每场战斗开始时，战斗内临时区重置
     player.cost = player.max_cost
     player.block = 0
@@ -1305,6 +1334,35 @@ def try_prevent_player_death(game_state):
             return ["【{}】触发：免于死亡，HP：{} -> {}。".format(relic.name, old_hp, player.hp)]
     return []
 
+def resolve_all_minions_escape(game_state):
+    """
+    如果场上剩余存活敌人全部都是爪牙，则这些爪牙立即逃跑，战斗胜利。
+    """
+    alive_enemies = [
+        enemy for enemy in getattr(game_state, "enemies", []) or []
+        if enemy.is_alive()
+    ]
+
+    if not alive_enemies:
+        return None
+
+    if not all(bool(getattr(enemy, "is_minion", False)) for enemy in alive_enemies):
+        return None
+
+    names = []
+
+    for enemy in alive_enemies:
+        names.append(enemy.name)
+        setattr(enemy, "_escaped", True)
+        enemy.hp = 0
+        enemy.block = 0
+
+    game_state.battle_over = True
+    game_state.victory = True
+
+    return "场上只剩爪牙，{} 逃离了战斗。战斗胜利。".format(
+        "、".join(names)
+    )
 
 def check_battle_result(game_state):
     """
@@ -1320,6 +1378,10 @@ def check_battle_result(game_state):
         game_state.battle_over = True
         game_state.victory = False
         return "{} 已倒下，战斗失败。".format(game_state.player.name)
+    minion_escape_result = resolve_all_minions_escape(game_state)
+    if minion_escape_result:
+        return minion_escape_result
+
     if game_state.is_all_enemies_dead():
         game_state.battle_over = True
         game_state.victory = True
@@ -2354,6 +2416,29 @@ def decay_statuses_by_timing(game_state, timing):
             logs.append("{} 的 {}".format(entity.name, log))
     return logs
 
+
+def defer_player_turn_end_decay_from_enemy_action(game_state, target, status_key, amount, before_value, applied):
+    """
+    敌人行动发生在玩家回合结束后、自然衰减前。
+    若此时给玩家新挂 turn_end 状态，先跳过同一轮末尾的第一次自然衰减。
+    """
+    if target is not getattr(game_state, "player", None):
+        return
+    if int(amount) <= 0 or int(before_value) > 0 or not applied:
+        return
+
+    status_def = get_status_def(status_key)
+    if status_def is None:
+        return
+    if status_def.decay_timing != EVENT_TURN_END:
+        return
+    if int(getattr(status_def, "decay_amount", 0)) <= 0:
+        return
+
+    statuses = getattr(target, "statuses", None)
+    if hasattr(statuses, "skip_next_decay"):
+        statuses.skip_next_decay(status_key, EVENT_TURN_END)
+
 def find_first_alive_enemy_by_id(game_state, enemy_id, exclude_enemy=None):
     for target in game_state.enemies:
         if target is exclude_enemy:
@@ -3175,10 +3260,12 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         before_status_value = 0
         if hasattr(target, "get_status_value"):
             before_status_value = int(target.get_status_value(status_key))
+        status_applied = False
         if hasattr(target, "gain_status_with_result"):
             result = target.gain_status_with_result(status_key, amount)
             from game.status.status_gain import format_status_gain_log
             logs.append(format_status_gain_log(target, status_key, amount, result))
+            status_applied = bool(result.get("applied")) and int(result.get("current", 0)) > 0
         else:
             current = target.gain_status(status_key, amount)
             status_name = get_status_name(status_key)
@@ -3189,6 +3276,15 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 status_name,
                 current
             ))
+            status_applied = int(current) > before_status_value
+        defer_player_turn_end_decay_from_enemy_action(
+            game_state=game_state,
+            target=target,
+            status_key=status_key,
+            amount=amount,
+            before_value=before_status_value,
+            applied=status_applied
+        )
         if (
             status_key == "ritual"
             and target is not game_state.player

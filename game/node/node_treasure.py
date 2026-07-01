@@ -7,6 +7,7 @@ from typing import Any, List
 
 from data.relic.AAAregistry import create_relic
 from data.card.AAAregistry import create_card, CARD_REGISTRY
+from data.card.special_curses import is_source_only_curse_card_id
 from data.content_gate import is_content_enabled
 from game.command_help import command_tip
 from game.display_names import format_relic_display_name
@@ -171,7 +172,7 @@ def _roll_random_curse_id(rng):
     for card_id in CARD_REGISTRY.keys():
         if not is_content_enabled("card", card_id):
             continue
-        if card_id == "card.curse.bell":
+        if card_id == "card.curse.bell" or is_source_only_curse_card_id(card_id):
             continue
         try:
             card = create_card(card_id)

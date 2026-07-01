@@ -4,6 +4,7 @@
 import random
 
 from data.card.AAAregistry import create_card
+from data.card.special_curses import is_source_only_curse_card_id
 from data.card.upgrade_rules import upgrade_card
 from data.content_gate import filter_card_ids, is_content_enabled
 from game.reward import CARD_REWARD_POOL
@@ -136,10 +137,16 @@ def get_typed_transform_candidate_ids(source_card, card_type):
 
 def get_curse_transform_candidate_ids(source_card=None):
     if source_card is not None:
-        return get_typed_transform_candidate_ids(source_card, "curse")
+        return [
+            card_id
+            for card_id in get_typed_transform_candidate_ids(source_card, "curse")
+            if not is_source_only_curse_card_id(card_id)
+        ]
 
     result = []
     for card_id in filter_card_ids(CARD_REWARD_POOL):
+        if is_source_only_curse_card_id(card_id):
+            continue
         try:
             card = create_card(card_id)
         except Exception:
@@ -148,6 +155,8 @@ def get_curse_transform_candidate_ids(source_card=None):
             result.append(card_id)
     if not result:
         for card_id in _iter_enabled_registry_card_ids():
+            if is_source_only_curse_card_id(card_id):
+                continue
             try:
                 card = create_card(card_id)
             except Exception:

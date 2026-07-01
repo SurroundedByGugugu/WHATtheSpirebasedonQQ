@@ -197,58 +197,6 @@ def create_crystal_piercing():
             },
         }
     )
-def create_crystal_dust_explosion():
-    return CardTemplate(
-        card_id="card.crystal_dust_explosion",
-        name="晶尘爆炸",
-        card_type="attack",
-        cost=2,
-        target="none",
-        description="只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 1 次 8 点伤害；极晶时，对全体敌人造成 2 次 12 点伤害。该伤害来源不视为自身。",
-        quantity="common",
-        attack_element="crystal",
-        ignore_zone_replay=True,
-        owner_character_id="character.yoirine",
-        play_conditions=[
-            {
-                "op": "active_zone_is",
-                "element": "crystal"
-            }
-        ],
-        effects=[
-            {
-                "op": "crystal_dust_explosion",
-                "normal_times": 1,
-                "normal_damage": 8,
-                "extreme_times": 2,
-                "extreme_damage": 12
-            }
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "晶尘爆炸+",
-            "description": "只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 2 次 12 点伤害；极晶时，对全体敌人造成 3 次 16 点伤害。无论【辉晶领域】在何处，将其升级并放回抽牌堆顶。该伤害来源不视为自身。",
-            "patches": [
-                {
-                    "path": ["effects", 0, "normal_times"],
-                    "value": 2
-                },
-                {
-                    "path": ["effects", 0, "normal_damage"],
-                    "value": 12
-                },
-                {
-                    "path": ["effects", 0, "extreme_times"],
-                    "value": 3
-                },
-                {
-                    "path": ["effects", 0, "extreme_damage"],
-                    "value": 16
-                }
-            ]
-        }
-    )
-
 
 def create_crystal_thorns():
     return CardTemplate(
@@ -363,7 +311,7 @@ def create_lightless_prayer():
         card_type="skill",
         cost=0,
         target="none",
-        description="消耗。对全场敌人添加 4 层深渊凝视。阴/极阴环境下层数变为 1.5/2 倍，并触发阴反噬。",
+        description="消耗。对全场敌人添加 4 层深渊凝视。阴/极阴环境下层数变为 1.5/2 倍。（等效触发阴zone效果）",
         quantity="common",
         attack_element="shade",
         owner_character_id="character.yoirine",
@@ -384,7 +332,7 @@ def create_lightless_prayer():
         upgraded=False,
         upgrade_patch={
             "name": "无光祷言+",
-            "description": "消耗。对全场敌人添加 6 层深渊凝视。阴/极阴环境下层数变为 1.5/2 倍，并触发阴反噬。",
+            "description": "消耗。对全场敌人添加 6 层深渊凝视。阴/极阴环境下层数变为 1.5/2 倍。（等效触发阴zone效果）",
             "card_vars": {
                 "abyss_gaze": 6
             }
@@ -481,6 +429,57 @@ def create_divine_bird():
                 "threshold": 6,
                 "damage": 22
             }
+        }
+    )
+def create_crystal_dust_explosion():
+    return CardTemplate(
+        card_id="card.crystal_dust_explosion",
+        name="晶尘爆炸",
+        card_type="attack",
+        cost=2,
+        target="none",
+        description="只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 1 次 8 点伤害；极晶时，对全体敌人造成 2 次 12 点伤害。该伤害来源不视为自身。",
+        quantity="uncommon",
+        attack_element="crystal",
+        ignore_zone_replay=True,
+        owner_character_id="character.yoirine",
+        play_conditions=[
+            {
+                "op": "active_zone_is",
+                "element": "crystal"
+            }
+        ],
+        effects=[
+            {
+                "op": "crystal_dust_explosion",
+                "normal_times": 1,
+                "normal_damage": 8,
+                "extreme_times": 2,
+                "extreme_damage": 12
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "晶尘爆炸+",
+            "description": "只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 2 次 12 点伤害；极晶时，对全体敌人造成 3 次 16 点伤害。无论【辉晶领域】在何处，将其升级并放回抽牌堆顶。该伤害来源不视为自身。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "normal_times"],
+                    "value": 2
+                },
+                {
+                    "path": ["effects", 0, "normal_damage"],
+                    "value": 12
+                },
+                {
+                    "path": ["effects", 0, "extreme_times"],
+                    "value": 3
+                },
+                {
+                    "path": ["effects", 0, "extreme_damage"],
+                    "value": 16
+                }
+            ]
         }
     )
 

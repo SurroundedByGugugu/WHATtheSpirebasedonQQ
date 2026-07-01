@@ -137,7 +137,7 @@ ENCOUNTER_TABLE = {
     "encounter.event.arena_final": {"enemy_ids": ["enemy.taskmaster", "enemy.gremlin_nob"]},
 
     "encounter.elite.book_of_stabbing": {"enemy_ids": ["enemy.book_of_stabbing"]},
-    "encounter.elite.gremlin_leader": {"enemy_ids": ["enemy.gremlin_leader"]},
+    "encounter.elite.gremlin_leader": {"generator": "gremlin_leader"},
     "encounter.elite.taskmaster_slavers": {"enemy_ids": ["enemy.red_slaver", "enemy.taskmaster", "enemy.blue_slaver"]},
 
     "encounter.boss.champ": {"enemy_ids": ["enemy.champ"]},
@@ -394,7 +394,17 @@ def build_random_gremlin_ids(rng, count=4):
 
     return rng.sample(GREMLIN_GANG_RANDOM_POOL, count)
 
+def build_gremlin_leader_elite_ids(rng):
+    """
+    地精首领精英战：开局自带 2 只小地精，顺位在地精首领前。
+    小地精抽取复用一层地精组 generator 的权重。
+    """
+    return build_random_gremlin_ids(rng, count=2) + ["enemy.gremlin_leader"]
+
+
 
 ENCOUNTER_GENERATORS = {
     "gremlin_gang": build_random_gremlin_ids,
+    "gremlin_leader": build_gremlin_leader_elite_ids,
 }
+

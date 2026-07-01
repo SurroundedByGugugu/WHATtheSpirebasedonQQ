@@ -12,7 +12,6 @@ from game.engine import (
     get_draw_pile,
     get_discard_pile,
     get_exhaust_pile,
-    get_combat_view,
     discard_selected_hand_cards,
     choose_pending_discard_to_draw_top,
     choose_pending_exhaust_hand,
@@ -156,20 +155,23 @@ class GameService(object):
 
     def append_run_progress_after_battle(self, session_id, run_state, battle_reply):
         """
-        战斗命令执行后，检查当前战斗是否结束。
-        如果结束，把结果交给 RunEngine 处理。
+        战斗命令执行后刷新当前 Run 信息。
+        如果战斗结束，把结果交给 RunEngine 处理。
         """
         route_reply = finish_current_battle_if_needed(run_state)
 
-        if not route_reply:
-            return battle_reply
+        if route_reply:
+            full_reply = battle_reply + "\n\n" + route_reply
 
-        full_reply = battle_reply + "\n\n" + route_reply
+            if run_state.run_over:
+                self.clear_run(session_id)
 
-        if run_state.run_over:
-            self.clear_run(session_id)
+            return full_reply
 
-        return full_reply
+        if run_state.current_battle is not None and not run_state.current_battle.battle_over:
+            return battle_reply + "\n\n" + get_run_view(run_state)
+
+        return battle_reply
 
     def has_active_runs(self):
         return bool(self.sessions)
@@ -276,7 +278,7 @@ class GameService(object):
             text.startswith("/card") or text.startswith(".card") or text.startswith("。card")
         )
         is_ctrl_command = (
-            text.startswith("/ctrl") or text.startswith(".ctrl") or text.startswith("。ctrl") or text.startswith("ctrl")
+            text.startswith("/ctrl") or text.startswith(".ctrl") or text.startswith("。ctrl")
         )
         if not (is_card_command or is_ctrl_command):
             return None
@@ -1239,10 +1241,7 @@ class GameService(object):
         else:
             reply = play_cards_by_original_indices(game_state, hand_indices, target_index)
 
-        return "\n\n".join([
-            reply,
-            get_combat_view(game_state)
-        ])
+        return reply
     
     def parse_index_list(self, raw_value):
         """
@@ -1525,9 +1524,7 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.06.30",
-            "- 更新控制台和.md说明，具体请在github查看",
-            "- 纯文本格式（不如.md排版好看）可使用(.help控制台)查看", 
+            "当前版本：v26.7.1",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",

@@ -139,7 +139,7 @@ class UnsealedAbyssRelic(RelicTemplate):
             relic_id="relic.unsealed_abyss",
             name="解封的深渊",
             story="饱和的裂隙终于不再承认边界。自裂隙深处溢出的辉光，像是某种沉默的注视。",
-            description="由【饱和裂隙】变化而来。拾起时，若牌组中有【辉晶领域】，为其中一张添加固有、保留和消耗；若没有，则加入一张拥有固有、保留和消耗的【辉晶领域】。展开 Zone 时自动升为极 Zone；同属性极 Zone 期间再次展开时，额外延长 2 回合。极 Zone 持续时间变为无限，但每回合开始时失去 1 点生命。",
+            description="由【饱和裂隙】变化而来。拾起时，若牌组中有【辉晶领域】，为其中一张添加固有、保留和消耗；若没有，则加入一张拥有固有、保留和消耗的【辉晶领域】。展开 Zone 时自动升为极 Zone。极 Zone 持续时间变为无限，但每回合开始时失去 1 点生命。",
             quantity="myth",
             owner_character_id="character.yoirine",
             allow_duplicate=False

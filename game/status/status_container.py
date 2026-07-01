@@ -17,6 +17,7 @@ class StatusContainer:
 
     def __init__(self):
         self.values = {}
+        self._decay_skip_once = {}
 
     def get(self, key):
         return int(self.values.get(key, 0))
@@ -32,10 +33,12 @@ class StatusContainer:
 
             if value == 0 and status_def.remove_at_zero:
                 self.values.pop(key, None)
+                self._clear_decay_skip(key)
                 return 0
 
         if value == 0:
             self.values.pop(key, None)
+            self._clear_decay_skip(key)
             return 0
 
         self.values[key] = value
@@ -48,6 +51,18 @@ class StatusContainer:
 
     def remove(self, key):
         self.values.pop(key, None)
+        self._clear_decay_skip(key)
+
+    def _clear_decay_skip(self, key):
+        for timing in list(self._decay_skip_once.keys()):
+            timing_skips = self._decay_skip_once.get(timing, {})
+            timing_skips.pop(key, None)
+            if not timing_skips:
+                self._decay_skip_once.pop(timing, None)
+
+    def skip_next_decay(self, key, timing):
+        timing_skips = self._decay_skip_once.setdefault(timing, {})
+        timing_skips[key] = 1
 
     def has(self, key):
         return self.get(key) != 0
@@ -78,6 +93,15 @@ class StatusContainer:
                 continue
 
             if status_def.decay_amount <= 0:
+                continue
+
+            timing_skips = self._decay_skip_once.get(timing, {})
+            if timing_skips.get(key, 0) > 0:
+                timing_skips[key] -= 1
+                if timing_skips[key] <= 0:
+                    timing_skips.pop(key, None)
+                if not timing_skips:
+                    self._decay_skip_once.pop(timing, None)
                 continue
 
             new_value = self.add(key, -status_def.decay_amount)
