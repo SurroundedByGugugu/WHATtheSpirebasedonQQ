@@ -432,6 +432,17 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="flinch",
+    name="畏缩",
+    description="下一次行动时无法行动；敌人被畏缩时不会推进意图。",
+    category="debuff",
+    display_mode="stack",
+    order=425,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
     key="next_target_damage_taken",
     name="好，下一个",
     description="被锁定的攻击目标。来自玩家攻击牌的伤害按层数百分比提高。",
@@ -454,8 +465,8 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
-    key="berserk",
-    name="狂暴",
+    key="deva_form",
+    name="天人形态",
     description="每个回合开始时，本场战斗费用上限增加等同于层数的数值。",
     category="buff",
     display_mode="stack",
@@ -463,7 +474,6 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
-
 register_status_def(StatusDef(
     key="brutality",
     name="残暴",

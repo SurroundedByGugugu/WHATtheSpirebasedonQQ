@@ -1120,9 +1120,11 @@ def choose_pending_element_plating(game_state, choice_index):
         clear_pending_element_plating_selection(game_state)
         return "所选牌已经不在手牌中，选择已取消。"
 
-    if getattr(chosen_card, "card_type", "") != "attack":
+    allowed_card_types = list(payload.get("allowed_card_types", ["attack"]) or ["attack"])
+    type_text = str(payload.get("type_text", "攻击牌") or "攻击牌")
+    if getattr(chosen_card, "card_type", "") not in allowed_card_types:
         clear_pending_element_plating_selection(game_state)
-        return "【{}】不是攻击牌，无法添加镀层。".format(chosen_card.name)
+        return "【{}】不是{}，无法添加镀层。".format(chosen_card.name, type_text)
 
     if str(getattr(chosen_card, "attack_element", "") or "").strip():
         clear_pending_element_plating_selection(game_state)
@@ -1438,12 +1440,13 @@ def _real_active_zone_exists(game_state):
     except Exception:
         return True
 
-
 def _set_current_virtual_mist_zone(game_state, element, is_extreme=False):
+    # 虚拟薄雾 Zone 只服务于当前打出的这一张牌，不参与回合倒计时。
+    # 极 Zone 如果 duration=0，会被 ZoneTemplate.is_expired() 判定为已过期。
     virtual_zone = ElementZone(
         element=element,
         is_extreme=bool(is_extreme),
-        duration=0
+        duration=1 if is_extreme else 0
     )
     setattr(virtual_zone, "is_virtual_mist_zone", True)
     setattr(game_state, "_current_virtual_mist_zone", virtual_zone)
@@ -3218,6 +3221,13 @@ def process_enemy_action(game_state, enemy):
         logs.append("{} 被眩晕，无法行动。剩余眩晕：{}。".format(
             enemy.name,
             current_stun
+        ))
+        return logs
+    if enemy.get_status_value("flinch") > 0:
+        current_flinch = enemy.gain_status("flinch", -1)
+        logs.append("{} 畏缩了，无法行动。剩余畏缩：{}。".format(
+            enemy.name,
+            current_flinch
         ))
         return logs
     setattr(enemy, "_current_game_state", game_state)

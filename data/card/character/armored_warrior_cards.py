@@ -2914,7 +2914,7 @@ def create_berserk():
         card_type="power",
         cost=0,
         target="self",
-        description="获得 2 层易伤。每回合开始时，费用上限增加 1。",
+        description="获得 2 层易伤。本场战斗中费用上限增加 1。",
         quantity="rare",
         owner_character_id="character.armored_warrior",
         card_vars={
@@ -2942,7 +2942,7 @@ def create_berserk():
         upgraded=False,
         upgrade_patch={
             "name": "狂暴+",
-            "description": "获得 1 层易伤。每回合开始时，费用上限增加 1。",
+            "description": "获得 1 层易伤。本场战斗中费用上限增加 1。",
             "card_vars": {
                 "vulnerable": 1
             },

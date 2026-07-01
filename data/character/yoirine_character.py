@@ -32,7 +32,7 @@ class YoirineCharacter(CharacterTemplate):
                 "card.defend",
                 "card.defend",
                 "card.defend",
-                "card.crystal_piercing",
+                "card.crystal_plating",
                 "card.crystal_zone",
             ]
         )

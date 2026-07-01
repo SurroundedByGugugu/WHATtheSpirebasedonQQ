@@ -4,52 +4,6 @@ from data.card.base_card import CardTemplate
 from game.constants import KEYWORD_EXHAUST
 
 #starting
-def create_crystal_piercing():
-    return CardTemplate(
-        card_id="card.crystal_piercing",
-        name="晶刺",
-        card_type="attack",
-        cost=2,
-        target="random_enemy",
-        description="对随机敌人造成 2 点伤害 4 次。晶 Zone 条件下费用 -1。",
-        quantity="starting",
-        attack_type="piercing",
-        attack_element="crystal",
-        owner_character_id="character.yoirine",
-        cost_rules=[
-            {
-                "op": "reduce_if_active_zone",
-                "element": "crystal",
-                "amount": 1,
-                "min_cost": 0
-            }
-        ],
-        card_vars={
-            "damage": 2,
-            "repeat": 4
-        },
-        effects=[
-            {
-                "op": "deal_damage_random_enemies",
-                "times": {
-                    "var": "repeat"
-                },
-                "amount": {
-                    "base_var": "damage",
-                    "modifier_profile": "attack_damage"
-                }
-            }
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "晶刺+",
-            "description": "对随机敌人造成 3 点伤害 4 次。晶 Zone 条件下费用 -1。",
-            "card_vars": {
-                "damage": 3,
-                "repeat": 4
-            },
-        }
-    )
 def create_crystal_zone():
     return CardTemplate(
         card_id="card.crystal_zone",
@@ -71,6 +25,45 @@ def create_crystal_zone():
             "name": "辉晶领域+",
             "description": "费用减少1。场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。已在极·辉晶期间再次使用时，延长持续回合2t。",
             "cost": 1
+        }
+    )
+def create_crystal_plating():
+    return CardTemplate(
+        card_id="card.crystal_plating",
+        name="结晶镀层",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="获得 4 点格挡。消耗。选择一张没有属性的攻击或技能手牌，添加晶属性标签，持续本场战斗。",
+        quantity="starting",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 4
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "var": "block",
+                    "modifier_profile": "block"
+                }
+            },
+            {
+                "op": "choose_hand_attack_without_element_apply_plating",
+                "element": "crystal",
+                "suffix": "·晶",
+                "allowed_card_types": ["attack", "skill"]
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "结晶镀层+",
+            "description": "获得 7 点格挡。消耗。选择一张没有属性的攻击或技能手牌，添加晶属性标签，持续本场战斗。",
+            "card_vars": {
+                "block": 7
+            }
         }
     )
 
@@ -158,6 +151,104 @@ def create_trace_pursuit():
             }
         }
     )
+def create_crystal_piercing():
+    return CardTemplate(
+        card_id="card.crystal_piercing",
+        name="晶刺",
+        card_type="attack",
+        cost=2,
+        target="random_enemy",
+        description="对随机敌人造成 2 点伤害 4 次。晶 Zone 条件下费用 -1。",
+        quantity="common",
+        attack_type="piercing",
+        attack_element="crystal",
+        owner_character_id="character.yoirine",
+        cost_rules=[
+            {
+                "op": "reduce_if_active_zone",
+                "element": "crystal",
+                "amount": 1,
+                "min_cost": 0
+            }
+        ],
+        card_vars={
+            "damage": 2,
+            "repeat": 4
+        },
+        effects=[
+            {
+                "op": "deal_damage_random_enemies",
+                "times": {
+                    "var": "repeat"
+                },
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "晶刺+",
+            "description": "对随机敌人造成 3 点伤害 4 次。晶 Zone 条件下费用 -1。",
+            "card_vars": {
+                "damage": 3,
+                "repeat": 4
+            },
+        }
+    )
+def create_crystal_dust_explosion():
+    return CardTemplate(
+        card_id="card.crystal_dust_explosion",
+        name="晶尘爆炸",
+        card_type="attack",
+        cost=2,
+        target="none",
+        description="只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 1 次 8 点伤害；极晶时，对全体敌人造成 2 次 12 点伤害。该伤害来源不视为自身。",
+        quantity="common",
+        attack_element="crystal",
+        ignore_zone_replay=True,
+        owner_character_id="character.yoirine",
+        play_conditions=[
+            {
+                "op": "active_zone_is",
+                "element": "crystal"
+            }
+        ],
+        effects=[
+            {
+                "op": "crystal_dust_explosion",
+                "normal_times": 1,
+                "normal_damage": 8,
+                "extreme_times": 2,
+                "extreme_damage": 12
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "晶尘爆炸+",
+            "description": "只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 2 次 12 点伤害；极晶时，对全体敌人造成 3 次 16 点伤害。无论【辉晶领域】在何处，将其升级并放回抽牌堆顶。该伤害来源不视为自身。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "normal_times"],
+                    "value": 2
+                },
+                {
+                    "path": ["effects", 0, "normal_damage"],
+                    "value": 12
+                },
+                {
+                    "path": ["effects", 0, "extreme_times"],
+                    "value": 3
+                },
+                {
+                    "path": ["effects", 0, "extreme_damage"],
+                    "value": 16
+                }
+            ]
+        }
+    )
+
 
 def create_crystal_thorns():
     return CardTemplate(
@@ -265,41 +356,37 @@ def create_abyss_plating():
             }
         }
     )
-def create_crystal_plating():
+def create_lightless_prayer():
     return CardTemplate(
-        card_id="card.crystal_plating",
-        name="结晶镀层",
+        card_id="card.lightless_prayer",
+        name="无光祷言",
         card_type="skill",
-        cost=1,
-        target="self",
-        description="获得 4 点格挡。消耗。选择一张没有属性的攻击牌手牌，添加晶属性标签，持续本场战斗。",
+        cost=0,
+        target="none",
+        description="消耗。对全场敌人添加 4 层深渊凝视。阴/极阴环境下层数变为 1.5/2 倍，并触发阴反噬。",
         quantity="common",
+        attack_element="shade",
         owner_character_id="character.yoirine",
         card_vars={
-            "block": 4
+            "abyss_gaze": 4
         },
         effects=[
             {
-                "op": "gain_block",
-                "target": "self",
+                "op": "gain_status",
+                "target": "all_enemies",
+                "status": "abyss_gaze",
                 "amount": {
-                    "var": "block",
-                    "modifier_profile": "block"
+                    "var": "abyss_gaze"
                 }
-            },
-            {
-                "op": "choose_hand_attack_without_element_apply_plating",
-                "element": "crystal",
-                "suffix": "·晶"
             }
         ],
         keywords=[KEYWORD_EXHAUST],
         upgraded=False,
         upgrade_patch={
-            "name": "结晶镀层+",
-            "description": "获得 7 点格挡。消耗。选择一张没有属性的攻击牌手牌，添加晶属性标签，持续本场战斗。",
+            "name": "无光祷言+",
+            "description": "消耗。对全场敌人添加 6 层深渊凝视。阴/极阴环境下层数变为 1.5/2 倍，并触发阴反噬。",
             "card_vars": {
-                "block": 7
+                "abyss_gaze": 6
             }
         }
     )
@@ -339,6 +426,60 @@ def create_abyssal_erosion():
             "card_vars": {
                 "damage": 4,
                 "per_hp": 4
+            }
+        }
+    )
+def create_divine_bird():
+    return CardTemplate(
+        card_id="card.divine_bird",
+        name="神鸟",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="获得 2 层飞行。造成 16 点伤害。若飞行层数大于 9，额外赋予 1 层畏缩。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 16,
+            "flying": 2,
+            "flinch": 1,
+            "threshold": 9
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "flying",
+                "amount": {
+                    "var": "flying"
+                }
+            },
+            {
+                "op": "apply_flinch_if_flying_gt",
+                "target": "selected_enemy",
+                "threshold": {
+                    "var": "threshold"
+                },
+                "amount": {
+                    "var": "flinch"
+                }
+            },
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "神鸟+",
+            "description": "获得 2 层飞行。造成 22 点伤害。若飞行层数大于 6，额外赋予 1 层畏缩。",
+            "card_vars": {
+                "threshold": 6,
+                "damage": 22
             }
         }
     )
@@ -689,13 +830,13 @@ def create_to_your_tranquility():
         card_type="attack",
         cost=3,
         target="enemy",
-        description="造成 28 点伤害。如果使一名生命满的敌人死亡，恢复 2 点生命。",
+        description="造成 28 点伤害。如果使一名生命满的敌人死亡，恢复 3 点生命。",
         quantity="rare",
         attack_element="shade",
         owner_character_id="character.yoirine",
         card_vars={
             "damage": 28,
-            "heal": 2
+            "heal": 3
         },
         effects=[
             {
@@ -713,11 +854,35 @@ def create_to_your_tranquility():
         upgraded=False,
         upgrade_patch={
             "name": "献给你的安宁+",
-            "description": "造成 38 点伤害。如果使一名生命满的敌人死亡，恢复 3 点生命。",
+            "description": "造成 38 点伤害。如果使一名生命满的敌人死亡，恢复 4 点生命。",
             "card_vars": {
                 "damage": 38,
-                "heal": 3
+                "heal": 4
             }
+        }
+    )
+def create_abyss_mire():
+    return CardTemplate(
+        card_id="card.abyss_mire",
+        name="渊淖",
+        card_type="attack",
+        cost=2,
+        target="none",
+        description="依据深渊凝视层数，对全场敌人分别造成一次阴属性等值伤害。被阴属性攻击后，深渊凝视会清空。若没有造成实际生命伤害，获得 2 点费用，并在抽牌堆中加入 1 张【无光祷言】。",
+        quantity="rare",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "abyss_mire_damage_by_gaze",
+                "energy_if_no_damage": 2
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "渊淖+",
+            "cost": 1,
+            "description": "依据深渊凝视层数，对全场敌人分别造成一次阴属性等值伤害。被阴属性攻击后，深渊凝视会清空。若没有造成实际生命伤害，获得 2 点费用，并在抽牌堆中加入 1 张【无光祷言+】。"
         }
     )
 
@@ -790,7 +955,7 @@ def create_abyssal_form():
         card_type="power",
         cost=3,
         target="self",
-        description="阴分类的攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+        description="阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         quantity="rare",
         attack_element="shade",
         owner_character_id="character.yoirine",
@@ -811,7 +976,7 @@ def create_abyssal_form():
         upgrade_patch={
             "name": "深渊形态+",
             "cost": 2,
-            "description": "阴分类的攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+            "description": "阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         }
     )
 

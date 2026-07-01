@@ -59,6 +59,8 @@ STATUS_EVENT_PRIORITY = {
     "abyss_mist": 10,
     "abyss_mist_extreme": 10,
     "tailwind": 10,
+    "flinch": 10,
+    "stun": 10,
     "no_draw": 9,
 }
 
@@ -1704,6 +1706,11 @@ def handle_juggernaut(event_name, context, owner, value):
     return logs
 
 def handle_berserk(event_name, context, owner, value):
+    # 狂暴的费用上限提升在获得状态时一次性处理，
+    # 这里不再在每个回合开始叠加 max_cost。
+    return []
+
+def handle_deva_form(event_name, context, owner, value):
     logs = []
 
     if event_name != EVENT_TURN_START:
@@ -1719,7 +1726,7 @@ def handle_berserk(event_name, context, owner, value):
     owner.max_cost += amount
     owner.cost += amount
 
-    logs.append("{} 的狂暴触发，本场战斗费用上限增加 {}。当前费用：{}/{}。".format(
+    logs.append("{} 的天人形态触发，本场战斗费用上限增加 {}。当前费用：{}/{}。".format(
         owner.name,
         amount,
         owner.cost,
@@ -1782,6 +1789,61 @@ def handle_anger(event_name, context, owner, value):
     ))
     return logs
 
+def _queue_pending_malleable_trigger(game_state, owner, base_amount):
+    pending = getattr(game_state, "_pending_malleable_triggers", None)
+    if not isinstance(pending, list):
+        pending = []
+        setattr(game_state, "_pending_malleable_triggers", pending)
+    pending.append({
+        "owner": owner,
+        "base_amount": int(base_amount),
+    })
+
+
+def flush_pending_malleable_triggers(game_state):
+    """
+    结算玩家一张牌造成的柔韧触发。
+
+    同一张牌内的多段攻击先累计触发次数，等这张牌本次结算结束后再统一给格挡；
+    因此同一张牌的后续段数不会被前一段触发的柔韧格挡抵消。
+    重放/双发会在每一次牌效果结束后各自结算一次。
+    """
+    pending = list(getattr(game_state, "_pending_malleable_triggers", []) or [])
+    setattr(game_state, "_pending_malleable_triggers", [])
+
+    logs = []
+    for item in pending:
+        owner = item.get("owner")
+        if owner is None or not owner.is_alive():
+            continue
+
+        base_amount = int(item.get("base_amount", 0) or 0)
+        if base_amount <= 0:
+            continue
+
+        current_block = int(getattr(owner, "_malleable_current_block", base_amount))
+        if current_block <= 0:
+            current_block = base_amount
+
+        logs.extend(gain_block_without_modifiers(
+            game_state=game_state,
+            source=owner,
+            target=owner,
+            amount=current_block,
+            block_source="malleable",
+            card=None,
+            message="{} 的柔韧触发，获得 {} 点格挡。当前格挡：{}。".format(
+                owner.name,
+                current_block,
+                owner.block + current_block
+            )
+        ))
+
+        setattr(owner, "_malleable_current_block", current_block + 1)
+
+    return logs
+
+
 def handle_malleable(event_name, context, owner, value):
     """
     柔韧：
@@ -1789,11 +1851,8 @@ def handle_malleable(event_name, context, owner, value):
     每触发一次，下一次获得的格挡值 +1。
     在玩家回合开始时，当前触发值重置为基础值 X。
 
-    说明：
-    - status value 保存基础值 X。
-    - owner._malleable_current_block 保存当前触发值。
-    - 按每段攻击分别触发，因此多段攻击会逐段让蛇花获得递增格挡。
-    - 荆棘、毒、烧伤等非 attack 伤害不会触发。
+    玩家卡牌攻击造成的多段伤害会先累计柔韧触发，
+    在该牌本次效果完全结束后再给格挡。
     """
     logs = []
 
@@ -1808,7 +1867,6 @@ def handle_malleable(event_name, context, owner, value):
         old_current = int(getattr(owner, "_malleable_current_block", base_amount))
         setattr(owner, "_malleable_current_block", base_amount)
 
-        # 战斗开始时 EVENT_TURN_START 也会触发一次，没变化就不刷日志。
         if old_current != base_amount:
             logs.append("{} 的柔韧重置为 {}。".format(
                 owner.name,
@@ -1833,10 +1891,13 @@ def handle_malleable(event_name, context, owner, value):
     if source is None or source is owner:
         return logs
 
-    # 使用 amount 判断“这次攻击结算存在伤害数值”。
-    # 如果你希望被格挡完全挡住时不触发，可以改成 real_damage > 0。
-    attack_amount = int(context.extra.get("amount", 0))
-    if attack_amount <= 0:
+    real_damage = int(context.extra.get("real_damage", 0))
+    if real_damage <= 0:
+        return logs
+
+    # 玩家打出的卡牌攻击：推迟到这张牌本次结算结束后统一加格挡。
+    if source is getattr(context.game_state, "player", None) and getattr(context, "card", None) is not None:
+        _queue_pending_malleable_trigger(context.game_state, owner, base_amount)
         return logs
 
     current_block = int(getattr(owner, "_malleable_current_block", base_amount))
@@ -2204,7 +2265,7 @@ STATUS_EVENT_HANDLERS = {
     "amplify": handle_amplify,
     "duplication_potion_next_card": handle_duplication_potion_next_card,
     "juggernaut": handle_juggernaut,
-    "berserk": handle_berserk,
+    "deva_form": handle_deva_form,
     "confusion": handle_confusion,
     "entangled": handle_entangled,
     "hex": handle_hex,

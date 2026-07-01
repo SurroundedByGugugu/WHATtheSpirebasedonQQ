@@ -37,8 +37,11 @@ def should_apply_abyssal_form_effect(game_state, card, zone_element=""):
         return False
     if get_status_value(player, "abyssal_form") <= 0:
         return False
-
-    # 已经通过真实阴 Zone / 以太介质等吃到阴 Zone 时，不重复叠加深渊形态的虚拟极阴效果。
+    # 深渊形态现在只强化阴属性攻击牌。(热修复是否只强化shade改这里)
+    card_element = str(getattr(card, "attack_element", "") or "").strip().lower()
+    if card_element != "shade":
+        return False
+    # 已经通过真实阴 Zone / 以太介质 / 薄雾等吃到阴 Zone 时，不重复叠加深渊形态的虚拟极阴效果。
     if str(zone_element).strip().lower() == "shade":
         return False
 
@@ -48,8 +51,8 @@ def should_apply_abyssal_form_effect(game_state, card, zone_element=""):
 def apply_abyssal_form_amount_modifier(value, game_state, card, zone_element=""):
     if not should_apply_abyssal_form_effect(game_state, card, zone_element):
         return int(value)
-    # 按当前极阴 Zone 的实际实现折算：基础数值乘区 2.0 × 阴特殊效果 2.0。
-    return int(int(value) * 2.0 * 2.0)
+    # 按当前极阴 Zone 的实际实现折算：基础数值乘区 1.3 × 阴特殊效果 2.0。
+    return int(int(value) * 1.3 * 2.0)
 
 
 def apply_abyssal_form_hp_loss_if_needed(game_state, card, zone_element, logs):
@@ -1022,12 +1025,390 @@ def handle_trigger_shade_hp_loss_then_draw(game_state, card, effect, target_inde
 
     return logs
 
+@register_effect("apply_flinch_if_flying_gt")
+def handle_apply_flinch_if_flying_gt(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    threshold = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("threshold"),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    threshold = int(threshold)
+
+    flinch_amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    flinch_amount = int(flinch_amount)
+
+    flying = get_status_value(player, "flying")
+
+    if flying <= threshold:
+        logs.append("【{}】判定：当前飞行 {} 层，未大于 {}，没有赋予畏缩。".format(
+            card.name,
+            flying,
+            threshold
+        ))
+        return logs
+
+    target_key = effect.get("target", "selected_enemy")
+    target_entity = get_effect_target_entity(
+        game_state=game_state,
+        target_key=target_key,
+        target_index=target_index
+    )
+
+    if target_entity is None:
+        logs.append("【{}】畏缩目标无效。".format(card.name))
+        return logs
+
+    if flinch_amount <= 0:
+        logs.append("【{}】畏缩层数为 0。".format(card.name))
+        return logs
+
+    from game.relic_logic.combat_relic_utils import apply_status_with_player_relics
+    logs.append("【{}】判定：当前飞行 {} 层，大于 {}，赋予畏缩。".format(
+        card.name,
+        flying,
+        threshold
+    ))
+    logs.extend(apply_status_with_player_relics(
+        game_state=game_state,
+        source=player,
+        target=target_entity,
+        status_key="flinch",
+        amount=flinch_amount
+    ))
+
+    return logs
+
+@register_effect("abyss_mire_damage_by_gaze")
+def handle_abyss_mire_damage_by_gaze(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    attack_type, attack_element = get_effect_attack_tags(card, effect)
+    zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+    local_context = make_zone_effect_context(effect_context, zone_element)
+
+    alive_enemies = get_all_alive_enemies(game_state)
+
+    attempted = False
+    total_real_damage = 0
+
+    for enemy in alive_enemies:
+        if game_state.battle_over:
+            break
+
+        if not enemy.is_alive():
+            continue
+
+        gaze = int(get_status_value(enemy, "abyss_gaze"))
+        if gaze <= 0:
+            continue
+
+        attempted = True
+
+        damage = int(gaze)
+
+        # 渊淖是阴属性攻击，基础值来自目标身上的深渊凝视层数。
+        damage = apply_modifier_profile(
+            value=damage,
+            modifier_profile="attack_damage",
+            game_state=game_state,
+            source=player,
+            target=enemy,
+            card=card,
+            damage_source="played_card",
+            attack_type=attack_type,
+            attack_element=attack_element,
+            zone_element=zone_element
+        )
+
+        if zone_element:
+            from game.zone_utils import apply_zone_amount_modifier
+            damage = apply_zone_amount_modifier(
+                value=damage,
+                game_state=game_state,
+                zone_element=zone_element
+            )
+
+        # 若深渊形态存在，且渊淖本身是阴属性攻击牌，则吃深渊形态的极阴效果。
+        damage = apply_abyssal_form_amount_modifier(
+            value=damage,
+            game_state=game_state,
+            card=card,
+            zone_element=zone_element
+        )
+
+        damage = int(damage)
+
+        if damage <= 0:
+            logs.append("【{}】试图依据 {} 的 {} 层深渊凝视造成伤害，但最终伤害为 0。".format(
+                card.name,
+                enemy.name,
+                gaze
+            ))
+            continue
+
+        before_hp = int(getattr(enemy, "hp", 0))
+
+        logs.append("【{}】依据 {} 的 {} 层深渊凝视，对其造成 {} 点阴属性攻击伤害。".format(
+            card.name,
+            enemy.name,
+            gaze,
+            damage
+        ))
+
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=player,
+            target=enemy,
+            amount=damage,
+            damage_kind="attack",
+            card=card,
+            attack_type=attack_type,
+            attack_element=attack_element,
+            zone_element=zone_element
+        ))
+
+        after_hp = int(getattr(enemy, "hp", 0))
+        real_damage = max(0, before_hp - after_hp)
+        total_real_damage += real_damage
+
+    if not attempted:
+        logs.append("【{}】没有找到带有深渊凝视的敌人，无法造成伤害。".format(card.name))
+
+    if total_real_damage <= 0:
+        energy_gain = int(effect.get("energy_if_no_damage", 2) or 2)
+        player.cost += energy_gain
+
+        logs.append("【{}】没有造成实际生命伤害，获得 {} 点费用。当前费用：{}。".format(
+            card.name,
+            energy_gain,
+            player.cost
+        ))
+
+        from data.card.AAAregistry import create_card
+        from data.card.upgrade_rules import upgrade_card
+
+        prayer = create_card("card.lightless_prayer")
+
+        if getattr(card, "upgraded", False):
+            prayer = upgrade_card(prayer)
+
+        setattr(prayer, "temporary", True)
+        setattr(prayer, "created_in_battle", True)
+
+        player.draw_pile.append(prayer)
+        random.shuffle(player.draw_pile)
+
+        logs.append("将 1 张【{}】加入抽牌堆，并重洗抽牌堆。".format(
+            prayer.name
+        ))
+
+    return logs
+
+def _find_and_move_upgraded_crystal_zone_to_draw_top(game_state, logs, source_name):
+    """
+    找到当前战斗中的【辉晶领域】，升级后放到抽牌堆顶。
+
+    选择优先级：
+    1. 未升级优先于已升级
+    2. 同升级状态下：弃牌堆 > 手牌 > 抽牌堆 > 消耗堆
+
+    抽牌堆顶在当前工程中是 list 末尾，因为抽牌使用 draw_pile.pop()。
+    """
+    player = game_state.player
+
+    pile_specs = [
+        ("discard_pile", "弃牌堆"),
+        ("hand", "手牌"),
+        ("draw_pile", "抽牌堆"),
+        ("exhaust_pile", "消耗堆"),
+    ]
+
+    candidates = []
+
+    for pile_priority, (pile_attr, pile_label) in enumerate(pile_specs):
+        pile = getattr(player, pile_attr, []) or []
+        for card_index, pile_card in enumerate(list(pile)):
+            if getattr(pile_card, "card_id", "") != "card.crystal_zone":
+                continue
+
+            upgraded_priority = 1 if getattr(pile_card, "upgraded", False) else 0
+
+            candidates.append({
+                "card": pile_card,
+                "pile": pile,
+                "pile_attr": pile_attr,
+                "pile_label": pile_label,
+                "pile_priority": pile_priority,
+                "upgraded_priority": upgraded_priority,
+                "card_index": card_index,
+            })
+
+    if not candidates:
+        logs.append("【{}】没有找到【辉晶领域】，无法将其升级并放回抽牌堆顶。".format(
+            source_name
+        ))
+        return
+
+    candidates.sort(key=lambda item: (
+        item["upgraded_priority"],
+        item["pile_priority"],
+        item["card_index"],
+    ))
+
+    selected = candidates[0]
+    found_card = selected["card"]
+    found_pile = selected["pile"]
+    found_pile_label = selected["pile_label"]
+
+    from data.card.upgrade_rules import upgrade_card
+
+    found_pile.remove(found_card)
+
+    old_name = found_card.name
+    upgraded_card = upgrade_card(found_card)
+    setattr(upgraded_card, "temporary_combat_upgrade", True)
+
+    player.draw_pile.append(upgraded_card)
+
+    logs.append("【{}】找到{}中的【{}】，将其升级为【{}】并放回抽牌堆顶。".format(
+        source_name,
+        found_pile_label,
+        old_name,
+        upgraded_card.name
+    ))
+
+@register_effect("crystal_dust_explosion")
+def handle_crystal_dust_explosion(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    zone = getattr(game_state, "active_zone", None)
+
+    if zone is None:
+        logs.append("【{}】没有当前晶 Zone，无法引爆。".format(card.name))
+        return logs
+
+    try:
+        if zone.is_expired():
+            logs.append("【{}】当前 Zone 已失效，无法引爆。".format(card.name))
+            return logs
+    except Exception:
+        pass
+
+    zone_element = str(getattr(zone, "element", "") or "").strip().lower()
+    if zone_element != "crystal":
+        logs.append("【{}】当前 Zone 不是晶 Zone，无法引爆。".format(card.name))
+        return logs
+
+    is_extreme = bool(getattr(zone, "is_extreme", False))
+
+    normal_times = int(effect.get("normal_times", 1) or 1)
+    normal_damage = int(effect.get("normal_damage", 8) or 8)
+    extreme_times = int(effect.get("extreme_times", 2) or 2)
+    extreme_damage = int(effect.get("extreme_damage", 12) or 12)
+
+    if is_extreme:
+        hit_times = extreme_times
+        hit_damage = extreme_damage
+        zone_name = getattr(zone, "name", "极·辉晶")
+    else:
+        hit_times = normal_times
+        hit_damage = normal_damage
+        zone_name = getattr(zone, "name", "辉晶")
+
+    game_state.active_zone = None
+
+    logs.append("【{}】破坏了当前 Zone：{}。".format(
+        card.name,
+        zone_name
+    ))
+    logs.append("晶尘爆炸将对全体敌人造成 {} 次 {} 点伤害。".format(
+        hit_times,
+        hit_damage
+    ))
+
+    for hit_index in range(hit_times):
+        if game_state.battle_over:
+            logs.append("战斗已经结束，后续晶尘爆炸不再结算。")
+            break
+
+        alive_enemies = get_all_alive_enemies(game_state)
+        if not alive_enemies:
+            logs.append("没有可攻击的敌人。")
+            break
+
+        if hit_times > 1:
+            logs.append("晶尘爆炸第 {}/{} 次：".format(
+                hit_index + 1,
+                hit_times
+            ))
+
+        for enemy in alive_enemies:
+            if game_state.battle_over:
+                break
+
+            if not enemy.is_alive():
+                continue
+
+            logs.append("晶尘爆炸对 {} 造成 {} 点伤害。".format(
+                enemy.name,
+                hit_damage
+            ))
+
+            logs.extend(deal_damage(
+                game_state=game_state,
+                source=None,
+                target=enemy,
+                amount=hit_damage,
+                damage_kind="zone_burst",
+                card=card,
+                is_reaction_damage=True,
+                ignore_block=False,
+                attack_type="",
+                attack_element="crystal",
+                zone_element=""
+            ))
+
+    if getattr(card, "upgraded", False):
+        _find_and_move_upgraded_crystal_zone_to_draw_top(
+            game_state=game_state,
+            logs=logs,
+            source_name=card.name
+        )
+
+    return logs
+
 @register_effect("choose_hand_attack_without_element_apply_plating")
 def handle_choose_hand_attack_without_element_apply_plating(game_state, card, effect, target_index, effect_context):
     player = game_state.player
 
     element = str(effect.get("element", "") or "").strip().lower()
     suffix = str(effect.get("suffix", "") or "")
+    allowed_card_types = effect.get("allowed_card_types", ["attack"])
+    allowed_card_types = [str(t) for t in allowed_card_types if str(t)]
+    if not allowed_card_types:
+        allowed_card_types = ["attack"]
+
+    type_text_map = {
+        ("attack",): "攻击牌",
+        ("skill",): "技能牌",
+        ("attack", "skill"): "攻击牌或技能牌",
+    }
+    type_text = type_text_map.get(tuple(allowed_card_types), " / ".join(allowed_card_types))
 
     if not element:
         return ["【{}】镀层失败：缺少属性。".format(card.name)]
@@ -1041,31 +1422,34 @@ def handle_choose_hand_attack_without_element_apply_plating(game_state, card, ef
     options = [
         hand_card
         for hand_card in list(getattr(player, "hand", []) or [])
-        if getattr(hand_card, "card_type", "") == "attack"
+        if getattr(hand_card, "card_type", "") in allowed_card_types
         and not str(getattr(hand_card, "attack_element", "") or "").strip()
     ]
 
     if not options:
-        return ["【{}】没有可添加镀层的无属性攻击牌。".format(card.name)]
+        return ["【{}】没有可添加镀层的无属性{}。".format(card.name, type_text)]
 
     from game.pending_choice import PendingChoice, set_pending_choice
 
     set_pending_choice(game_state, PendingChoice(
         kind="element_plating",
         source=card.name,
-        prompt="=== {}：选择 1 张无属性攻击牌添加镀层 ===".format(card.name),
+        prompt="=== {}：选择 1 张无属性{}添加镀层 ===".format(card.name, type_text),
         command_hint="用法：/card plate 0\nplate 等效 plating，镀层，选择镀层。",
         block_message="当前需要先处理镀层选择。用法：/card plate 0。",
         options=options,
         payload={
             "element": element,
             "suffix": suffix,
+            "allowed_card_types": allowed_card_types,
+            "type_text": type_text,
         }
     ))
 
     logs = [
-        "=== {}：选择 1 张无属性攻击牌添加{}镀层 ===".format(
+        "=== {}：选择 1 张无属性{}添加{}镀层 ===".format(
             card.name,
+            type_text,
             {
                 "shade": "阴",
                 "crystal": "晶",
@@ -2321,6 +2705,19 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     amount,
                     result
                 ))
+                if (
+                    status_applied
+                    and status_key == "berserk"
+                    and target_entity is game_state.player
+                    and int(amount) > 0
+                ):
+                    target_entity.max_cost += int(amount)
+                    logs.append("{} 的狂暴生效，本场战斗费用上限增加 {}。当前费用：{}/{}。".format(
+                        target_entity.name,
+                        int(amount),
+                        target_entity.cost,
+                        target_entity.max_cost
+                    ))
             else:
                 current = target_entity.gain_status(status_key, amount)
                 status_name = get_status_name(status_key)
@@ -3940,7 +4337,9 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         )
     replay_extra = int(getattr(card, "replay_extra", 0))
     replay_extra += int(effect_context.get("replay_extra", 0))
-    replay_extra += get_zone_replay_extra(game_state, card_zone_element)
+
+    if not bool(getattr(card, "ignore_zone_replay", False)):
+        replay_extra += get_zone_replay_extra(game_state, card_zone_element)
     total_times = 1 + replay_extra
     if total_times < 1:
         total_times = 1
@@ -3979,9 +4378,10 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
                 target_index,
                 effect_context=effect_context
             ))
-
             if game_state.battle_over:
                 break
+        from game.status.status_effects import flush_pending_malleable_triggers
+        logs.extend(flush_pending_malleable_triggers(game_state))
     from game.status.status_effects import (
         resolve_pending_curl_up_after_card,
         resolve_pending_flying_after_card,

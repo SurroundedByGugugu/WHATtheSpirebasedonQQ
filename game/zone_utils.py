@@ -468,6 +468,9 @@ def get_effective_zone_element_for_enemy_action(game_state, attack_element=""):
     zone = get_active_zone(game_state)
     if zone is None:
         return ""
+
+    if zone.is_expired() and not bool(getattr(zone, "is_virtual_mist_zone", False)):
+        return ""
     zone_element = normalize_element(getattr(zone, "element", ""))
     action_element = normalize_element(attack_element)
     if zone_element and action_element == zone_element:

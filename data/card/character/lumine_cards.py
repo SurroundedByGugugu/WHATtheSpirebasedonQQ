@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.card.base_card import CardTemplate
-from game.constants import KEYWORD_EXHAUST
+from game.constants import KEYWORD_ETHEREAL, KEYWORD_EXHAUST
 
 #staring
 def create_transfer():
@@ -72,6 +72,82 @@ def create_inducing():
     )
 
 #rare
+def create_ok_next():
+    return CardTemplate(
+        card_id="card.ok_next",
+        name="好，下一个",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="锁定一个敌人，三回合内无法切换攻击目标。对这名敌人造成的伤害增加 100%；如果该名敌人未死亡，每回合额外增加 50% 受到的伤害。造成 12 点伤害。",
+        quantity="rare",
+        owner_character_id="character.lumine",
+        card_vars={
+            "damage": 12,
+            "duration": 3,
+            "initial_bonus_percent": 100,
+        },
+        effects=[
+            {
+                "op": "lock_next_target",
+                "target": "selected_enemy",
+                "duration": {
+                    "var": "duration"
+                },
+                "initial_bonus_percent": {
+                    "var": "initial_bonus_percent"
+                }
+            },
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "好，下一个+",
+            "description": "锁定一个敌人，三回合内无法切换攻击目标。对这名敌人造成的伤害增加 100%；如果该名敌人未死亡，每回合额外增加 50% 受到的伤害。造成 15 点伤害。",
+            "card_vars": {
+                "damage": 15,
+            }
+        }
+    )
+
+def create_cheap_intuition():
+    return CardTemplate(
+        card_id="card.cheap_intuition",
+        name="廉价直觉",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="将你手牌中所有技能牌变为转移。",
+        quantity="rare",
+        owner_character_id="character.lumine",
+        effects=[
+            {
+                "op": "transform_hand_skills_to_card",
+                "new_card_id": "card.transfer",
+                "new_card_upgraded": False
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "廉价直觉+",
+            "description": "将你手牌中所有技能牌变为转移+。",
+            "effects": [
+                {
+                    "op": "transform_hand_skills_to_card",
+                    "new_card_id": "card.transfer",
+                    "new_card_upgraded": True
+                }
+            ],
+        }
+    )
+
 def create_god_in_hand():
     return CardTemplate(
         card_id="card.god_in_hand",
@@ -141,64 +217,92 @@ def create_god_in_hand():
             }
         }
     )
-
-def create_cheap_intuition():
+def create_deva_form():
     return CardTemplate(
-        card_id="card.cheap_intuition",
-        name="廉价直觉",
-        card_type="skill",
-        cost=1,
+        card_id="card.deva_form",
+        name="天人形态",
+        card_type="power",
+        cost=3,
         target="self",
-        description="将你手牌中所有技能牌变为转移。",
+        description="每回合开始时，本场战斗费用上限增加 1。",
         quantity="rare",
+        keywords=[KEYWORD_ETHEREAL],
         owner_character_id="character.lumine",
+        card_vars={
+            "deva_form": 1
+        },
         effects=[
             {
-                "op": "transform_hand_skills_to_card",
-                "new_card_id": "card.transfer",
-                "new_card_upgraded": False
+                "op": "gain_status",
+                "target": "self",
+                "status": "deva_form",
+                "amount": {
+                    "var": "deva_form"
+                }
             }
         ],
         upgraded=False,
         upgrade_patch={
-            "name": "廉价直觉+",
-            "description": "将你手牌中所有技能牌变为转移+。",
-            "effects": [
-                {
-                    "op": "transform_hand_skills_to_card",
-                    "new_card_id": "card.transfer",
-                    "new_card_upgraded": True
-                }
+            "name": "天人形态+",
+            "description": "每回合开始时，本场战斗费用上限增加 1。",
+            "remove_keywords": [
+                KEYWORD_ETHEREAL
             ],
         }
     )
 
-def create_ok_next():
+#uncommon
+def create_everyone_gets_hit():
     return CardTemplate(
-        card_id="card.ok_next",
-        name="好，下一个",
+        card_id="card.everyone_gets_hit",
+        name="全员都打一遍",
         card_type="attack",
         cost=2,
-        target="enemy",
-        description="锁定一个敌人，三回合内无法切换攻击目标。对这名敌人造成的伤害增加 100%；如果该名敌人未死亡，每回合额外增加 50% 受到的伤害。造成 12 点伤害。",
-        quantity="rare",
+        target="all_enemies",
+        description="对所有敌人造成 12 点伤害。",
+        quantity="uncommon",
         owner_character_id="character.lumine",
         card_vars={
             "damage": 12,
-            "duration": 3,
-            "initial_bonus_percent": 100,
+            "repeat": 1,
         },
         effects=[
             {
-                "op": "lock_next_target",
-                "target": "selected_enemy",
-                "duration": {
-                    "var": "duration"
+                "op": "deal_damage_all_enemies",
+                "target": "all_enemies",
+                "amount": {
+                    "var": "damage",
+                    "modifier_profile": "attack_damage"
                 },
-                "initial_bonus_percent": {
-                    "var": "initial_bonus_percent"
+                "times": {
+                    "var": "repeat"
                 }
-            },
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "全员都打一遍+",
+            "description": "对所有敌人造成 12 点伤害 2 次。",
+            "card_vars": {
+                "repeat": 2
+            }
+        }
+    )
+def create_brain_shockwave():
+    return CardTemplate(
+        card_id="card.brain_shockwave",
+        name="脑·震荡波",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="造成 20 点伤害。如果敌人没有人工制品，则击晕。消耗。",
+        quantity="uncommon",
+        owner_character_id="character.lumine",
+        card_vars={
+            "damage": 20,
+            "stun": 1,
+        },
+        effects=[
             {
                 "op": "deal_damage",
                 "target": "selected_enemy",
@@ -206,19 +310,27 @@ def create_ok_next():
                     "var": "damage",
                     "modifier_profile": "attack_damage"
                 }
+            },
+            {
+                "op": "gain_status_if_target_has_no_artifact",
+                "target": "selected_enemy",
+                "status": "stun",
+                "amount": {
+                    "var": "stun"
+                }
             }
+        ],
+        keywords=[
+            KEYWORD_EXHAUST
         ],
         upgraded=False,
         upgrade_patch={
-            "name": "好，下一个+",
-            "description": "锁定一个敌人，三回合内无法切换攻击目标。对这名敌人造成的伤害增加 100%；如果该名敌人未死亡，每回合额外增加 50% 受到的伤害。造成 15 点伤害。",
-            "card_vars": {
-                "damage": 15,
-            }
+            "name": "脑·震荡波+",
+            "cost": 1,
+            "description": "造成 20 点伤害。如果敌人没有人工制品，则击晕。消耗。",
         }
     )
 
-#uncommon
 def create_energetic():
     return CardTemplate(
         card_id="card.energetic",
@@ -272,7 +384,6 @@ def create_energetic():
             },
         }
     )
-
 def create_mirage_shadows():
     return CardTemplate(
         card_id="card.mirage_shadows",
@@ -333,50 +444,8 @@ def create_mirage_shadows():
         }
     )
 
-def create_brain_shockwave():
-    return CardTemplate(
-        card_id="card.brain_shockwave",
-        name="脑·震荡波",
-        card_type="attack",
-        cost=2,
-        target="enemy",
-        description="造成 20 点伤害。如果敌人没有人工制品，则击晕。消耗。",
-        quantity="uncommon",
-        owner_character_id="character.lumine",
-        card_vars={
-            "damage": 20,
-            "stun": 1,
-        },
-        effects=[
-            {
-                "op": "deal_damage",
-                "target": "selected_enemy",
-                "amount": {
-                    "var": "damage",
-                    "modifier_profile": "attack_damage"
-                }
-            },
-            {
-                "op": "gain_status_if_target_has_no_artifact",
-                "target": "selected_enemy",
-                "status": "stun",
-                "amount": {
-                    "var": "stun"
-                }
-            }
-        ],
-        keywords=[
-            KEYWORD_EXHAUST
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "脑·震荡波+",
-            "cost": 1,
-            "description": "造成 20 点伤害。如果敌人没有人工制品，则击晕。消耗。",
-        }
-    )
-
 #common
+
 def create_factor_separate():
     return CardTemplate(
         card_id="card.factor_separate",

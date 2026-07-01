@@ -350,6 +350,8 @@ def handle_debug_console(run_state, parts):
         return handle_add_hp(run_state, args)
     if command == "addmaxhp":
         return handle_add_max_hp(run_state, args)
+    if command == "addcost":
+        return handle_add_cost(run_state, args)
     if command == "addgold":
         return handle_add_gold(run_state, args)
 
@@ -648,6 +650,25 @@ def handle_add_gold(run_state, args):
     return "ctrl：金币 {} -> {}。".format(old_gold, run_state.gold)
 
 
+def handle_add_cost(run_state, args):
+    if not args:
+        return "用法：/ctrl addcost 数量。例如 /ctrl addcost 3。"
+
+    amount = parse_amount(args[0])
+    if amount is None:
+        return "费用数量必须是整数。"
+
+    game_state = getattr(run_state, "current_battle", None)
+    if game_state is None or getattr(game_state, "player", None) is None:
+        return "当前不在战斗中，不能修改费用。"
+
+    player = game_state.player
+    old_cost = int(getattr(player, "cost", 0))
+    max_cost = int(getattr(player, "max_cost", 0))
+    player.cost = max(0, old_cost + amount)
+    return "ctrl：费用 {} -> {} / {}。".format(old_cost, player.cost, max_cost)
+
+
 def debug_console_help():
     return "\n".join([
         "ctrl 控制台：",
@@ -660,5 +681,6 @@ def debug_console_help():
         "/ctrl addzone extreme_crystal",
         "/ctrl addhp 99",
         "/ctrl addmaxhp 99",
+        "/ctrl addcost 3",
         "/ctrl addgold 99",
     ])

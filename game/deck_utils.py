@@ -66,21 +66,78 @@ def remove_card_from_master_deck(run_state, card_index, reason=""):
     return removed_card, logs
 
 
-def get_transform_candidate_ids(run_state=None):
+def _iter_enabled_registry_card_ids():
+    from data.card.AAAregistry import CARD_REGISTRY
+    for card_id in CARD_REGISTRY.keys():
+        if not is_content_enabled("card", card_id):
+            continue
+        yield card_id
+
+
+def _same_owner_card_ids(source_card, candidate_ids, allowed_types=None):
     result = []
-    for card_id in filter_card_ids(CARD_REWARD_POOL):
+    source_owner = str(getattr(source_card, "owner_character_id", "") or "")
+    if allowed_types is not None:
+        allowed_types = set(allowed_types)
+
+    for card_id in filter_card_ids(list(candidate_ids)):
         try:
             card = create_card(card_id)
         except Exception:
             continue
-        card_type = getattr(card, "card_type", "")
-        if card_type in ("status", "curse"):
+
+        if allowed_types is not None and getattr(card, "card_type", "") not in allowed_types:
             continue
+
+        candidate_owner = str(getattr(card, "owner_character_id", "") or "")
+        if candidate_owner != source_owner:
+            continue
+
         result.append(card_id)
+
     return result
 
 
-def get_curse_transform_candidate_ids():
+def get_transform_candidate_ids(run_state=None, source_card=None):
+    """
+    普通变化池：只在同 owner_character_id 的非状态/非诅咒牌中变化。
+    owner_character_id 为空的无所属牌只会变化成无所属牌。
+    """
+    allowed_types = ("attack", "skill", "power")
+    if source_card is None:
+        result = []
+        for card_id in filter_card_ids(CARD_REWARD_POOL):
+            try:
+                card = create_card(card_id)
+            except Exception:
+                continue
+            if getattr(card, "card_type", "") in allowed_types:
+                result.append(card_id)
+        return result
+
+    return _same_owner_card_ids(
+        source_card=source_card,
+        candidate_ids=CARD_REWARD_POOL,
+        allowed_types=allowed_types
+    )
+
+
+def get_typed_transform_candidate_ids(source_card, card_type):
+    """
+    诅咒/状态等特殊类型变化池：同类型 + 同 owner。
+    这些通常不在奖励池里，因此优先从全注册表收集。
+    """
+    return _same_owner_card_ids(
+        source_card=source_card,
+        candidate_ids=list(_iter_enabled_registry_card_ids()),
+        allowed_types=(card_type,)
+    )
+
+
+def get_curse_transform_candidate_ids(source_card=None):
+    if source_card is not None:
+        return get_typed_transform_candidate_ids(source_card, "curse")
+
     result = []
     for card_id in filter_card_ids(CARD_REWARD_POOL):
         try:
@@ -89,12 +146,8 @@ def get_curse_transform_candidate_ids():
             continue
         if getattr(card, "card_type", "") == "curse":
             result.append(card_id)
-    # 诅咒通常不在奖励池里，直接从注册表兜底收集。
     if not result:
-        from data.card.AAAregistry import CARD_REGISTRY
-        for card_id in CARD_REGISTRY.keys():
-            if not is_content_enabled("card", card_id):
-                continue
+        for card_id in _iter_enabled_registry_card_ids():
             try:
                 card = create_card(card_id)
             except Exception:
@@ -115,10 +168,13 @@ def transform_card_in_master_deck(run_state, card_index, rng=None):
     old_card = deck[card_index]
     if getattr(old_card, "card_id", "") == "card.curse.necronomicurse":
         return None, None, ["【死灵诅咒】无法被变化。"]
-    if getattr(old_card, "card_type", "") == "curse":
-        pool = get_curse_transform_candidate_ids()
+    old_card_type = getattr(old_card, "card_type", "")
+    if old_card_type == "curse":
+        pool = get_curse_transform_candidate_ids(old_card)
+    elif old_card_type == "status":
+        pool = get_typed_transform_candidate_ids(old_card, "status")
     else:
-        pool = get_transform_candidate_ids(run_state)
+        pool = get_transform_candidate_ids(run_state, source_card=old_card)
     old_card_id = getattr(old_card, "card_id", "")
     pool = [card_id for card_id in pool if card_id != old_card_id] or pool
 
