@@ -61,6 +61,20 @@ from data.enemy.enemy_origin_1_2 import (
 
 )
 
+from data.enemy.enemy_origin_1_3 import (
+    create_orb_walker,
+    create_the_maw,
+    create_darkling_left,
+    create_darkling_middle,
+    create_darkling_right,
+    create_transient,
+    create_writhing_mass,
+    create_spire_growth,
+    create_spiker,
+    create_exploder,
+    create_repulsor,
+)
+
 ENEMY_REGISTRY = {
     "enemy.test_dummy": TestDummyEnemy,
     "enemy.chaos_fragment":ChaosFragmentEnemy,
@@ -124,7 +138,19 @@ ENEMY_REGISTRY = {
     "enemy.bronze_orb": create_bronze_orb,
     "enemy.collector": create_collector,
     "enemy.torch_head": create_torch_head,
-
+    
+    #_1_3_common
+    "enemy.orb_walker": create_orb_walker,
+    "enemy.the_maw": create_the_maw,
+    "enemy.darkling_left": create_darkling_left,
+    "enemy.darkling_middle": create_darkling_middle,
+    "enemy.darkling_right": create_darkling_right,
+    "enemy.transient": create_transient,
+    "enemy.writhing_mass": create_writhing_mass,
+    "enemy.spire_growth": create_spire_growth,
+    "enemy.spiker": create_spiker,
+    "enemy.exploder": create_exploder,
+    "enemy.repulsor": create_repulsor,
 }
 
 

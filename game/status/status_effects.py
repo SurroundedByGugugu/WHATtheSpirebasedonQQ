@@ -110,6 +110,36 @@ def dispatch_status_event(game_state, event_name, context):
             logs.extend(result)
     return logs
 
+def handle_constricted(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_PLAYER_TURN_END:
+        return logs
+
+    if owner is None or owner is not context.game_state.player or not owner.is_alive():
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    logs.append("{} 受到 {} 层缠绕影响。".format(owner.name, amount))
+
+    from game.damage import deal_damage
+
+    logs.extend(deal_damage(
+        game_state=context.game_state,
+        source=owner,
+        target=owner,
+        amount=amount,
+        damage_kind="status",
+        card=None,
+        is_reaction_damage=False,
+        ignore_block=True
+    ))
+
+    return logs
+
 def deal_status_damage_all_enemies(context, owner, amount, status_key):
     """
     能力 / 状态造成的全体伤害。
@@ -2283,4 +2313,5 @@ STATUS_EVENT_HANDLERS = {
     "panache": handle_panache,
     "the_bomb": handle_the_bomb,
     "pain_stab": handle_pain_stab,
+    "constricted": handle_constricted,
 }

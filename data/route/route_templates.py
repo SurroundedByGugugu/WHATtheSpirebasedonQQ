@@ -568,3 +568,51 @@ def generate_act2_grid_route(seed=None):
 
     enforce_act1_route_guarantees(route, rng)
     return route
+
+def generate_act3_grid_route(seed=None):
+    """
+    生成固定 5 列、15 层的三层路线。
+
+    三层事件池由 node_event_1_3.py 提供。
+    当前普通/精英/Boss 遭遇暂沿用 1_2 池；后续补三层怪物池时再接 1_3 后缀。
+    """
+    rng = random.Random(seed)
+    route = []
+
+    route.append({
+        "node_id": make_grid_node_id(3, 0),
+        "node_type": "ancient",
+        "name": NODE_NAME_BY_TYPE["ancient"],
+        "floor": 0,
+        "col": -1,
+        "next_node_ids": make_full_next_ids(3, 0),
+    })
+
+    for floor in range(1, ACT1_BOSS_FLOOR + 1):
+        if floor == 1:
+            floor_types = ["starting"] * MAP_WIDTH
+        elif floor == ACT1_TREASURE_FLOOR:
+            floor_types = ["treasure"] * MAP_WIDTH
+        elif floor == ACT1_PRE_BOSS_REST_FLOOR:
+            floor_types = ["rest"] * MAP_WIDTH
+        elif floor == ACT1_BOSS_FLOOR:
+            floor_types = ["boss"] * MAP_WIDTH
+        else:
+            floor_types = generate_random_floor_types(floor, rng)
+
+        for col, node_type in enumerate(floor_types):
+            name = NODE_NAME_BY_TYPE.get(node_type, node_type)
+            if node_type == "boss":
+                name = "三层 Boss"
+
+            route.append({
+                "node_id": make_grid_node_id(3, floor, col),
+                "node_type": node_type,
+                "name": name,
+                "floor": floor,
+                "col": col,
+                "next_node_ids": make_adjacent_next_ids(3, floor, col),
+            })
+
+    enforce_act1_route_guarantees(route, rng)
+    return route

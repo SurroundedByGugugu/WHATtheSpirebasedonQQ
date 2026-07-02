@@ -180,6 +180,7 @@ from data.card.character.armored_warrior_cards import(
 from data.card.character.yoirine_cards import (
     create_crystal_piercing,
     create_crystal_zone,
+    create_shade_zone,
     create_spreading_wing,
     create_crystal_cocoon,
     create_crystal_thorns,
@@ -418,6 +419,7 @@ CARD_REGISTRY = {
     "card.divine_bird": create_divine_bird,
     "card.crystal_dust_explosion": create_crystal_dust_explosion,
     "card.precipitate":create_precipitate,
+    "card.shade_zone":create_shade_zone,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.deva_form": create_deva_form,

@@ -82,6 +82,16 @@ EVENT_VAMPIRES = "event.vampires"
 EVENT_GHOST_COUNCIL = "event.ghost_council"
 EVENT_ARENA = "event.arena"
 
+# 塔1 三层
+EVENT_SECRET_PORTAL = "event.secret_portal"
+EVENT_SENSORY_STONE = "event.sensory_stone"
+EVENT_FALLING = "event.falling"
+EVENT_MOAI_HEAD = "event.moai_head"
+EVENT_MYSTERIOUS_SPHERE = "event.mysterious_sphere"
+EVENT_TOMB_RED_MASK = "event.tomb_red_mask"
+EVENT_WINDING_HALLS = "event.winding_halls"
+
+
 def get_current_floor(run_state):
     node = run_state.get_current_node() if hasattr(run_state, "get_current_node") else None
     return int(getattr(node, "floor", -1))
@@ -203,6 +213,139 @@ def pick_uncommon_colorless_card_id(rng):
 
     return rng.choice(candidates) if candidates else ""
 
+def get_colorless_card_pool(allowed_quantities=("uncommon", "rare")):
+    """
+    获取无色牌池：
+    - owner_character_id == "" 视为无所属 / 无色
+    - 只取 attack / skill / power
+    - 默认取 uncommon / rare，贴近原作无色牌池
+    """
+    from data.card.AAAregistry import CARD_REGISTRY
+    from data.content_gate import is_content_enabled
+
+    result = []
+
+    for card_id in CARD_REGISTRY.keys():
+        if not is_content_enabled("card", card_id):
+            continue
+
+        try:
+            card = create_card(card_id)
+        except Exception:
+            continue
+
+        if getattr(card, "owner_character_id", ""):
+            continue
+
+        if getattr(card, "card_type", "") not in ("attack", "skill", "power"):
+            continue
+
+        if getattr(card, "quantity", "") not in tuple(allowed_quantities):
+            continue
+
+        result.append(card_id)
+
+    return result
+
+
+def roll_colorless_card_choices(run_state, rng, count=3):
+    """
+    感知石用：生成一次无色牌三选一。
+    """
+    from game.relic_logic.run_relic_utils import apply_card_gain_preview_relics
+
+    pool = get_colorless_card_pool(allowed_quantities=("uncommon", "rare"))
+
+    if not pool:
+        return []
+
+    if len(pool) >= int(count):
+        chosen_ids = rng.sample(pool, int(count))
+    else:
+        chosen_ids = [rng.choice(pool) for _ in range(int(count))]
+
+    cards = []
+    for card_id in chosen_ids:
+        card = create_card(card_id)
+        card = apply_card_gain_preview_relics(run_state, card)
+        cards.append(card)
+
+    return cards
+
+
+def make_sensory_stone_reward_state(run_state, rng, memory_count):
+    """
+    生成感知石的连续无色牌三选一奖励。
+
+    memory_count:
+    - 1：选 1 次
+    - 2：选 2 次
+    - 3：选 3 次
+
+    这里不直接把牌塞进牌组，而是复用 RewardState / pick 流程。
+    """
+    from game.reward import RewardOption, RewardState, record_reward_options_offered
+
+    memory_count = int(memory_count)
+    if memory_count < 1:
+        memory_count = 1
+
+    options = []
+
+    for step in range(memory_count):
+        cards = roll_colorless_card_choices(run_state, rng, count=3)
+        if not cards:
+            continue
+
+        options.append(RewardOption(
+            option_type="card",
+            title="感知石：记忆 {}/{}（无色牌三选一）".format(step + 1, memory_count),
+            payload={
+                "cards": cards,
+                "auto_chain_group": "sensory_stone",
+                "chain_step": step + 1,
+                "chain_total": memory_count,
+            }
+        ))
+
+    if not options:
+        return None
+
+    reward_state = RewardState(
+        node_type="event",
+        options=options,
+    )
+
+    run_state.pending_reward = reward_state
+    record_reward_options_offered(run_state, reward_state)
+
+    return reward_state
+
+def pick_random_colorless_card_id(rng, allowed_quantities=("uncommon", "rare")):
+    from data.card.AAAregistry import CARD_REGISTRY
+    from data.content_gate import is_content_enabled
+
+    candidates = []
+
+    for card_id in CARD_REGISTRY.keys():
+        if not is_content_enabled("card", card_id):
+            continue
+
+        try:
+            card = create_card(card_id)
+        except Exception:
+            continue
+
+        if getattr(card, "owner_character_id", ""):
+            continue
+        if getattr(card, "card_type", "") not in ("attack", "skill", "power"):
+            continue
+        if getattr(card, "quantity", "") not in tuple(allowed_quantities or ("uncommon", "rare")):
+            continue
+
+        candidates.append(card_id)
+
+    return rng.choice(candidates) if candidates else ""
 
 def make_event_card_reward(run_state, cards, title):
     from game.reward import RewardOption, RewardState, record_reward_options_offered
@@ -2062,4 +2205,205 @@ def choose_event_option(run_state, choice_index, seed=None):
             ],
             intro_text="你选择留下来。观众席爆发出刺耳的欢呼声。",
         )
+    
+    if effect == "secret_portal_enter":
+        current_node = run_state.get_current_node() if hasattr(run_state, "get_current_node") else None
+        current_act = get_current_act(run_state)
+        boss_nodes = [
+            node for node in getattr(run_state, "route_nodes", []) or []
+            if getattr(node, "node_type", "") == "boss"
+            and str(getattr(node, "node_id", "")).startswith("act{}.".format(current_act))
+        ]
+        if not boss_nodes:
+            return False, "当前路线没有可传送到的 Boss 房间。"
+
+        current_col = int(getattr(current_node, "col", 0) or 0) if current_node is not None else 0
+        boss_nodes.sort(key=lambda node: abs(int(getattr(node, "col", 0) or 0) - current_col))
+        boss_node = boss_nodes[0]
+
+        if hasattr(run_state, "mark_current_node_completed"):
+            run_state.mark_current_node_completed()
+
+        run_state.pending_event = None
+        run_state.current_node_id = boss_node.node_id
+        run_state.current_battle = None
+        run_state.pending_reward = None
+        run_state.clear_pending_nodes()
+
+        from game.run_engine import prepare_visible_boss_for_route, enter_current_node
+        prepare_visible_boss_for_route(run_state, seed=seed, act=current_act)
+        entry_text = enter_current_node(run_state, seed=seed)
+        return False, "\n\n".join([
+            "你跳进了传送门，瞬间失去了一切对时间与空间的感知。\n当你好不容易镇定下来，你发现自己到达了一个新的地方，而前方正有一场苦战等待着你。",
+            entry_text,
+        ])
+
+    if effect == "sensory_stone_cards":
+        count = int(payload.get("count", 1) or 1)
+        hp_loss = int(payload.get("hp_loss", 0) or 0)
+
+        logs = [
+            "你触碰了超立方体。",
+            "你浑身感到一股剧烈的疼痛，然后一段遥远的回忆清晰地闪现在你的脑中。",
+            "……这是谁的记忆？",
+        ]
+
+        if hp_loss > 0:
+            old_hp, new_hp = lose_hp(run_state, hp_loss)
+            logs.append("失去 {} 点生命：{} -> {}。".format(hp_loss, old_hp, new_hp))
+
+        reward_state = make_sensory_stone_reward_state(run_state, rng, count)
+
+        if reward_state is None:
+            logs.append("没有可获得的无色牌。")
+        else:
+            logs.append("感知石浮现出 {} 段记忆。请连续选择 {} 张无色牌。".format(
+                len(reward_state.options),
+                len(reward_state.options)
+            ))
+
+        return True, "\n".join(logs)
+
+    if effect == "falling_lose_card":
+        deck_index = int(payload.get("deck_index", -1))
+        card_type = str(payload.get("card_type", "") or "")
+
+        if deck_index < 0:
+            return False, "你没有可用于这个选项的{}。".format({
+                "skill": "技能牌",
+                "power": "能力牌",
+                "attack": "攻击牌",
+            }.get(card_type, "牌"))
+
+        deck = getattr(run_state, "master_deck", []) or []
+        if deck_index >= len(deck):
+            return False, "要失去的牌已经不在牌组中。"
+
+        card = deck[deck_index]
+        if getattr(card, "card_type", "") != card_type:
+            return False, "要失去的牌类型已经变化，无法处理。"
+
+        removed_card, remove_logs = remove_card_from_master_deck(run_state, deck_index, reason="falling")
+        if removed_card is None:
+            return False, "\n".join(remove_logs)
+
+        if card_type == "skill":
+            intro = "你以优雅的姿势落地，继续前行。"
+        elif card_type == "power":
+            intro = "你催动自己的力量，成功在落地时避免了损伤。"
+        else:
+            intro = "你成功挂在了墙上，一个小跳翻上了一个稳固的平台。"
+
+        return True, "\n".join([intro] + remove_logs)
+
+    if effect == "moai_jump":
+        percent = float(payload.get("percent", 0.125) or 0.125)
+        amount, old_max, new_max, old_hp, capped_hp = lose_max_hp_percent(run_state, percent)
+
+        heal_amount = int(getattr(run_state, "max_hp", 0) or 0)
+        heal_logs = heal_run_hp_with_relics(run_state, heal_amount, source="摩艾石像")
+
+        logs = [
+            "你踏进石像的嘴，一开始什么也没发生。正当你觉得自己有点犯傻的时候，上方巨大的臼齿突然砸了下来，将你整个碾碎了。",
+            "黑暗。",
+            "一段时间后，你在黑暗中见到一线光明，并听见了轰隆作响的声音，你这才反应过来那是石像的牙齿重新缓慢地升了上去。",
+            "你满心困惑地走了出来。",
+            "失去 {} 点最大生命：{} -> {}。HP：{} -> {}。".format(amount, old_max, new_max, old_hp, capped_hp),
+        ]
+        logs.extend(heal_logs)
+        return True, "\n".join(logs)
+
+    if effect == "moai_golden_idol":
+        relic = remove_relic_by_id(run_state, "relic.golden_idol")
+        if relic is None:
+            return False, "你没有【金神像】。"
+
+        logs = [
+            "巨大的臼齿轰然砸下，将金神像碾成了粉末，你下意识地往后跳了一步。",
+            "当巨齿重新上升时，嘴中不断涌出金币，你赶紧把钱捡了起来。",
+            "失去遗物：【{}】。".format(getattr(relic, "name", "金神像")),
+        ]
+        logs.extend(gain_gold_with_relics(run_state, 333, source="摩艾石像"))
+        return True, "\n".join(logs)
+
+    if effect == "mysterious_sphere_open":
+        from game.run_engine import start_forced_event_battle
+        return False, start_forced_event_battle(
+            run_state,
+            encounter_id="encounter.event.mysterious_sphere",
+            effective_node_type="event_elite",
+            seed=seed,
+            post_battle_effects=[{"type": "gain_rare_relic"}],
+            intro_text="你刚一砸开圆球，那些看守就立即动了起来！",
+        )
+
+    if effect == "tomb_red_mask_wear":
+        if not has_relic(run_state, "relic.red_mask"):
+            return False, "你没有【红面具】。"
+
+        logs = [
+            "你戴上面具，古墓似乎开始逐渐剥离……是一条密道！",
+            "密道中有着数不清的偷来的财宝与大量的金币！",
+        ]
+        logs.extend(gain_gold_with_relics(run_state, 222, source="红面具大人之墓"))
+        return True, "\n".join(logs)
+
+    if effect == "tomb_red_mask_offer_gold":
+        old_gold = int(getattr(run_state, "gold", 0) or 0)
+        run_state.gold = 0
+
+        logs = [
+            "你把身上所有金币投进古墓上的开口。",
+            "古墓上出现一个开口，一个小小的红面具滑了出来，旁边还有一张纸条：",
+            "“如同我夺走你的东西一般，去抢夺别人的东西吧！”",
+            "失去所有金币：{} -> 0。".format(old_gold),
+        ]
+        logs.extend(add_specific_relic(run_state, "relic.red_mask"))
+        return True, "\n".join(logs)
+
+    if effect == "winding_halls_next":
+        state.description = (
+            "当你经过一个你十分确定之前见到过的建筑物时，你开始怀疑是自己疯了，还是这个违背常理的地形让你失去了理智。\n\n"
+            "你需要立即做出一些改变。\n\n"
+            "至少那些声音们是这样说的，他们怎么会骗人呢？"
+        )
+        state.choices = [
+            EventChoice("拥抱疯狂。得到 2 张疯狂。失去 12.5% 生命。", "winding_halls_madness"),
+            EventChoice("集中精神。被诅咒——苦恼。获得 25% 生命。", "winding_halls_focus"),
+            EventChoice("寻找来路。失去 5% 的最大生命值。", "winding_halls_find_way"),
+        ]
+        return False, format_event(run_state)
+
+    if effect == "winding_halls_madness":
+        logs = [
+            "你觉得自己的理智出现了裂痕，只有真正的疯子才能理解这个地方。于是你拥抱了那些低语的声音，用“全新”的视角继续前进。",
+            "这里的一切似乎变得更加合理了。",
+        ]
+
+        for _ in range(2):
+            logs.extend(add_card_to_master_deck_with_relics(run_state, create_card("card.madness"), source="蜿蜒走廊"))
+
+        amount, old_hp, new_hp = lose_hp_percent_of_max(run_state, 0.125)
+        logs.append("失去 {} 点生命：{} -> {}。".format(amount, old_hp, new_hp))
+        return True, "\n".join(logs)
+
+    if effect == "winding_halls_focus":
+        logs = [
+            "你停下脚步，仔细观察这起伏波动的地貌。在混乱的变化中，你似乎逐渐找到了一些规律。",
+            "可是那些令人疯狂的话语不停打断着你的思绪，你花了极大的努力才强忍着痛苦无视了他们。",
+            "最终你成功地分析出了一条前进的道路。",
+        ]
+        logs.append(add_curse(run_state, "card.curse.writhe"))
+        amount, old_hp, new_hp = heal_by_max_hp_fraction(run_state, 1, 4)
+        logs.append("恢复 {} 点生命：{} -> {}。".format(amount, old_hp, new_hp))
+        return True, "\n".join(logs)
+
+    if effect == "winding_halls_find_way":
+        amount, old_max, new_max, old_hp, new_hp = lose_max_hp_percent(run_state, 0.05)
+        return True, "\n".join([
+            "你在迷宫中绕来绕去，仿佛经过了永恒，但你逐渐地找到了自己来时的路线。你重新稳住精神，从蜿蜒的走廊中逃离了出来。",
+            "这让你觉得精疲力尽。",
+            "失去 {} 点最大生命：{} -> {}。HP：{} -> {}。".format(amount, old_max, new_max, old_hp, new_hp),
+        ])
+
     return False, "未知事件效果：{}。".format(effect)

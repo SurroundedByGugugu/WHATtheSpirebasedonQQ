@@ -2236,7 +2236,10 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs=logs
         )
 
-        if was_alive and not target_entity.is_alive() and not was_minion:
+        if was_alive and not target_entity.is_alive() and bool(getattr(target_entity, "_suppress_non_minion_kill_reward_once", False)):
+            logs.append("目标受生命链接保护，【{}】不触发斩杀。".format(card.name))
+
+        elif was_alive and not target_entity.is_alive() and not was_minion:
             max_hp_gain = resolve_amount(
                 game_state=game_state,
                 card=card,
@@ -2325,7 +2328,10 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs=logs
         )
 
-        if was_alive and not target_entity.is_alive() and not was_minion:
+        if was_alive and not target_entity.is_alive() and bool(getattr(target_entity, "_suppress_non_minion_kill_reward_once", False)):
+            logs.append("目标受生命链接保护，【{}】不触发斩杀。".format(card.name))
+
+        elif was_alive and not target_entity.is_alive() and not was_minion:
             gold_gain = resolve_amount(
                 game_state=game_state,
                 card=card,
@@ -2409,7 +2415,10 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             logs=logs
         )
 
-        if was_alive and not target_entity.is_alive() and not was_minion:
+        if was_alive and not target_entity.is_alive() and bool(getattr(target_entity, "_suppress_non_minion_kill_reward_once", False)):
+            logs.append("目标受生命链接保护，【{}】不触发斩杀。".format(card.name))
+
+        elif was_alive and not target_entity.is_alive() and not was_minion:
             var_name = effect.get("var", "damage")
             increase = resolve_amount(
                 game_state=game_state,
@@ -2436,7 +2445,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 old_value,
                 new_value
             ))
-        elif was_minion:
+        elif was_alive and not target_entity.is_alive() and was_minion:
             logs.append("目标是爪牙，【{}】不成长。".format(card.name))
 
         return logs

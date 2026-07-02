@@ -10,6 +10,8 @@ from data.zones.element_zones import ELEMENT_NAME_MAP, ElementZone, get_element_
 from game.display_names import format_card_display_name, format_relic_display_name
 from game.relic_logic.run_relic_utils import assign_new_card_master_uid
 from game.status.status_defs import get_status_name, has_status_def, iter_status_defs
+from game.target_lock import clear_attack_target_lock
+from game.test_room import enter_test_room, get_test_room_usage
 from game.zone_utils import EXTREME_ZONE_DURATION
 
 
@@ -354,8 +356,18 @@ def handle_debug_console(run_state, parts):
         return handle_add_cost(run_state, args)
     if command == "addgold":
         return handle_add_gold(run_state, args)
+    if command == "testroom":
+        return handle_test_room(run_state, args)
+    if command in ("clearenemies", "clearenemy", "clearmonsters", "clear怪", "清怪", "清空怪物"):
+        return handle_clear_enemies(run_state, args)
 
     return "未知 ctrl 指令：{}。".format(command)
+
+
+def handle_test_room(run_state, args):
+    if not args:
+        return get_test_room_usage()
+    return enter_test_room(run_state, args[0])
 
 
 def handle_add_card(run_state, args):
@@ -669,6 +681,28 @@ def handle_add_cost(run_state, args):
     return "ctrl：费用 {} -> {} / {}。".format(old_cost, player.cost, max_cost)
 
 
+def handle_clear_enemies(run_state, args):
+    game_state = getattr(run_state, "current_battle", None)
+    if game_state is None:
+        return "当前不在战斗中，不能清空怪物。"
+
+    enemies = getattr(game_state, "enemies", None)
+    if enemies is None:
+        return "当前战斗没有可清空的怪物列表。"
+
+    count = len(enemies)
+    if count <= 0:
+        game_state.battle_over = True
+        game_state.victory = True
+        return "ctrl：当前房间没有怪物，已按战斗胜利处理。"
+
+    clear_attack_target_lock(game_state)
+    enemies[:] = []
+    game_state.battle_over = True
+    game_state.victory = True
+    return "ctrl：已清空当前房间的 {} 个怪物。".format(count)
+
+
 def debug_console_help():
     return "\n".join([
         "ctrl 控制台：",
@@ -683,4 +717,7 @@ def debug_console_help():
         "/ctrl addmaxhp 99",
         "/ctrl addcost 3",
         "/ctrl addgold 99",
+        "/ctrl testroom battle",
+        "/ctrl testroom event",
+        "/ctrl clearenemies",
     ])

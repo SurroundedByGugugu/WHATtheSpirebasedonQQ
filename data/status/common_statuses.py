@@ -782,3 +782,69 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="life_link",
+    name="生命链接",
+    description="若场上还有其他小黑存活，则死亡后在倒计时结束时以 50% 生命复活。",
+    category="buff",
+    display_mode="turns",
+    order=425,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="fading",
+    name="消逝",
+    description="倒计时结束时死亡。",
+    category="special",
+    display_mode="turns",
+    order=426,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="shifting",
+    name="变幻",
+    description="每当受到伤害，将在回合结束前失去相应点数的力量。",
+    category="buff",
+    display_mode="flag",
+    order=427,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="writhing",
+    name="扭动",
+    description="受到攻击伤害时，改变自己的行动意图。",
+    category="buff",
+    display_mode="flag",
+    order=428,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="self_destruct",
+    name="自爆",
+    description="倒计时结束后爆炸，对玩家造成伤害，然后死亡。",
+    category="buff",
+    display_mode="turns",
+    order=429,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="constricted",
+    name="缠绕",
+    description="在你的回合结束时，受到等同于层数的伤害。",
+    category="debuff",
+    display_mode="stack",
+    order=46,
+    decay_timing="none",
+    decay_amount=0,
+))

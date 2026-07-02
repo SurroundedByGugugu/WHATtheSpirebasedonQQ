@@ -2592,17 +2592,6 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         damage = int(action.get("damage", 0))
         attack_type = action.get("attack_type", "")
         attack_element = action.get("attack_element", "")
-        # damage = apply_modifier_profile(
-        #     value=damage,
-        #     modifier_profile="attack_damage",
-        #     game_state=game_state,
-        #     source=enemy,
-        #     target=target,
-        #     card=None,
-        #     damage_source=DAMAGE_SOURCE_ENEMY_ACTION,
-        #     attack_type=attack_type,
-        #     attack_element=attack_element
-        # )
         damage = apply_modifier_profile(
             value=damage,
             modifier_profile="attack_damage",
@@ -3080,15 +3069,6 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         return
     if op == "enemy_gain_block":
         block = int(action.get("block", 0))
-        # block = apply_modifier_profile(
-        #     value=block,
-        #     modifier_profile="block",
-        #     game_state=game_state,
-        #     source=enemy,
-        #     target=enemy,
-        #     card=None,
-        #     block_source=BLOCK_SOURCE_ENEMY_ACTION
-        # )
         block = apply_modifier_profile(
             value=block,
             modifier_profile="block",
@@ -3174,29 +3154,118 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
     if op == "enemy_wait":
         return
 
-    if op == "enemy_add_card_to_discard":
+    if op in ("enemy_add_card_to_discard", "enemy_add_card_to_draw", "enemy_add_card_to_hand"):
         card_id = action.get("card_id", "")
         count = int(action.get("count", 1))
+
         if not card_id:
             logs.append("敌人加牌行动缺少 card_id。")
             return
+
         if count <= 0:
             logs.append("敌人加牌数量为 0。")
             return
+
         from data.card.AAAregistry import create_card
+
         added_cards = []
+        added_to_hand = 0
+        added_to_discard = 0
+        added_to_draw = 0
+
+        for _ in range(count):
+            new_card = create_card(card_id)
+
+            # 战斗内生成牌标记。
+            setattr(new_card, "temporary", True)
+            setattr(new_card, "created_in_battle", True)
+
+            if op == "enemy_add_card_to_draw":
+                game_state.player.draw_pile.append(new_card)
+                added_to_draw += 1
+            elif op == "enemy_add_card_to_hand":
+                if len(game_state.player.hand) < getattr(game_state.player, "max_hand_size", 10):
+                    game_state.player.hand.append(new_card)
+                    added_to_hand += 1
+                else:
+                    game_state.player.discard_pile.append(new_card)
+                    added_to_discard += 1
+            else:
+                game_state.player.discard_pile.append(new_card)
+                added_to_discard += 1
+
+            added_cards.append(new_card)
+
+        card_name = added_cards[0].name if added_cards else card_id
+
+        if added_to_draw > 0:
+            logs.append("{} 向你的抽牌堆加入 {} 张【{}】。".format(
+                enemy.name,
+                added_to_draw,
+                card_name
+            ))
+
+        if added_to_hand > 0:
+            logs.append("{} 向你的手牌加入 {} 张【{}】。".format(
+                enemy.name,
+                added_to_hand,
+                card_name
+            ))
+
+        if added_to_discard > 0:
+            if op == "enemy_add_card_to_hand":
+                logs.append("手牌已满，{} 将 {} 张【{}】加入你的弃牌堆。".format(
+                    enemy.name,
+                    added_to_discard,
+                    card_name
+                ))
+            else:
+                logs.append("{} 向你的弃牌堆加入 {} 张【{}】。".format(
+                    enemy.name,
+                    added_to_discard,
+                    card_name
+                ))
+
+        return
+
+    if op == "enemy_add_curse_to_master_deck":
+        card_id = action.get("card_id", "") or "card.curse.parasite"
+        count = int(action.get("count", 1) or 1)
+
+        if count <= 0:
+            return
+
+        run_state = getattr(game_state, "run_state", None)
+        if run_state is None:
+            logs.append("{} 试图将诅咒加入你的牌组，但当前战斗没有绑定 RunState。".format(enemy.name))
+            return
+
+        from data.card.AAAregistry import create_card
+        from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics
+
+        # 战斗中长期牌组发生变化前，先把当前玩家生命/遗物同步到 RunState，
+        # 避免黑石护符等获得诅咒触发按战斗开始时的旧 HP 结算。
+        run_state.hp = game_state.player.hp
+        run_state.max_hp = game_state.player.max_hp
+        run_state.relics = game_state.player.relics
+        run_state.potions = game_state.player.potions
+
         for _ in range(count):
             card = create_card(card_id)
-            game_state.player.discard_pile.append(card)
-            added_cards.append(card)
-        card_name = added_cards[0].name if added_cards else card_id
-        logs.append("{} 向你的弃牌堆加入 {} 张【{}】。".format(
-            enemy.name,
-            count,
-            card_name
-        ))
+            logs.extend(add_card_to_master_deck_with_relics(
+                run_state,
+                card,
+                source=enemy.name
+            ))
+
+        # 如果御守未抵消且黑石护符等修改了生命上限/生命值，同步回当前战斗。
+        game_state.player.max_hp = run_state.max_hp
+        game_state.player.hp = min(run_state.hp, game_state.player.max_hp)
+        game_state.player.relics = run_state.relics
+        game_state.player.potions = run_state.potions
+
         return
-    
+
     if op == "enemy_steal_gold":
         amount = int(action.get("amount", 0))
 

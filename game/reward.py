@@ -159,6 +159,7 @@ CARD_REWARD_POOL = [
     "card.divine_bird",
     "card.crystal_dust_explosion",
     "card.precipitate",
+    "card.shade_zone"
     
     #昼
     "card.mirage_shadows",
@@ -1376,6 +1377,22 @@ def take_reward_option(run_state, reward_state, option_index):
         record_reward_taken(run_state, "potion")
         return "\n".join(logs)
     if option.option_type == "card":
+        payload = option.payload or {}
+        chain_group = payload.get("auto_chain_group", "")
+
+        if chain_group:
+            for earlier_index, earlier_option in enumerate(reward_state.options):
+                if earlier_index >= option_index:
+                    break
+                earlier_payload = earlier_option.payload or {}
+                if earlier_payload.get("auto_chain_group", "") != chain_group:
+                    continue
+                if not earlier_option.claimed and not earlier_option.skipped:
+                    return "请先处理前一段感知石记忆：[{}] {}。".format(
+                        earlier_index,
+                        earlier_option.title
+                    )
+
         reward_state.active_card_option_index = option_index
         return format_card_choices(option.payload.get("cards", []))
     return "未知奖励类型：{}。".format(option.option_type)
@@ -1461,10 +1478,50 @@ def pick_card_from_reward(run_state, reward_state, card_index):
         return "卡牌编号无效。"
     card = copy.deepcopy(cards[card_index])
     add_logs = add_card_to_master_deck_with_relics(run_state, card, source="获得卡牌")
+
     option.claimed = True
     reward_state.active_card_option_index = -1
     record_reward_taken(run_state, "card")
-    return "\n".join(add_logs)
+
+    reply = "\n".join(add_logs)
+
+    payload = option.payload or {}
+    chain_group = payload.get("auto_chain_group", "")
+
+    if chain_group:
+        next_index = -1
+
+        for candidate_index, candidate_option in enumerate(reward_state.options):
+            if candidate_index <= option_index:
+                continue
+
+            candidate_payload = candidate_option.payload or {}
+            if candidate_payload.get("auto_chain_group", "") != chain_group:
+                continue
+
+            if candidate_option.claimed or candidate_option.skipped:
+                continue
+
+            next_index = candidate_index
+            break
+
+        if next_index >= 0:
+            next_option = reward_state.options[next_index]
+            reward_state.active_card_option_index = next_index
+
+            next_payload = next_option.payload or {}
+            step = int(next_payload.get("chain_step", next_index + 1) or (next_index + 1))
+            total = int(next_payload.get("chain_total", len(reward_state.options)) or len(reward_state.options))
+
+            return "\n".join([
+                reply,
+                "",
+                "感知石的下一段记忆浮现出来。当前：{}/{}。".format(step, total),
+                "",
+                format_card_choices(next_option.payload.get("cards", [])),
+            ])
+
+    return reply
 
 def format_card_full_effect(card):
     keyword_text = format_keywords(card)

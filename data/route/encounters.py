@@ -116,13 +116,13 @@ ENCOUNTER_TABLE = {
     "encounter.boss.hexaghost": {"enemy_ids": ["enemy.hexaghost"]},
     "encounter.boss.guardian": { "enemy_ids": ["enemy.guardian"]},
     "encounter.boss.slime_boss": {"enemy_ids": ["enemy.slime_boss"]},
-
+    # _1_2 starting
     "encounter.byrd_3": {"enemy_ids": ["enemy.byrd","enemy.byrd","enemy.byrd"]},
     "encounter.shelled_parasite_single": {"enemy_ids": ["enemy.shelled_parasite"]},
     "encounter.thieves_2":{"enemy_ids": ["enemy.looter","enemy.mugger"]},
     "encounter.chosen_single":{"enemy_ids": ["enemy.chosen"]},
     "encounter.spheric_guardian_single":{"enemy_ids": ["enemy.spheric_guardian"]},
-
+    # _1_2 common
     "encounter.snecko_single": {"enemy_ids": ["enemy.snecko"]},
     "encounter.sentry_spheric_guardian":{"enemy_ids": ["enemy.sentry_b","enemy.spheric_guardian"]},
     "encounter.cultist_3":{"enemy_ids": ["enemy.cultist","enemy.cultist","enemy.cultist"]},
@@ -131,18 +131,33 @@ ENCOUNTER_TABLE = {
     "encounter.chosen_cultist":{"enemy_ids": ["enemy.chosen","enemy.cultist"]},
     "encounter.snake_plant_single": {"enemy_ids": ["enemy.snake_plant"]},
     "encounter.mystic_centurion": {"enemy_ids": ["enemy.centurion", "enemy.mystic"]},
-
+    # _1_2 event
     "encounter.event.masked_bandits": {"enemy_ids": ["enemy.pointy", "enemy.romeo", "enemy.bear"]},
     "encounter.event.arena_slavers_first": {"enemy_ids": ["enemy.blue_slaver", "enemy.red_slaver"]},
     "encounter.event.arena_final": {"enemy_ids": ["enemy.taskmaster", "enemy.gremlin_nob"]},
-
+    # _1_2 elite
     "encounter.elite.book_of_stabbing": {"enemy_ids": ["enemy.book_of_stabbing"]},
     "encounter.elite.gremlin_leader": {"generator": "gremlin_leader"},
     "encounter.elite.taskmaster_slavers": {"enemy_ids": ["enemy.red_slaver", "enemy.taskmaster", "enemy.blue_slaver"]},
-
+    # _1_2 boss
     "encounter.boss.champ": {"enemy_ids": ["enemy.champ"]},
     "encounter.boss.bronze_automaton": {"enemy_ids": ["enemy.bronze_automaton"]},
     "encounter.boss.collector": {"enemy_ids": ["enemy.collector"]},
+
+    # _1_3 starting
+    "encounter.orb_walker_1": {"enemy_ids": ["enemy.orb_walker"]},
+    "encounter.shapes_3": {"generator": "shapes_3"},
+    "encounter.darklings_3": {"enemy_ids": ["enemy.darkling_left", "enemy.darkling_middle", "enemy.darkling_right"]},
+    # _1_3 common
+    "encounter.shapes_4": {"generator": "shapes_4"},
+    "encounter.the_maw": {"enemy_ids": ["enemy.the_maw"]},
+    "encounter.transient": {"enemy_ids": ["enemy.transient"]},
+    "encounter.writhing_mass": {"enemy_ids": ["enemy.writhing_mass"]},
+    "encounter.spire_growth": {"enemy_ids": ["enemy.spire_growth"]},
+    "encounter.orb_walker_shapes": {"generator": "orb_walker_shapes"},
+    "encounter.jaw_worm_3":{"enemy_ids": ["enemy.jaw_worm_g2","enemy.jaw_worm_g2","enemy.jaw_worm_g2"]},
+    # _1_3 event
+    "encounter.event.mysterious_sphere": {"enemy_ids": ["enemy.orb_walker", "enemy.orb_walker"]},
 }
 
 
@@ -163,6 +178,12 @@ STARTING_ENCOUNTER_POOL_1_2 =[
     "encounter.spheric_guardian_single"
 ]
 
+STARTING_ENCOUNTER_POOL_1_3 = [
+    ("encounter.darklings_3", 10),
+    ("encounter.orb_walker_1", 10),
+    ("encounter.shapes_3", 10),
+]
+#=================================================
 NORMAL_ENCOUNTER_POOL_1_1 = [
     # 6.25% -> 16
     ("encounter.corsoal_single", 4),
@@ -193,6 +214,17 @@ NORMAL_ENCOUNTER_POOL_1_2 = [
     ("encounter.mystic_centurion", 21)
 ]
 
+NORMAL_ENCOUNTER_POOL_1_3 = [
+    ("encounter.the_maw", 10),
+    ("encounter.darklings_3", 10),
+    ("encounter.transient", 10),
+    ("encounter.writhing_mass", 10),
+    ("encounter.spire_growth", 10),
+    ("encounter.shapes_4", 10),
+    ("encounter.orb_walker_shapes", 10),
+    ("encounter.jaw_worm_3",10),
+]
+#=================================================
 ELITE_ENCOUNTER_POOL_1_1 = [
     ("encounter.elite.gremlin_nob", 4),
     ("encounter.elite.lagavulin", 4),
@@ -206,7 +238,7 @@ ELITE_ENCOUNTER_POOL_1_2 = [
     ("encounter.elite.gremlin_leader", 4),
     ("encounter.elite.taskmaster_slavers", 4),
 ]
-
+#=================================================
 BOSS_ENCOUNTER_POOL_1_1 = [
     ("encounter.corsoal_mareanie_pack", 1),
     ("encounter.boss.hexaghost", 4),
@@ -218,17 +250,20 @@ BOSS_ENCOUNTER_POOL_1_2 = [
     ("encounter.boss.bronze_automaton", 4),
     ("encounter.boss.collector", 4),
 ]
+#=================================================
+
 
 
 ENCOUNTER_DISPLAY_NAMES = {
     "encounter.boss.hexaghost": "六火亡魂",
     "encounter.boss.guardian": "守护者",
     "encounter.boss.slime_boss": "史莱姆老大",
-    # 旧测试 Boss，如果你还保留在 BOSS_ENCOUNTER_POOL 里，就也给一个显示名。
     "encounter.corsoal_mareanie_pack": "旧日的珊瑚群……",
     "encounter.boss.champ": "第一勇士",
     "encounter.boss.bronze_automaton": "铜制机械人偶",
     "encounter.boss.collector": "收藏家",
+    
+    "encounter.event.mysterious_sphere": "神秘圆球",
 }
 
 
@@ -239,10 +274,12 @@ ENCOUNTER_POOL_BY_NODE_TYPE_AND_SUFFIX = {
     "starting": {
         "1_1": STARTING_ENCOUNTER_POOL_1_1,
         "1_2": STARTING_ENCOUNTER_POOL_1_2,
+        "1_3": STARTING_ENCOUNTER_POOL_1_3,
     },
     "normal_enemy": {
         "1_1": NORMAL_ENCOUNTER_POOL_1_1,
         "1_2": NORMAL_ENCOUNTER_POOL_1_2,
+        "1_3": NORMAL_ENCOUNTER_POOL_1_3,
     },
     "elite": {
         "1_1": ELITE_ENCOUNTER_POOL_1_1,
@@ -401,10 +438,35 @@ def build_gremlin_leader_elite_ids(rng):
     """
     return build_random_gremlin_ids(rng, count=2) + ["enemy.gremlin_leader"]
 
+def build_shapes_3_ids(rng):
+    pool = [
+        "enemy.repulsor", "enemy.repulsor",
+        "enemy.spiker", "enemy.spiker",
+        "enemy.exploder", "enemy.exploder",
+    ]
+    return rng.sample(pool, 3)
 
+def build_shapes_4_ids(rng):
+    pool = [
+        "enemy.repulsor", "enemy.repulsor",
+        "enemy.spiker", "enemy.spiker",
+        "enemy.exploder", "enemy.exploder",
+    ]
+    return rng.sample(pool, 4)
+
+def build_orb_walker_shapes_ids(rng):
+    pool = [
+        "enemy.repulsor",
+        "enemy.spiker",
+        "enemy.exploder",
+    ]
+    return ["enemy.orb_walker"] + rng.sample(pool, 2)
 
 ENCOUNTER_GENERATORS = {
     "gremlin_gang": build_random_gremlin_ids,
     "gremlin_leader": build_gremlin_leader_elite_ids,
+    "shapes_3": build_shapes_3_ids,
+    "shapes_4": build_shapes_4_ids,
+    "orb_walker_shapes": build_orb_walker_shapes_ids,
 }
 

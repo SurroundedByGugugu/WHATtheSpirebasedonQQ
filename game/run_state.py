@@ -91,6 +91,8 @@ class RunState:
     pending_rest: Any = None
     pending_ancient: Any = None
     pending_treasure: Any = None
+    # 调试专用测试房间。正常路线不会生成它；只由测试/控制台入口进入。
+    pending_test_room: Any = None
 
     # 商店定向删牌价格。
     # 初始 50，每次定向删除成功后 +25。
@@ -167,6 +169,7 @@ class RunState:
         self.pending_rest = None
         self.pending_ancient = None
         self.pending_treasure = None
+        self.pending_test_room = None
 
     def has_pending_node(self):
         return any([
@@ -175,4 +178,5 @@ class RunState:
             self.pending_rest is not None,
             self.pending_ancient is not None,
             self.pending_treasure is not None,
+            self.pending_test_room is not None,
         ])

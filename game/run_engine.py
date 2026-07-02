@@ -10,8 +10,7 @@ from data.relic.AAAregistry import create_relics, create_relic
 from data.potion.AAAregistry import create_potions
 from game.command_help import command_tip
 # from data.route.route_templates import TEST_ROUTE
-from data.route.route_templates import generate_act1_grid_route, generate_act2_grid_route
-
+from data.route.route_templates import generate_act1_grid_route, generate_act2_grid_route, generate_act3_grid_route
 from data.route.encounters import (
     ENCOUNTER_TABLE,
     get_encounter_display_name,
@@ -899,8 +898,9 @@ def pick_replacement_encounter_id(run_state, effective_node_type, rng):
 
 def get_encounter_pool_suffix_for_node(node):
     act = get_route_act_from_node(node)
-    # 当前数据文件中二层遭遇池沿用 1_2 后缀命名。
-    if act >= 2:
+    if act >= 3:
+        return "1_3"
+    if act == 2:
         return "1_2"
     return None
 
@@ -1125,6 +1125,13 @@ def finish_current_battle_if_needed(run_state):
 
     if not game_state.victory:
         sync_run_from_player_after_battle(run_state, game_state.player)
+        if getattr(run_state, "pending_test_room", None) is not None:
+            from game.test_room import finish_test_battle_room
+            return finish_test_battle_room(
+                run_state,
+                victory=False,
+                battle_end_logs=None
+            )
         run_state.current_battle = None
         run_state.run_over = True
         run_state.victory = False
@@ -1150,6 +1157,14 @@ def finish_current_battle_if_needed(run_state):
         "stolen_gold_rewards",
         []
     ))
+
+    if getattr(run_state, "pending_test_room", None) is not None:
+        from game.test_room import finish_test_battle_room
+        return finish_test_battle_room(
+            run_state,
+            victory=True,
+            battle_end_logs=battle_end_logs
+        )
 
     escaped_by_smoke_bomb = bool(getattr(game_state, "smoke_bomb_escaped", False))
 
@@ -1427,6 +1442,11 @@ def choose_reward_card(run_state, choice_index):
             get_after_reward_text(run_state)
         ])
 
+    # 感知石这类连续卡牌奖励会在 pick 后自动打开下一组卡牌。
+    # 此时 reply 已经包含下一组三选一界面，不再额外追加 reward_text，避免重复刷屏。
+    if run_state.pending_reward.active_card_option_index >= 0:
+        return reply
+
     return "\n".join([
         reply,
         "",
@@ -1603,28 +1623,44 @@ def apply_post_boss_act_heal(run_state):
 
 
 def advance_to_next_act_after_boss_if_needed(run_state, current_node):
-    """Boss 奖励结算完后，若当前是一层 Boss，追加并进入二层路线。"""
+    """
+    Boss 奖励结算完后，若还有下一阶段路线，则追加并进入下一阶段。
+    """
     if current_node is None:
         return ""
+
     if getattr(current_node, "node_type", "") != "boss":
         return ""
+
     current_act = get_route_act_from_node(current_node)
-    if current_act != 1:
-        return ""
     next_act = current_act + 1
+
+    route_generator_by_act = {
+        2: generate_act2_grid_route,
+        3: generate_act3_grid_route,
+    }
+
+    route_generator = route_generator_by_act.get(next_act)
+    if route_generator is None:
+        return ""
+
     if not has_route_act(run_state, next_act):
         seed = int(getattr(run_state, "run_seed", 0) or 0) + next_act * 100000
-        run_state.route_nodes.extend(build_route(generate_act2_grid_route(seed=seed)))
+        run_state.route_nodes.extend(build_route(route_generator(seed=seed)))
+
     run_state.current_node_id = "act{}.floor00".format(next_act)
     run_state.boss_encounter_id = ""
     run_state.boss_name = ""
+
     prepare_visible_boss_for_route(
         run_state,
         seed=getattr(run_state, "run_seed", DEBUG_SEED),
         act=next_act
     )
+
     heal_text = apply_post_boss_act_heal(run_state)
     entry_text = enter_current_node(run_state, seed=getattr(run_state, "run_seed", DEBUG_SEED))
+
     return "\n\n".join([
         "Boss 已击败，通往下一层的道路打开了。",
         heal_text,
@@ -1843,6 +1879,9 @@ def handle_event_option(run_state, choice_index, seed=DEBUG_SEED):
         ])
 
     if done:
+        if getattr(run_state, "pending_test_room", None) is not None:
+            from game.test_room import finish_test_event_room
+            return finish_test_event_room(run_state, text)
         if run_state.pending_reward is not None:
             run_state.pending_event = None
             return "\n".join([

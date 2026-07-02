@@ -248,16 +248,21 @@ class PatternEnemy(Enemy):
                 "message": intent.message,
             }
         
-        if intent.kind == "add_card_to_discard":
+        if intent.kind in ("add_card_to_discard", "add_card_to_draw", "add_card_to_hand"):
+            op_map = {
+                "add_card_to_discard": "enemy_add_card_to_discard",
+                "add_card_to_draw": "enemy_add_card_to_draw",
+                "add_card_to_hand": "enemy_add_card_to_hand",
+            }
+
             return {
-                "op": "enemy_add_card_to_discard",
+                "op": op_map[intent.kind],
                 "source_enemy_id": self.enemy_id,
                 "source_enemy_name": self.name,
                 "card_id": intent.card_id,
                 "count": intent.count,
                 "message": intent.message,
             }
-        
         if intent.kind == "steal_gold":
             return {
                 "op": "enemy_steal_gold",

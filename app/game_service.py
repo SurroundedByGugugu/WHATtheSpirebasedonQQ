@@ -73,6 +73,7 @@ from game.reward import format_card_reward_choice
 from game.display_names import format_potion_display_name, format_relic_display_name
 from game.pending_choice import pending_choice_is
 from app.debug_console import handle_debug_console, resolve_status_key, resolve_zone_spec
+from game.test_room import enter_test_room, get_test_room_usage
 from data.content_gate import (
     get_private_content_status_text,
     set_private_content_enabled,
@@ -247,6 +248,7 @@ class GameService(object):
             "smith", "upgrade", "锻造", "升级",
             "rest_remove", "pipe", "peace_pipe", "烟斗", "宁静烟斗",
             "event", "事件",
+            "testroom", "test_room", "测试房间",
             "ancient", "先古", "先古之民",
             "next", "go", "选择路线", "前进",
             "toolbox", "工具箱",
@@ -295,7 +297,14 @@ class GameService(object):
                 return "当前会话还没有路线。使用 /card new [角色序号] 开始。"
             if self.is_owned_by_other_user(session_id, user_id):
                 return self.SAME_GROUP_SINGLE_GAME_MESSAGE
-            return handle_debug_console(run_state, parts)
+            reply = handle_debug_console(run_state, parts)
+            route_reply = finish_current_battle_if_needed(run_state)
+            if route_reply:
+                full_reply = reply + "\n\n" + route_reply
+                if run_state.run_over:
+                    self.clear_run(session_id)
+                return full_reply
+            return reply
 
         if command in ("help", "帮助"):
             return self.opening_help_text()
@@ -670,6 +679,11 @@ class GameService(object):
             if run_state.run_over:
                 self.clear_run(session_id)
             return reply
+
+        if command in ("testroom", "test_room", "测试房间"):
+            if len(parts) < 3:
+                return get_test_room_usage()
+            return enter_test_room(run_state, parts[2], seed=DEBUG_SEED)
 
         # 先古之民命令
         if command in ("ancient", "先古", "先古之民"):

@@ -118,20 +118,40 @@ class EnemyIntent:
         if self.kind == "split":
             return "分裂"
         
-        if self.kind == "add_card_to_discard":
+        if self.kind in ("add_card_to_discard", "add_card_to_draw", "add_card_to_hand"):
             card_name_map = {
                 "card.status.slime_i": "黏液I",
                 "card.status.dazed": "眩晕",
                 "card.status.wound": "伤口",
                 "card.status.burn_i": "灼伤I",
                 "card.status.burn_ii": "灼伤II",
+                "card.curse.parasite": "寄生",
             }
+
             card_name = card_name_map.get(self.card_id, self.card_id)
-            return "向你的弃牌堆加入 {} 张【{}】".format(
+
+            if self.kind == "add_card_to_draw":
+                pile_name = "抽牌堆"
+            elif self.kind == "add_card_to_hand":
+                return "向你的手牌加入 {} 张【{}】；若手牌已满则进入弃牌堆".format(
+                    int(self.count),
+                    card_name
+                )
+            else:
+                pile_name = "弃牌堆"
+
+            return "向你的{}加入 {} 张【{}】".format(
+                pile_name,
                 int(self.count),
                 card_name
             )
-
+        if self.kind == "add_curse_to_master_deck":
+            card_name_map = {
+                "card.curse.parasite": "寄生",
+            }
+            card_name = card_name_map.get(self.card_id, self.card_id)
+            return "将 {} 张【{}】加入你的牌组".format(int(self.count), card_name)
+        
         if self.kind == "status":
             status_name_map = {
                 "vulnerable": "易伤",
@@ -160,6 +180,12 @@ class EnemyIntent:
                 "sharp_hide": "锋利外甲",
                 "plated_armor": "多层护甲",
                 "flying": "飞行",
+                "life_link": "生命链接",
+                "fading": "消逝",
+                "shifting": "变幻",
+                "writhing": "扭动",
+                "self_destruct": "自爆",
+                "constricted": "缠绕",
             }
             status_name = status_name_map.get(self.status, self.status)
 

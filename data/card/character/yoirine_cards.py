@@ -11,7 +11,7 @@ def create_crystal_zone():
         card_type="skill",
         cost=2,
         target="none",
-        description="场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。已在极·辉晶期间再次使用时，延长持续回合2t。",
+        description="场地效果变为晶。已有晶效果时，改为场地效果变为极·晶，持续3t。已在极·晶期间再次使用时，延长持续回合2t。",
         quantity="starting",
         owner_character_id="character.yoirine",
         effects=[
@@ -23,7 +23,7 @@ def create_crystal_zone():
         upgraded=False,
         upgrade_patch={
             "name": "辉晶领域+",
-            "description": "费用减少1。场地效果变为辉晶。已有辉晶效果时，改为场地效果变为极·辉晶，持续3t。已在极·辉晶期间再次使用时，延长持续回合2t。",
+            "description": "费用减少1。场地效果变为晶。已有晶效果时，改为场地效果变为极·晶，持续3t。已在极·晶期间再次使用时，延长持续回合2t。",
             "cost": 1
         }
     )
@@ -1007,7 +1007,29 @@ def create_abyssal_form():
             "description": "阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         }
     )
-
+def create_shade_zone():
+    return CardTemplate(
+        card_id="card.shade_zone",
+        name="刻阴领域",
+        card_type="skill",
+        cost=2,
+        target="none",
+        description="场地效果变为阴。已有阴效果时，改为场地效果变为极·阴，持续3t。已在极·阴期间再次使用时，延长持续回合2t。",
+        quantity="rare",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "set_zone",
+                "element": "shade"
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "刻阴领域+",
+            "description": "费用减少1。场地效果变为阴。已有阴效果时，改为场地效果变为极·阴，持续3t。已在极·阴期间再次使用时，延长持续回合2t。",
+            "cost": 1
+        }
+    )
 
 
 
