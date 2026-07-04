@@ -73,6 +73,14 @@ from data.enemy.enemy_origin_1_3 import (
     create_spiker,
     create_exploder,
     create_repulsor,
+    create_giant_head,
+    create_reptomancer,
+    create_dagger,
+    create_nemesis,
+    create_deca,
+    create_donu,
+    create_awakened_one,
+    create_time_eater,
 )
 
 ENEMY_REGISTRY = {
@@ -151,6 +159,16 @@ ENEMY_REGISTRY = {
     "enemy.spiker": create_spiker,
     "enemy.exploder": create_exploder,
     "enemy.repulsor": create_repulsor,
+    #_1_3_elite
+    "enemy.giant_head": create_giant_head,
+    "enemy.reptomancer": create_reptomancer,
+    "enemy.dagger": create_dagger,
+    "enemy.nemesis": create_nemesis,
+    #_1_3_boss
+    "enemy.deca": create_deca,
+    "enemy.donu": create_donu,
+    "enemy.awakened_one": create_awakened_one,
+    "enemy.time_eater": create_time_eater,
 }
 
 

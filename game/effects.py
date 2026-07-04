@@ -279,20 +279,37 @@ def resolve_amount(
 
     return int(value)
 
+def is_enemy_selectable(enemy):
+    if enemy is None:
+        return False
+    if not enemy.is_alive():
+        return False
+    if bool(getattr(enemy, "_unselectable", False)):
+        return False
+    return True
+
+
 def get_target_enemy(game_state, target_index):
     enemies = game_state.enemies
+
     if target_index < 0 or target_index >= len(enemies):
         return None
+
     enemy = enemies[target_index]
-    if not enemy.is_alive():
+
+    if not is_enemy_selectable(enemy):
         return None
+
     return enemy
+
 
 def get_alive_enemies(game_state):
     alive_enemies = []
+
     for enemy in game_state.enemies:
-        if enemy.is_alive():
+        if is_enemy_selectable(enemy):
             alive_enemies.append(enemy)
+
     return alive_enemies
 
 def get_effect_target_entity(game_state, target_key, target_index):
@@ -356,7 +373,7 @@ def resolve_effect_times(game_state, card, effect, effect_context):
     return int(times)
 
 def get_all_alive_enemies(game_state):
-    return [enemy for enemy in game_state.enemies if enemy.is_alive()]
+    return [enemy for enemy in game_state.enemies if is_enemy_selectable(enemy)]
 
 def should_convert_enemy_target_to_all(game_state, zone_element, target_key):
     from game.zone_utils import should_zone_thunder_make_all
@@ -4442,7 +4459,8 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
                 play_index + 1,
                 total_times
             ))
-
+        from game.status.status_effects import increment_slow_for_card_play
+        increment_slow_for_card_play(game_state, logs)
         apply_abyssal_form_hp_loss_if_needed(
             game_state=game_state,
             card=card,

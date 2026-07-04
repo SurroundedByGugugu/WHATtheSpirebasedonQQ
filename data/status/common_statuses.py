@@ -848,3 +848,47 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="slow",
+    name="缓慢",
+    description="本回合玩家每打出一张牌，该敌人受到的伤害增加 10%。",
+    category="buff",
+    display_mode="flag",
+    order=430,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="curious",
+    name="好奇",
+    description="玩家每打出一张能力牌，该敌人获得等同于层数的力量。",
+    category="buff",
+    display_mode="stack",
+    order=431,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="time_warp",
+    name="时间扭曲",
+    description="每当玩家累计打出 12 张牌，强制结束玩家回合，并使时间吞噬者获得 2 点力量。",
+    category="buff",
+    display_mode="stack",
+    order=432,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="draw_reduction",
+    name="抽牌减少",
+    description="接下来若干回合少抽 1 张牌。",
+    category="debuff",
+    display_mode="turns",
+    order=47,
+    decay_timing="none",
+    decay_amount=0,
+))

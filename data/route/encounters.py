@@ -158,6 +158,14 @@ ENCOUNTER_TABLE = {
     "encounter.jaw_worm_3":{"enemy_ids": ["enemy.jaw_worm_g2","enemy.jaw_worm_g2","enemy.jaw_worm_g2"]},
     # _1_3 event
     "encounter.event.mysterious_sphere": {"enemy_ids": ["enemy.orb_walker", "enemy.orb_walker"]},
+    # _1_3 elite
+    "encounter.elite.giant_head": {"enemy_ids": ["enemy.giant_head"]},
+    "encounter.elite.reptomancer": {"enemy_ids": ["enemy.dagger", "enemy.reptomancer", "enemy.dagger"]},
+    "encounter.elite.nemesis": {"enemy_ids": ["enemy.nemesis"]},
+    # _1_3 boss
+    "encounter.boss.donu_deca": {"enemy_ids": ["enemy.donu", "enemy.deca"]},
+    "encounter.boss.awakened_one": {"enemy_ids": ["enemy.cultist", "enemy.awakened_one", "enemy.cultist"]},
+    "encounter.boss.time_eater": {"enemy_ids": ["enemy.time_eater"]},
 }
 
 
@@ -238,6 +246,12 @@ ELITE_ENCOUNTER_POOL_1_2 = [
     ("encounter.elite.gremlin_leader", 4),
     ("encounter.elite.taskmaster_slavers", 4),
 ]
+
+ELITE_ENCOUNTER_POOL_1_3 = [
+    ("encounter.elite.giant_head", 4),
+    ("encounter.elite.reptomancer", 4),
+    ("encounter.elite.nemesis", 4),
+]
 #=================================================
 BOSS_ENCOUNTER_POOL_1_1 = [
     ("encounter.corsoal_mareanie_pack", 1),
@@ -249,6 +263,11 @@ BOSS_ENCOUNTER_POOL_1_2 = [
     ("encounter.boss.champ", 4),
     ("encounter.boss.bronze_automaton", 4),
     ("encounter.boss.collector", 4),
+]
+BOSS_ENCOUNTER_POOL_1_3 = [
+    ("encounter.boss.donu_deca", 4),
+    ("encounter.boss.awakened_one", 4),
+    ("encounter.boss.time_eater", 4),
 ]
 #=================================================
 
@@ -264,6 +283,10 @@ ENCOUNTER_DISPLAY_NAMES = {
     "encounter.boss.collector": "收藏家",
     
     "encounter.event.mysterious_sphere": "神秘圆球",
+
+    "encounter.boss.donu_deca": "甜圈与八体",
+    "encounter.boss.awakened_one": "觉醒者",
+    "encounter.boss.time_eater": "时间吞噬者",
 }
 
 
@@ -284,10 +307,12 @@ ENCOUNTER_POOL_BY_NODE_TYPE_AND_SUFFIX = {
     "elite": {
         "1_1": ELITE_ENCOUNTER_POOL_1_1,
         "1_2": ELITE_ENCOUNTER_POOL_1_2,
+        "1_3": ELITE_ENCOUNTER_POOL_1_3,
     },
     "boss": {
         "1_1": BOSS_ENCOUNTER_POOL_1_1,
         "1_2": BOSS_ENCOUNTER_POOL_1_2,
+        "1_3": BOSS_ENCOUNTER_POOL_1_3,
     },
 }
 

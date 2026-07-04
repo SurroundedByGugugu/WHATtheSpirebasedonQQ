@@ -498,7 +498,7 @@ def create_crystal_dust_explosion():
                 },
                 {
                     "path": ["effects", 0, "normal_damage"],
-                    "value": 12
+                    "value": 10
                 },
                 {
                     "path": ["effects", 0, "extreme_times"],
@@ -506,7 +506,7 @@ def create_crystal_dust_explosion():
                 },
                 {
                     "path": ["effects", 0, "extreme_damage"],
-                    "value": 16
+                    "value": 12
                 }
             ]
         }

@@ -126,6 +126,7 @@ class EnemyIntent:
                 "card.status.burn_i": "灼伤I",
                 "card.status.burn_ii": "灼伤II",
                 "card.curse.parasite": "寄生",
+                "card.status.void": "虚空",
             }
 
             card_name = card_name_map.get(self.card_id, self.card_id)
@@ -186,6 +187,10 @@ class EnemyIntent:
                 "writhing": "扭动",
                 "self_destruct": "自爆",
                 "constricted": "缠绕",
+                "slow": "缓慢",
+                "curious": "好奇",
+                "time_warp": "时间扭曲",
+                "draw_reduction": "抽牌减少",
             }
             status_name = status_name_map.get(self.status, self.status)
 

@@ -150,6 +150,15 @@ def get_turn_draw_bonus(game_state):
         bonus = 0
     return bonus
 
+def get_turn_draw_reduction(game_state):
+    player = game_state.player
+    amount = int(player.get_status_value("draw_reduction"))
+
+    if amount <= 0:
+        return 0
+
+    player.gain_status("draw_reduction", -1)
+    return 1
 
 def apply_card_play_start_relics(game_state, card):
     """打出卡牌、正式结算效果前触发的遗物。当前用于钢笔尖。"""
@@ -3067,6 +3076,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             label="阴 Zone"
         )
         return
+    
     if op == "enemy_gain_block":
         block = int(action.get("block", 0))
         block = apply_modifier_profile(
@@ -3566,7 +3576,15 @@ def end_turn(game_state):
     if result:
         logs.append(result)
         return "\n".join(logs)
-    turn_draw_count = 5 + get_turn_draw_bonus(game_state)
+    draw_reduction = get_turn_draw_reduction(game_state)
+    turn_draw_count = 5 + get_turn_draw_bonus(game_state) - draw_reduction
+
+    if turn_draw_count < 0:
+        turn_draw_count = 0
+
+    if draw_reduction > 0:
+        logs.append("抽牌减少：本回合少抽 1 张牌。")
+
     logs.extend(player.draw_cards(
         turn_draw_count,
         game_state=game_state,
@@ -3593,6 +3611,8 @@ def validate_card_target(game_state, card, target_index):
             return "目标敌人编号无效。"
         if not game_state.enemies[target_index].is_alive():
             return "目标敌人已经死亡。"
+        if bool(getattr(game_state.enemies[target_index], "_unselectable", False)):
+            return "目标敌人当前无法被选择。"
         if getattr(card, "card_type", "") == "attack":
             from game.target_lock import (
                 get_locked_attack_target_index,

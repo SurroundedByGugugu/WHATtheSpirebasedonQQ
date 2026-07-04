@@ -66,8 +66,6 @@ class OrbWalkerEnemy(PatternEnemy):
 def create_orb_walker():
     return OrbWalkerEnemy()
 
-
-
 MAW_A = EnemyIntent(
     kind="multi",
     actions=[
@@ -804,3 +802,545 @@ class RepulsorEnemy(PatternEnemy):
 def create_repulsor():
     return RepulsorEnemy()
 
+
+GIANT_HEAD_A = EnemyIntent(kind="attack", value=13, attack_type="blunt")
+GIANT_HEAD_A._action_key = "a"
+GIANT_HEAD_B = EnemyIntent(kind="status", target="player", status="weak", value=1)
+GIANT_HEAD_B._action_key = "b"
+class GiantHeadEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.giant_head",
+            name="大脑袋",
+            max_hp=500,
+            intent_cycle=[EnemyIntent(kind="wait")],
+        )
+        self.gain_status("slow", 1)
+        self._giant_head_countdown = 5
+        self._time_for_it_count = 0
+        self._last_action_key = ""
+
+    def _build_c(self):
+        intent = EnemyIntent(kind="attack", value=30 + 5 * self._time_for_it_count, attack_type="blunt")
+        intent._action_key = "c"
+        return intent
+
+    def get_current_intent(self):
+        if self._locked_intent is not None:
+            return self._locked_intent
+
+        game_state = getattr(self, "_current_game_state", None)
+        turn_count = int(getattr(game_state, "turn_count", 1) or 1)
+
+        if turn_count <= 4:
+            self._locked_intent = random.choice([GIANT_HEAD_A, GIANT_HEAD_B])
+        else:
+            self._locked_intent = self._build_c()
+        return self._locked_intent
+
+    def act(self):
+        intent = self.get_current_intent()
+        logs = []
+        if self._giant_head_countdown > 0:
+            logs.append("{}：「{}……」".format(self.name, self._giant_head_countdown))
+            self._giant_head_countdown -= 1
+        if _action_key_from_intent(intent) == "c":
+            logs.append("{}：「是时候了。」".format(self.name))
+            self._time_for_it_count += 1
+        logs.append("{} 准备执行：{}。".format(self.name, intent.to_text()))
+        action = self._intent_to_action(intent)
+        self.advance_intent()
+        return EnemyActionResult(action=action, logs=logs)
+
+    def advance_intent(self):
+        self._last_action_key = _action_key_from_intent(self.get_current_intent())
+        self._locked_intent = None
+def create_giant_head():
+    return GiantHeadEnemy()
+
+REPTOMANCER_A = EnemyIntent(kind="summon_fixed_enemies", actions=["enemy.dagger"], count=1, message="召唤 1 把匕首")
+REPTOMANCER_A._action_key = "a"
+REPTOMANCER_B = EnemyIntent(kind="attack", value=30, attack_type="blunt")
+REPTOMANCER_B._action_key = "b"
+REPTOMANCER_C = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=13, repeat=2, attack_type="blunt"),
+        EnemyIntent(kind="status", target="player", status="weak", value=1),
+    ],
+)
+REPTOMANCER_C._action_key = "c"
+class ReptomancerEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.reptomancer",
+            name="拜蛇术士",
+            max_hp=random.randint(180, 190),
+            intent_cycle=[EnemyIntent(kind="wait")],
+        )
+        self._history = []
+
+    def _dagger_count(self):
+        game_state = getattr(self, "_current_game_state", None)
+        return sum(
+            1 for enemy in getattr(game_state, "enemies", []) or []
+            if enemy.is_alive() and getattr(enemy, "enemy_id", "") == "enemy.dagger"
+        )
+
+    def _choose_key(self):
+        if not self._history:
+            return "a"
+
+        weights = {"a": 1, "b": 1, "c": 1}
+        if self._dagger_count() >= 4:
+            weights["c"] += weights["a"]
+            weights["a"] = 0
+
+        candidates = []
+        for key, weight in weights.items():
+            if weight <= 0:
+                continue
+            if key in ("b", "c") and self._history and self._history[-1] == key:
+                continue
+            if key == "a" and len(self._history) >= 2 and self._history[-2:] == ["a", "a"]:
+                continue
+            candidates.append((key, weight))
+
+        if not candidates:
+            candidates = [("a", 1), ("b", 1), ("c", 1)]
+
+        return _weighted_choice(candidates)
+
+    def _intent_by_key(self, key):
+        if key == "a":
+            return REPTOMANCER_A
+        if key == "b":
+            return REPTOMANCER_B
+        return REPTOMANCER_C
+
+    def get_current_intent(self):
+        if self._locked_intent is None:
+            self._locked_reptomancer_key = self._choose_key()
+            self._locked_intent = self._intent_by_key(self._locked_reptomancer_key)
+        return self._locked_intent
+
+    def advance_intent(self):
+        key = getattr(self, "_locked_reptomancer_key", "")
+        if key:
+            self._history.append(key)
+            self._history = self._history[-3:]
+        self._locked_reptomancer_key = ""
+        self._locked_intent = None
+def create_reptomancer():
+    return ReptomancerEnemy()
+
+DAGGER_A = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=9, attack_type="piercing"),
+        EnemyIntent(kind="add_card_to_discard", card_id="card.status.wound", count=1),
+    ],
+)
+DAGGER_B = EnemyIntent(kind="attack", value=25, attack_type="piercing")
+class DaggerEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.dagger",
+            name="匕首",
+            max_hp=random.randint(20, 25),
+            intent_cycle=[DAGGER_A, DAGGER_B],
+        )
+        self.is_minion = True
+        self._die_after_action = False
+
+    def act(self):
+        intent = self.get_current_intent()
+        self._die_after_action = (self._intent_index == 1)
+        logs = ["{} 准备执行：{}。".format(self.name, intent.to_text())]
+        action = self._intent_to_action(intent)
+        self.advance_intent()
+        return EnemyActionResult(action=action, logs=logs)
+
+    def after_enemy_action(self, game_state):
+        if not self._die_after_action:
+            return []
+        self._die_after_action = False
+        if self.is_alive():
+            self.hp = 0
+            self.block = 0
+            return ["{} 使用致命攻击后死亡。".format(self.name)]
+        return []
+def create_dagger():
+    return DaggerEnemy()
+
+NEMESIS_A = EnemyIntent(kind="add_card_to_discard", card_id="card.status.burn_i", count=3)
+NEMESIS_A._action_key = "a"
+NEMESIS_B = EnemyIntent(kind="attack", value=6, repeat=3, attack_type="blunt")
+NEMESIS_B._action_key = "b"
+NEMESIS_C = EnemyIntent(kind="attack", value=45, attack_type="blunt")
+NEMESIS_C._action_key = "c"
+class NemesisEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.nemesis",
+            name="天罚",
+            max_hp=185,
+            intent_cycle=[EnemyIntent(kind="wait")],
+        )
+        self._history = []
+
+    def _choose_key(self):
+        if not self._history:
+            weighted = [("a", 1), ("b", 1)]
+        else:
+            weighted = [("a", 35), ("b", 35), ("c", 30)]
+
+        candidates = []
+        for key, weight in weighted:
+            if key == "b" and len(self._history) >= 2 and self._history[-2:] == ["b", "b"]:
+                continue
+            if key == "c" and self._history and self._history[-1] == "c":
+                continue
+            candidates.append((key, weight))
+
+        return _weighted_choice(candidates or weighted)
+
+    def _intent_by_key(self, key):
+        if key == "a":
+            return NEMESIS_A
+        if key == "b":
+            return NEMESIS_B
+        return NEMESIS_C
+
+    def get_current_intent(self):
+        if self._locked_intent is None:
+            self._locked_nemesis_key = self._choose_key()
+            self._locked_intent = self._intent_by_key(self._locked_nemesis_key)
+        return self._locked_intent
+
+    def advance_intent(self):
+        key = getattr(self, "_locked_nemesis_key", "")
+        if key:
+            self._history.append(key)
+            self._history = self._history[-3:]
+        self._locked_nemesis_key = ""
+        self._locked_intent = None
+
+    def on_event(self, event_name, context):
+        if context is not None:
+            setattr(self, "_current_game_state", context.game_state)
+        if event_name == "turn_start" and context is not None:
+            turn_count = int(getattr(context.game_state, "turn_count", 1) or 1)
+            if turn_count % 2 == 0 and self.is_alive():
+                current = self.gain_status("intangible", 1)
+                return ["{} 在偶数回合获得 1 层无实体。当前无实体：{}。".format(self.name, current)]
+        return []
+def create_nemesis():
+    return NemesisEnemy()
+
+DECA_A = EnemyIntent(kind="wait", message="所有敌人获得 16 点格挡")
+DECA_A._action_key = "a"
+DECA_B = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=10, repeat=2, attack_type="blunt"),
+        EnemyIntent(kind="add_card_to_discard", card_id="card.status.dazed", count=2),
+    ],
+)
+DECA_B._action_key = "b"
+class DecaEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.deca",
+            name="八体",
+            max_hp=250,
+            intent_cycle=[DECA_A, DECA_B],
+        )
+        self.gain_status("artifact", 2)
+
+    def _intent_to_action(self, intent):
+        if intent is DECA_A:
+            return {
+                "op": "enemy_all_gain_block",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "block": 16,
+                "message": intent.message,
+            }
+        return super(DecaEnemy, self)._intent_to_action(intent)
+def create_deca():
+    return DecaEnemy()
+
+DONU_A = EnemyIntent(kind="status_all_allies", target="self", status="strength", value=3)
+DONU_A._action_key = "a"
+DONU_B = EnemyIntent(kind="attack", value=10, repeat=2, attack_type="blunt")
+DONU_B._action_key = "b"
+class DonuEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.donu",
+            name="甜圈",
+            max_hp=250,
+            intent_cycle=[DONU_A, DONU_B],
+        )
+        self.gain_status("artifact", 2)
+def create_donu():
+    return DonuEnemy()
+
+AWAKENED_ONE_UNAWAKENED_A = EnemyIntent(kind="attack", value=20, attack_type="slash")
+AWAKENED_ONE_UNAWAKENED_A._action_key = "ua"
+AWAKENED_ONE_UNAWAKENED_B = EnemyIntent(kind="attack", value=6, repeat=4, attack_type="slash")
+AWAKENED_ONE_UNAWAKENED_B._action_key = "ub"
+AWAKENED_ONE_AWAKENED_A = EnemyIntent(kind="attack", value=40, attack_type="slash")
+AWAKENED_ONE_AWAKENED_A._action_key = "aa"
+AWAKENED_ONE_AWAKENED_B = EnemyIntent(kind="attack", value=10, repeat=3, attack_type="slash")
+AWAKENED_ONE_AWAKENED_B._action_key = "ab"
+AWAKENED_ONE_AWAKENED_C = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=18, attack_type="slash"),
+        EnemyIntent(kind="add_card_to_draw", card_id="card.status.void", count=1),
+    ],
+)
+AWAKENED_ONE_AWAKENED_C._action_key = "ac"
+AWAKENED_ONE_WAIT = EnemyIntent(kind="wait", message="正在觉醒，无法被攻击")
+class AwakenedOneEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.awakened_one",
+            name="觉醒者",
+            max_hp=300,
+            intent_cycle=[EnemyIntent(kind="wait")],
+        )
+        self.gain_status("regeneration", 10)
+        self.gain_status("curious", 1)
+        self._awakened_phase = False
+        self._rebirthing = False
+        self._first_death_used = False
+        self._history = []
+        self._force_opening_awakened_attack = False
+
+    def _choose_unawakened_key(self):
+        if not self._history:
+            return "ua"
+        return _weighted_choice([("ua", 75), ("ub", 25)])
+
+    def _choose_awakened_key(self):
+        if self._force_opening_awakened_attack:
+            return "aa"
+        candidates = []
+        if not (len(self._history) >= 2 and self._history[-2:] == ["ab", "ab"]):
+            candidates.append(("ab", 50))
+        candidates.append(("ac", 50))
+        return _weighted_choice(candidates)
+
+    def _intent_by_key(self, key):
+        if key == "ua":
+            return AWAKENED_ONE_UNAWAKENED_A
+        if key == "ub":
+            return AWAKENED_ONE_UNAWAKENED_B
+        if key == "aa":
+            return AWAKENED_ONE_AWAKENED_A
+        if key == "ab":
+            return AWAKENED_ONE_AWAKENED_B
+        if key == "ac":
+            return AWAKENED_ONE_AWAKENED_C
+        return AWAKENED_ONE_WAIT
+
+    def get_current_intent(self):
+        if self._rebirthing:
+            return AWAKENED_ONE_WAIT
+        if self._locked_intent is None:
+            if self._awakened_phase:
+                self._locked_awakened_key = self._choose_awakened_key()
+            else:
+                self._locked_awakened_key = self._choose_unawakened_key()
+            self._locked_intent = self._intent_by_key(self._locked_awakened_key)
+        return self._locked_intent
+
+    def advance_intent(self):
+        key = getattr(self, "_locked_awakened_key", "")
+        if key:
+            self._history.append(key)
+            self._history = self._history[-3:]
+        if key == "aa":
+            self._force_opening_awakened_attack = False
+        self._locked_awakened_key = ""
+        self._locked_intent = None
+
+    def act(self):
+        if self._rebirthing:
+            return EnemyActionResult(
+                action={"op": "enemy_wait", "source_enemy_id": self.enemy_id, "source_enemy_name": self.name},
+                logs=["{} 正在觉醒。".format(self.name)]
+            )
+        return super(AwakenedOneEnemy, self).act()
+
+    def _clear_awakened_negative_statuses(self):
+        removed = []
+        from game.status.status_defs import get_status_def, get_status_name
+        active = list(getattr(self.statuses, "values", {}).items())
+        for status_key, value in active:
+            status_def = get_status_def(status_key)
+            category = getattr(status_def, "category", "") if status_def is not None else ""
+            should_remove = category == "debuff"
+            if status_key in ("strength", "dexterity") and int(value) < 0:
+                should_remove = True
+            if status_key == "curious":
+                should_remove = True
+            if should_remove:
+                self.statuses.remove(status_key)
+                removed.append(get_status_name(status_key))
+        return removed
+
+    def on_event(self, event_name, context):
+        logs = []
+        if context is not None:
+            setattr(self, "_current_game_state", context.game_state)
+
+        if event_name == "damage_after" and context is not None:
+            if context.target is not self:
+                return logs
+            if not context.extra.get("target_is_dead_after", False):
+                return logs
+            if self._first_death_used:
+                return logs
+
+            self._first_death_used = True
+            self._rebirthing = True
+            self.hp = 1
+            self.block = 0
+            self._locked_intent = None
+            setattr(self, "_unselectable", True)
+            context.extra["suppress_death_message"] = True
+
+            removed = self._clear_awakened_negative_statuses()
+            if removed:
+                logs.append("{} 移除了负面状态：{}。".format(self.name, "、".join(removed)))
+            logs.append("{} 第一次死亡，开始觉醒；它暂时无法被攻击。".format(self.name))
+            return logs
+
+        if event_name == "turn_start" and self._rebirthing:
+            self._rebirthing = False
+            self._awakened_phase = True
+            self._force_opening_awakened_attack = True
+            self.hp = self.max_hp
+            self.block = 0
+            setattr(self, "_unselectable", False)
+            self._history = []
+            self._locked_intent = None
+            logs.append("{} 完成觉醒，HP 恢复至 {}/{}。".format(self.name, self.hp, self.max_hp))
+            return logs
+
+        if event_name == "damage_after" and context is not None:
+            pass
+        return logs
+
+    def status_text(self, game_state=None):
+        if self._rebirthing:
+            return "{} HP：{}/{}；格挡：{}；意图：正在觉醒，无法被攻击；状态：{}".format(
+                self.name, self.hp, self.max_hp, self.block, self.statuses.to_text() if hasattr(self.statuses, "to_text") else "觉醒中"
+            )
+        return super(AwakenedOneEnemy, self).status_text(game_state)
+def create_awakened_one():
+    return AwakenedOneEnemy()
+
+TIME_EATER_A = EnemyIntent(kind="attack", value=7, repeat=3, attack_type="blunt")
+TIME_EATER_A._action_key = "a"
+TIME_EATER_B = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=26, attack_type="blunt"),
+        EnemyIntent(kind="status", target="player", status="draw_reduction", value=2),
+    ],
+)
+TIME_EATER_B._action_key = "b"
+TIME_EATER_C = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="block", value=20),
+        EnemyIntent(kind="status", target="player", status="vulnerable", value=1),
+        EnemyIntent(kind="status", target="player", status="weak", value=1),
+    ],
+)
+TIME_EATER_C._action_key = "c"
+TIME_EATER_D = EnemyIntent(kind="wait", message="恢复至 50% 生命值，移除所有减益")
+TIME_EATER_D._action_key = "d"
+class TimeEaterEnemy(PatternEnemy):
+    def __init__(self):
+        PatternEnemy.__init__(
+            self,
+            enemy_id="enemy.time_eater",
+            name="时间吞噬者",
+            max_hp=456,
+            intent_cycle=[EnemyIntent(kind="wait")],
+        )
+        self.gain_status("time_warp", 12)
+        self._history = []
+        self._healed_once = False
+        self._force_heal = False
+
+    def on_event(self, event_name, context):
+        if context is not None:
+            setattr(self, "_current_game_state", context.game_state)
+        if event_name == "battle_start":
+            return ["{}：「啊，居然有人来了。」".format(self.name)]
+        if event_name == "damage_after" and context is not None:
+            if context.target is self and self.is_alive() and not self._healed_once:
+                if self.hp < (self.max_hp + 1) // 2:
+                    self._force_heal = True
+                    self._locked_intent = None
+        return []
+
+    def _choose_key(self):
+        if self._force_heal and not self._healed_once:
+            return "d"
+        weighted = [("c", 20), ("a", 45), ("b", 35)]
+        candidates = []
+        for key, weight in weighted:
+            if key == "a" and len(self._history) >= 2 and self._history[-2:] == ["a", "a"]:
+                continue
+            if key in ("b", "c") and self._history and self._history[-1] == key:
+                continue
+            candidates.append((key, weight))
+        return _weighted_choice(candidates or weighted)
+
+    def _intent_by_key(self, key):
+        if key == "a":
+            return TIME_EATER_A
+        if key == "b":
+            return TIME_EATER_B
+        if key == "c":
+            return TIME_EATER_C
+        return TIME_EATER_D
+
+    def get_current_intent(self):
+        if self._locked_intent is None:
+            self._locked_time_eater_key = self._choose_key()
+            self._locked_intent = self._intent_by_key(self._locked_time_eater_key)
+        return self._locked_intent
+
+    def _intent_to_action(self, intent):
+        if intent is TIME_EATER_D:
+            return {"op": "enemy_time_eater_heal", "source_enemy_id": self.enemy_id, "source_enemy_name": self.name, "message": intent.message}
+        return super(TimeEaterEnemy, self)._intent_to_action(intent)
+
+    def advance_intent(self):
+        key = getattr(self, "_locked_time_eater_key", "")
+        if key:
+            self._history.append(key)
+            self._history = self._history[-3:]
+        if key == "d":
+            self._healed_once = True
+            self._force_heal = False
+        self._locked_time_eater_key = ""
+        self._locked_intent = None
+def create_time_eater():
+    return TimeEaterEnemy()

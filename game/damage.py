@@ -166,7 +166,25 @@ def deal_damage(
     logs = []
 
     amount = int(amount)
+    
+    if (
+        game_state is not None
+        and source is getattr(game_state, "player", None)
+        and target is not None
+        and _get_status_value(target, "slow") > 0
+    ):
+        slow_count = int(getattr(target, "_slow_cards_played_this_turn", 0) or 0)
 
+        if slow_count > 0:
+            old_amount = amount
+            amount = int(amount * (1.0 + 0.10 * slow_count))
+
+            if amount != old_amount:
+                logs.append("{} 的缓慢使本次伤害 {} -> {}。".format(
+                    target.name,
+                    old_amount,
+                    amount
+                ))
     if amount < 0:
         amount = 0
 

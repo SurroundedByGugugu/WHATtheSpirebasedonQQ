@@ -49,6 +49,9 @@ STATUS_EVENT_PRIORITY = {
     "sharp_hide": 12,
     "vigor": 12,
     "malleable": 12,
+    "slow": 12,
+    "curious": 12,
+    "time_warp": 12,
     "flex": 11,
     "temporary_dexterity_loss": 10,
     "crystal_cocoon": 10,
@@ -2263,6 +2266,106 @@ def handle_the_bomb(event_name, context, owner, value):
     deal_status_damage_all_enemies(context.game_state, owner, amount, "炸弹", logs)
     return logs
 
+def handle_slow(event_name, context, owner, value):
+    logs = []
+
+    if event_name == EVENT_TURN_START and owner is not context.game_state.player:
+        setattr(owner, "_slow_cards_played_this_turn", 0)
+
+    return logs
+
+
+def increment_slow_for_card_play(game_state, logs=None):
+    """
+    大脑袋的缓慢：
+    每次牌结算前增加 1 层。
+    重放会多次进入 apply_card_effects 的结算循环，因此自然计作多张。
+    """
+    if logs is None:
+        logs = []
+
+    for enemy in getattr(game_state, "enemies", []) or []:
+        if not enemy.is_alive():
+            continue
+        if int(enemy.get_status_value("slow")) <= 0:
+            continue
+
+        current = int(getattr(enemy, "_slow_cards_played_this_turn", 0) or 0) + 1
+        setattr(enemy, "_slow_cards_played_this_turn", current)
+
+        logs.append("{} 的缓慢增加：本回合已累计 {} 层。".format(
+            enemy.name,
+            current
+        ))
+
+    return logs
+
+
+def handle_curious(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_CARD_PLAY_AFTER:
+        return logs
+    if owner is context.game_state.player:
+        return logs
+    if context.player is not context.game_state.player:
+        return logs
+    if not owner.is_alive():
+        return logs
+
+    card = context.card
+    if getattr(card, "card_type", "") != "power":
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    result = owner.gain_status_with_result("strength", amount)
+
+    from game.status.status_gain import format_status_gain_log
+
+    logs.append("{} 的好奇触发。".format(owner.name))
+    logs.append(format_status_gain_log(owner, "strength", amount, result))
+
+    return logs
+
+
+def handle_time_warp(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_CARD_PLAY_AFTER:
+        return logs
+
+    game_state = context.game_state
+
+    if owner is game_state.player:
+        return logs
+    if context.player is not game_state.player:
+        return logs
+    if not owner.is_alive():
+        return logs
+
+    threshold = int(value) if int(value) > 0 else 12
+    count = int(getattr(game_state, "time_warp_card_count", 0) or 0) + 1
+
+    if count < threshold:
+        setattr(game_state, "time_warp_card_count", count)
+        logs.append("时间扭曲：{}/{}。".format(count, threshold))
+        return logs
+
+    setattr(game_state, "time_warp_card_count", 0)
+    setattr(game_state, "force_end_turn_after_card", True)
+
+    result = owner.gain_status_with_result("strength", 2)
+
+    from game.status.status_gain import format_status_gain_log
+
+    logs.append("{} 的时间扭曲触发：强制结束你的回合。".format(owner.name))
+    logs.append(format_status_gain_log(owner, "strength", 2, result))
+
+    return logs
+
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "temporary_thorns": handle_temporary_thorns,
@@ -2314,4 +2417,7 @@ STATUS_EVENT_HANDLERS = {
     "the_bomb": handle_the_bomb,
     "pain_stab": handle_pain_stab,
     "constricted": handle_constricted,
+    "slow": handle_slow,
+    "curious": handle_curious,
+    "time_warp": handle_time_warp,
 }
