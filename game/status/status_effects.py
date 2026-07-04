@@ -52,7 +52,6 @@ STATUS_EVENT_PRIORITY = {
     "slow": 12,
     "curious": 12,
     "time_warp": 12,
-    "rock_layer": 12,
     "magma_layer": 12,
     "flex": 11,
     "temporary_dexterity_loss": 10,
@@ -2514,7 +2513,6 @@ STATUS_EVENT_HANDLERS = {
     "slow": handle_slow,
     "curious": handle_curious,
     "time_warp": handle_time_warp,
-    "rock_layer": handle_rock_layer,
     "magma_layer": handle_magma_layer,
     "temporary_dexterity_gain": handle_temporary_dexterity_gain,
 }

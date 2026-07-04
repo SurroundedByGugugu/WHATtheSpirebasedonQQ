@@ -584,8 +584,8 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="rock_layer",
     name="岩层",
-    description="下一次从卡牌获得格挡时，格挡量增加等同于层数的数值，然后移除此状态。",
-    category="buff",
+    description="特殊资源状态。可被部分卡牌消耗。",
+    category="special",
     display_mode="stack",
     order=19,
     decay_timing="none",

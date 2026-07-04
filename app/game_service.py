@@ -22,6 +22,7 @@ from game.engine import (
     choose_pending_duplicate_hand_card,
     choose_pending_element_plating,
     choose_pending_retain_hand_cards,
+    choose_pending_radiant_reflection_cards,
     choose_pending_exhume_card,
     choose_pending_potion_card,
     choose_pending_elixir_cards,
@@ -272,6 +273,7 @@ class GameService(object):
             "draw", "drawpile", "draw_pile", "抽牌堆", "查看抽牌堆",
             "discard", "discardpile", "discard_pile", "弃牌堆", "查看弃牌堆",
             "exhaust", "exhaustpile", "exhaust_pile", "消耗牌堆", "消耗堆", "查看消耗牌堆", "查看消耗堆",
+            "reflect", "reflection", "映照", "辉晶映照",
             "play",
             "end",
         }
@@ -844,9 +846,9 @@ class GameService(object):
                 return "当前没有需要处理的发掘选择。"
             reply = self.handle_exhume(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-
         if game_state.pending_exhume_selection:
             return get_pending_player_choice_hint(game_state)
+        
         if command in ("retain", "retain_hand", "选择保留", "保留"):
             game_state = run_state.current_battle
             if game_state is None:
@@ -858,6 +860,17 @@ class GameService(object):
         if pending_choice_is(game_state, "retain_hand"):
             return get_pending_player_choice_hint(game_state)
         
+        if command in ("reflect", "reflection", "映照", "辉晶映照"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not pending_choice_is(game_state, "radiant_reflection"):
+                return "当前没有需要处理的辉晶映照选择。"
+            reply = self.handle_radiant_reflection(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if pending_choice_is(game_state, "radiant_reflection"):
+            return get_pending_player_choice_hint(game_state)
+        
         if command in ("potion_pick", "potion_card", "药水选牌", "选择药水牌"):
             game_state = run_state.current_battle
             if game_state is None:
@@ -866,7 +879,6 @@ class GameService(object):
                 return "当前没有需要处理的药水选牌。"
             reply = self.handle_potion_pick(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-
         if getattr(game_state, "pending_potion_card_selection", False):
             return get_pending_player_choice_hint(game_state)
 
@@ -878,7 +890,6 @@ class GameService(object):
                 return "当前没有需要处理的万灵药水选择。"
             reply = self.handle_elixir(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-
         if getattr(game_state, "pending_elixir_selection", False):
             return get_pending_player_choice_hint(game_state)
 
@@ -890,7 +901,6 @@ class GameService(object):
                 return "当前没有需要处理的尼利的宝典选择。"
             reply = self.handle_codex(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-
         if getattr(game_state, "pending_nilrys_selection", False):
             return get_pending_player_choice_hint(game_state)
 
@@ -1502,6 +1512,25 @@ class GameService(object):
             return "手牌编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card retain 0,1。"
 
         return choose_pending_retain_hand_cards(game_state, choice_indices, skip=False)
+    
+    def handle_radiant_reflection(self, game_state, parts):
+        """
+        /card reflect 0
+        /card reflect 0,1
+        """
+        if not pending_choice_is(game_state, "radiant_reflection"):
+            return "当前没有需要处理的辉晶映照选择。"
+
+        if len(parts) < 3:
+            return "用法：/card reflect 0 或 /card reflect 0,1。"
+
+        choice_indices = self.parse_index_list(parts[2])
+
+        if choice_indices is None:
+            return "编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card reflect 0,1。"
+
+        return choose_pending_radiant_reflection_cards(game_state, choice_indices)
+
     def handle_potion_pick(self, game_state, parts):
         """
         /card potion_pick 0

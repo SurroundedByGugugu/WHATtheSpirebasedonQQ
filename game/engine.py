@@ -1130,6 +1130,25 @@ def choose_pending_upgrade_hand_card(game_state, choice_index):
 def clear_pending_element_plating_selection(game_state):
     clear_pending_choice(game_state, "element_plating")
 
+def card_has_gain_block_effect(card):
+    def walk(value):
+        if isinstance(value, dict):
+            if value.get("op") == "gain_block":
+                return True
+            for sub_value in value.values():
+                if walk(sub_value):
+                    return True
+            return False
+
+        if isinstance(value, list):
+            for item in value:
+                if walk(item):
+                    return True
+            return False
+
+        return False
+
+    return walk(getattr(card, "effects", []) or [])
 
 def choose_pending_element_plating(game_state, choice_index):
     """
@@ -1160,6 +1179,8 @@ def choose_pending_element_plating(game_state, choice_index):
 
     allowed_card_types = list(payload.get("allowed_card_types", ["attack"]) or ["attack"])
     type_text = str(payload.get("type_text", "攻击牌") or "攻击牌")
+    require_gain_block = bool(payload.get("require_gain_block", False))
+
     if getattr(chosen_card, "card_type", "") not in allowed_card_types:
         clear_pending_element_plating_selection(game_state)
         return "【{}】不是{}，无法添加镀层。".format(chosen_card.name, type_text)
@@ -1167,7 +1188,11 @@ def choose_pending_element_plating(game_state, choice_index):
     if str(getattr(chosen_card, "attack_element", "") or "").strip():
         clear_pending_element_plating_selection(game_state)
         return "【{}】已经有属性，无法添加镀层。".format(chosen_card.name)
-
+    
+    if require_gain_block and not card_has_gain_block_effect(chosen_card):
+        clear_pending_element_plating_selection(game_state)
+        return "【{}】不能产生格挡，无法添加地词条。".format(chosen_card.name)
+    
     element = str(payload.get("element", "") or "").strip().lower()
     suffix = str(payload.get("suffix", "") or "")
 
@@ -1179,6 +1204,7 @@ def choose_pending_element_plating(game_state, choice_index):
         suffix = {
             "shade": "·阴",
             "crystal": "·晶",
+            "earth": "·地",
         }.get(element, "·{}".format(element))
 
     old_name = chosen_card.name
@@ -1195,6 +1221,7 @@ def choose_pending_element_plating(game_state, choice_index):
     element_name = {
         "shade": "阴",
         "crystal": "晶",
+        "earth": "地",
     }.get(element, element)
 
     return "【{}】为【{}】添加{}属性镀层，本场战斗中临时显示为【{}】。".format(
@@ -1268,6 +1295,78 @@ def choose_pending_retain_hand_cards(game_state, choice_indices=None, skip=False
         source,
         "、".join(["【{}】".format(card.name) for card in chosen_cards])
     )
+
+def clear_pending_radiant_reflection_selection(game_state):
+    clear_pending_choice(game_state, "radiant_reflection")
+
+
+def choose_pending_radiant_reflection_cards(game_state, choice_indices):
+    if not pending_choice_is(game_state, "radiant_reflection"):
+        return "当前没有需要处理的辉晶映照选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    options = list(getattr(pending_choice, "options", []) or [])
+    source = getattr(pending_choice, "source", "辉晶映照")
+    payload = getattr(pending_choice, "payload", {}) or {}
+    max_count = int(payload.get("max_count", 1) or 1)
+
+    if not options:
+        clear_pending_radiant_reflection_selection(game_state)
+        return "没有可选择的非消耗堆卡牌。"
+
+    if choice_indices is None:
+        choice_indices = []
+
+    unique_indices = []
+    seen = set()
+
+    for index in choice_indices:
+        if index in seen:
+            continue
+        seen.add(index)
+        unique_indices.append(index)
+
+    if not unique_indices:
+        return "至少选择 1 张牌。"
+
+    if len(unique_indices) > max_count:
+        return "最多只能选择 {} 张牌。".format(max_count)
+
+    for index in unique_indices:
+        if index < 0 or index >= len(options):
+            return "选择编号无效：{}。".format(index)
+
+    player = game_state.player
+    logs = []
+
+    for index in unique_indices:
+        item = options[index]
+        pile_name = item.get("pile_name", "")
+        pile_label = item.get("pile_label", pile_name)
+        chosen_card = item.get("card")
+
+        if chosen_card is None:
+            clear_pending_radiant_reflection_selection(game_state)
+            return "选择项异常，选择已取消。"
+
+        pile = getattr(player, pile_name, None)
+        if pile is None or chosen_card not in pile:
+            clear_pending_radiant_reflection_selection(game_state)
+            return "所选牌已经不在{}中，选择已取消。".format(pile_label)
+
+        old_replay = int(getattr(chosen_card, "replay_extra", 0) or 0)
+        setattr(chosen_card, "replay_extra", old_replay + 1)
+
+        logs.append("【{}】为{}中的【{}】添加重放 1。当前额外重放：{}。".format(
+            source,
+            pile_label,
+            chosen_card.name,
+            old_replay + 1
+        ))
+
+    clear_pending_radiant_reflection_selection(game_state)
+
+    return "\n".join(logs)
 
 def clear_pending_exhume_selection(game_state):
     game_state.pending_exhume_selection = False

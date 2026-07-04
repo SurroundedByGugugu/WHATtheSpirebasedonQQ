@@ -213,6 +213,8 @@ from data.card.character.suzuri_cards import (
     create_anatexis_action,
     create_anatexis,
     create_eruption_action,
+    create_rock_forming_action,
+    create_radiant_crystal_reflection,
 )
 
 from data.card.character.lumine_cards import (
@@ -432,6 +434,8 @@ CARD_REGISTRY = {
     "card.anatexis_action": create_anatexis_action,
     "card.anatexis": create_anatexis,
     "card.eruption_action": create_eruption_action,
+    "card.rock_forming_action": create_rock_forming_action,
+    "card.radiant_crystal_reflection": create_radiant_crystal_reflection,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.deva_form": create_deva_form,

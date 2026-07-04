@@ -50,9 +50,7 @@ def apply_block_modifiers(
     if block_source is None:
         block_source = BLOCK_SOURCE_PLAYED_CARD
     value += get_status_value(source, "dexterity")
-    # 岩层：类似活力，作为下一次从卡牌获得格挡的基础区加算。
-    if block_source == BLOCK_SOURCE_PLAYED_CARD:
-        value += get_status_value(source, "rock_layer")
+
     if get_status_value(source, "frail") > 0:
         if block_source == BLOCK_SOURCE_PLAYED_CARD:
             value = int(value * FRAIL_PLAYER_CARD_BLOCK_MULT)

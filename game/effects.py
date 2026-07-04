@@ -1490,6 +1490,103 @@ def handle_precipitate_zone_to_plating(game_state, card, effect, target_index, e
 
     return logs
 
+def card_has_gain_block_effect(card):
+    def walk(value):
+        if isinstance(value, dict):
+            if value.get("op") == "gain_block":
+                return True
+            for sub_value in value.values():
+                if walk(sub_value):
+                    return True
+            return False
+
+        if isinstance(value, list):
+            for item in value:
+                if walk(item):
+                    return True
+            return False
+
+        return False
+
+    return walk(getattr(card, "effects", []) or [])
+
+@register_effect("choose_non_exhaust_pile_card_add_replay")
+def handle_choose_non_exhaust_pile_card_add_replay(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+
+    count = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("count", 1),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    count = int(count)
+
+    if count <= 0:
+        return ["【{}】不需要选择映照目标。".format(card.name)]
+
+    total_times = int(effect_context.get("_total_replay_times", 1) or 1)
+
+    # 被重放时，把多次选择合并成一次 pending，避免后续重放覆盖前一次 pending。
+    if effect_context.get("_radiant_reflection_pending_created", False):
+        return []
+
+    effect_context["_radiant_reflection_pending_created"] = True
+
+    max_count = count * max(1, total_times)
+
+    options = []
+
+    pile_specs = [
+        ("hand", "手牌", getattr(player, "hand", []) or []),
+        ("draw_pile", "抽牌堆", getattr(player, "draw_pile", []) or []),
+        ("discard_pile", "弃牌堆", getattr(player, "discard_pile", []) or []),
+    ]
+
+    for pile_name, pile_label, pile_cards in pile_specs:
+        for pile_card in list(pile_cards):
+            options.append({
+                "pile_name": pile_name,
+                "pile_label": pile_label,
+                "card": pile_card,
+            })
+
+    if not options:
+        return ["【{}】没有可选择的非消耗堆卡牌。".format(card.name)]
+
+    if max_count > len(options):
+        max_count = len(options)
+
+    from game.pending_choice import PendingChoice, set_pending_choice
+
+    set_pending_choice(game_state, PendingChoice(
+        kind="radiant_reflection",
+        source=card.name,
+        prompt="=== {}：选择至多 {} 张消耗堆以外的牌添加重放 1 ===".format(card.name, max_count),
+        command_hint="用法：/card reflect 0 或 /card reflect 0,1。",
+        block_message="当前需要先处理辉晶映照选择。用法：/card reflect 0 或 /card reflect 0,1。",
+        options=options,
+        payload={
+            "max_count": max_count,
+        }
+    ))
+
+    logs = [
+        "=== {}：选择至多 {} 张消耗堆以外的牌添加重放 1 ===".format(card.name, max_count)
+    ]
+
+    for index, item in enumerate(options):
+        pile_label = item.get("pile_label", "")
+        pile_card = item.get("card")
+        logs.append("[{}] {}：{}".format(index, pile_label, pile_card.summary_text()))
+
+    logs.append("")
+    logs.append("用法：/card reflect 0 或 /card reflect 0,1。")
+
+    return logs
+
 @register_effect("choose_hand_attack_without_element_apply_plating")
 def handle_choose_hand_attack_without_element_apply_plating(game_state, card, effect, target_index, effect_context):
     player = game_state.player
@@ -1517,11 +1614,14 @@ def handle_choose_hand_attack_without_element_apply_plating(game_state, card, ef
             "crystal": "·晶",
         }.get(element, "·{}".format(element))
 
+    require_gain_block = bool(effect.get("require_gain_block", False))
+
     options = [
         hand_card
         for hand_card in list(getattr(player, "hand", []) or [])
         if getattr(hand_card, "card_type", "") in allowed_card_types
         and not str(getattr(hand_card, "attack_element", "") or "").strip()
+        and (not require_gain_block or card_has_gain_block_effect(hand_card))
     ]
 
     if not options:
@@ -1541,6 +1641,7 @@ def handle_choose_hand_attack_without_element_apply_plating(game_state, card, ef
             "suffix": suffix,
             "allowed_card_types": allowed_card_types,
             "type_text": type_text,
+            "require_gain_block": require_gain_block,
         }
     ))
 
@@ -1551,6 +1652,7 @@ def handle_choose_hand_attack_without_element_apply_plating(game_state, card, ef
             {
                 "shade": "阴",
                 "crystal": "晶",
+                "earth": "地",
             }.get(element, element)
         )
     ]
@@ -1935,6 +2037,53 @@ def handle_consume_status_gain_energy_if_present(game_state, card, effect, targe
 
     return logs
 
+@register_effect("consume_status_amount")
+def handle_consume_status_amount(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    status_key = str(effect.get("status", "") or "")
+    if not status_key:
+        return ["【{}】效果失败：缺少要消耗的状态。".format(card.name)]
+
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount", 1),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    amount = int(amount)
+
+    if amount <= 0:
+        return logs
+
+    current = get_status_value(player, status_key)
+
+    from game.status.status_defs import get_status_name
+    status_name = get_status_name(status_key)
+
+    if current < amount:
+        logs.append("【{}】需要消耗 {} 层{}，当前只有 {} 层，效果未发动。".format(
+            card.name,
+            amount,
+            status_name,
+            current
+        ))
+        return logs
+
+    remaining = player.statuses.add(status_key, -amount)
+
+    logs.append("【{}】消耗 {} 层{}。当前{}：{}。".format(
+        card.name,
+        amount,
+        status_name,
+        status_name,
+        remaining
+    ))
+
+    return logs
 
 @register_effect("choose_hand_add_retain")
 def handle_choose_hand_add_retain(game_state, card, effect, target_index, effect_context):
@@ -3635,9 +3784,15 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
         from data.card.AAAregistry import create_card
 
+        make_upgraded = bool(effect.get("upgraded", False))
+
         added_cards = []
         for _ in range(amount):
             new_card = create_card(card_id)
+
+            if make_upgraded:
+                from data.card.upgrade_rules import upgrade_card
+                new_card = upgrade_card(new_card)
 
             # 战斗内生成牌标记。
             # 当前战斗结束不会把战斗牌堆写回长期 deck，这里主要给后续显示/过滤/特殊机制预留。
@@ -4688,6 +4843,9 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         logs.append("【{}】重放总次数：{}。".format(card.name, total_times))
 
     for play_index in range(total_times):
+        effect_context["_current_replay_index"] = play_index
+        effect_context["_total_replay_times"] = total_times
+
         if game_state.battle_over:
             logs.append("战斗已经结束，后续重放不再结算。")
             break

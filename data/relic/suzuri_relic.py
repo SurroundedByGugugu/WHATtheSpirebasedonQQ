@@ -68,3 +68,22 @@ class PiercingLanceRelic(RelicTemplate):
                 current_block
             )
         ]
+    
+class NostalgicCrystalRelic(RelicTemplate):
+    def __init__(self):
+        super().__init__(
+            relic_id="relic.nostalgic_crystal",
+            name="令人怀念的结晶",
+            description="拾起时，在牌组中添加 1 张【辉晶映照】。",
+            story="带着温度的灰色结晶。边缘仿佛被深渊浸染，但没有表现出深渊的攻击性。",
+            quantity="common",
+            owner_character_id="character.suzuri",
+            allow_duplicate=False,
+        )
+
+    def on_obtained(self, run_state):
+        from data.card.AAAregistry import create_card
+        from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics
+
+        card = create_card("card.radiant_crystal_reflection")
+        return add_card_to_master_deck_with_relics(run_state, card, source=self.name)

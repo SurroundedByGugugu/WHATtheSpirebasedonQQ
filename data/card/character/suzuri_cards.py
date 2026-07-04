@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.card.base_card import CardTemplate
+from game.constants import KEYWORD_EXHAUST
 
 
 # starting
@@ -12,13 +13,14 @@ def create_earth_origin_dominion():
         card_type="skill",
         cost=3,
         target="self",
-        description="展开地 Zone。获得 10 点格挡。",
+        description="消耗。展开地 Zone。获得 10 点格挡。将 1 张【成岩作用】加入抽牌堆。",
         quantity="starting",
         attack_element="earth",
         owner_character_id="character.suzuri",
         card_vars={
             "block": 10,
         },
+        keywords=[KEYWORD_EXHAUST],
         effects=[
             {
                 "op": "set_zone",
@@ -32,14 +34,43 @@ def create_earth_origin_dominion():
                     "modifier_profile": "block",
                 },
             },
+            {
+                "op": "add_card_to_draw_pile",
+                "card_id": "card.rock_forming_action",
+                "amount": 1,
+                "shuffle": True,
+            },
         ],
         upgraded=False,
         upgrade_patch={
             "name": "地原统御+",
-            "description": "费用减少 1。展开地 Zone。获得 10 点格挡。",
             "cost": 2,
+            "description": "消耗。展开地 Zone。获得 10 点格挡。将 1 张【成岩作用+】加入抽牌堆。",
+            "effects": [
+                {
+                    "op": "set_zone",
+                    "element": "earth",
+                },
+                {
+                    "op": "gain_block",
+                    "target": "self",
+                    "amount": {
+                        "var": "block",
+                        "modifier_profile": "block",
+                    },
+                },
+                {
+                    "op": "add_card_to_draw_pile",
+                    "card_id": "card.rock_forming_action",
+                    "amount": 1,
+                    "shuffle": True,
+                    "upgraded": True,
+                },
+            ],
         }
     )
+
+
 def create_anatexis_action():
     return CardTemplate(
         card_id="card.anatexis_action",
@@ -85,22 +116,67 @@ def create_anatexis_action():
     )
 
 
+def create_rock_forming_action():
+    return CardTemplate(
+        card_id="card.rock_forming_action",
+        name="成岩作用",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="选择手牌中 1 张能产生格挡的无属性技能牌，添加地词条。消耗。",
+        quantity="event",
+        owner_character_id="",
+        keywords=[KEYWORD_EXHAUST],
+        effects=[
+            {
+                "op": "choose_hand_attack_without_element_apply_plating",
+                "element": "earth",
+                "suffix": "·地",
+                "allowed_card_types": ["skill"],
+                "require_gain_block": True,
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "成岩作用+",
+            "description": "选择手牌中 1 张能产生格挡的无属性技能牌，添加地词条。",
+            "remove_keywords": [KEYWORD_EXHAUST],
+        }
+    )
+
+
 # common
+
 def create_anatexis():
     return CardTemplate(
         card_id="card.anatexis",
         name="深熔作用",
         card_type="skill",
-        cost=2,
+        cost=1,
         target="self",
-        description="获得 1 层岩浆层。有岩层时，消耗岩层并获得 1 点费用。",
+        description="消耗 2 层岩层。获得 1 层岩浆层。",
         quantity="common",
         owner_character_id="character.suzuri",
         card_vars={
             "magma_layer": 1,
-            "energy": 1,
+            "rock_cost": 2,
         },
+        play_conditions=[
+            {
+                "op": "has_status_at_least",
+                "status": "rock_layer",
+                "amount": 2,
+            }
+        ],
         effects=[
+            {
+                "op": "consume_status_amount",
+                "target": "self",
+                "status": "rock_layer",
+                "amount": {
+                    "var": "rock_cost",
+                },
+            },
             {
                 "op": "gain_status",
                 "target": "self",
@@ -109,26 +185,32 @@ def create_anatexis():
                     "var": "magma_layer",
                 },
             },
-            {
-                "op": "consume_status_gain_energy_if_present",
-                "status": "rock_layer",
-                "energy": {
-                    "var": "energy",
-                },
-            },
         ],
         upgraded=False,
         upgrade_patch={
             "name": "深熔作用+",
-            "description": "获得 2 层岩浆层。有岩层时，消耗岩层并获得 1 点费用。",
+            "description": "消耗 1 层岩层。获得 1 层岩浆层。",
             "card_vars": {
-                "magma_layer": 2,
-            }
+                "rock_cost": 1,
+            },
+            "patches": [
+                {
+                    "path": ["play_conditions"],
+                    "value": [
+                        {
+                            "op": "has_status_at_least",
+                            "status": "rock_layer",
+                            "amount": 1,
+                        }
+                    ],
+                }
+            ],
         }
     )
 
 
 # uncommon
+
 def create_eruption_action():
     return CardTemplate(
         card_id="card.eruption_action",
@@ -166,4 +248,34 @@ def create_eruption_action():
                 "retain_count": 2,
             },
         }
+    )
+
+
+# event
+
+def create_radiant_crystal_reflection():
+    return CardTemplate(
+        card_id="card.radiant_crystal_reflection",
+        name="辉晶映照",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="选择 1 张消耗堆以外的牌，添加重放 1。消耗。",
+        quantity="event",
+        attack_element="crystal",
+        owner_character_id="",
+        keywords=[KEYWORD_EXHAUST],
+        card_vars={
+            "count": 1,
+        },
+        effects=[
+            {
+                "op": "choose_non_exhaust_pile_card_add_replay",
+                "count": {
+                    "var": "count",
+                },
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={}
     )

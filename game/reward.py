@@ -159,7 +159,7 @@ CARD_REWARD_POOL = [
     "card.divine_bird",
     "card.crystal_dust_explosion",
     "card.precipitate",
-    "card.shade_zone"
+    "card.shade_zone",
     # Suzuri
     "card.anatexis",
     "card.eruption_action",
@@ -266,6 +266,7 @@ COMMON_RELIC_POOL = [
     "relic.art_of_war",
     "relic.anchor",
     "relic.matte_false_eye",
+    "relic.nostalgic_crystal",
 ]
 
 UNCOMMON_RELIC_POOL = [
