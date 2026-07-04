@@ -397,7 +397,16 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
-
+register_status_def(StatusDef(
+    key="temporary_dexterity_gain",
+    name="临时敏捷提升",
+    description="回合结束时失去等同于层数的敏捷。可被人工制品抵挡以保留敏捷。",
+    category="debuff",
+    display_mode="stack",
+    order=76,
+    decay_timing="none",
+    decay_amount=0,
+))
 register_status_def(StatusDef(
     key="god_in_hand",
     name="手中上帝",
@@ -572,6 +581,27 @@ register_status_def(StatusDef(
     decay_amount=0,
 ))
 
+register_status_def(StatusDef(
+    key="rock_layer",
+    name="岩层",
+    description="下一次从卡牌获得格挡时，格挡量增加等同于层数的数值，然后移除此状态。",
+    category="buff",
+    display_mode="stack",
+    order=19,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="magma_layer",
+    name="岩浆层",
+    description="受到攻击时，使攻击来源获得等同于层数的烧伤；回合结束时层数减少 1。",
+    category="buff",
+    display_mode="stack",
+    order=64,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
 
 register_status_def(StatusDef(
     key="buffer",

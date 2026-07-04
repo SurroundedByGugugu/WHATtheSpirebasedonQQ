@@ -160,7 +160,10 @@ CARD_REWARD_POOL = [
     "card.crystal_dust_explosion",
     "card.precipitate",
     "card.shade_zone"
-    
+    # Suzuri
+    "card.anatexis",
+    "card.eruption_action",
+
     #昼
     "card.mirage_shadows",
     "card.deva_form",
@@ -180,22 +183,49 @@ CARD_REWARD_QUANTITIES = {"common", "uncommon", "rare"}
 
 
 COMMON_POTION_POOL=[
+    "potion.test_strength",
+    "potion.test_fire",
+    "potion.test_dexterity",
     "potion.attack",
     "potion.skill",
     "potion.power",
     "potion.forges_blessing",
-    ]
+    "potion.block",
+    "potion.blood",
+    "potion.energy",
+    "potion.explosive",
+    "potion.fear",
+    "potion.poison",
+    "potion.speed",
+    "potion.steroid",
+    "potion.weak",
+    "potion.swift",
+    "potion.colorless",
+]
+
 UNCOMMON_POTION_POOL=[
     "potion.duplication",
     "potion.liquid_memories",
     "potion.cunning",
     "potion.elixir",
-    ]
+    "potion.ancient",
+    "potion.distilled_chaos",
+    "potion.liquid_bronze",
+    "potion.regen",
+    "potion.gamblers_brew",
+    "potion.essence_of_steel",
+]
+
 RARE_POTION_POOL=[
     "potion.fairy_in_a_bottle",
     "potion.chaos",
     "potion.smoke_bomb",
-    ]
+    "potion.cultist",
+    "potion.fruit_juice",
+    "potion.ghost_in_a_jar",
+    "potion.heart_of_iron",
+    "potion.snecko_oil",
+]
 EVENT_POTION_POOL=[]
 
 POTION_REWARD_POOL = COMMON_POTION_POOL + UNCOMMON_POTION_POOL + RARE_POTION_POOL + EVENT_POTION_POOL
@@ -340,6 +370,19 @@ SHOP_RELIC_POOL = [
     "relic.dragon_fruit",
     "relic.medical_kit",
     "relic.miniature_tent",
+    "relic.cauldron", 
+    "relic.lees_waffle", 
+    "relic.orrery",
+    "relic.strange_spoon",
+    "relic.toolbox",
+    "relic.the_abacus",
+    "relic.dollys_mirror",
+    "relic.clockwork_souvenir",
+    "relic.hand_drill",
+    "relic.sling_of_courage",
+    "relic.orange_pellets",
+    "relic.brimstone",
+    "relic.prismatic_shard",
 ]
 
 RELIC_REWARD_POOL = [
@@ -384,12 +427,19 @@ MYTH_RELIC_POOL = [
 
 POTION_DROP_CHANCE = 0.30
 
-# 原作近似：先判定药水掉落，再按稀有度抽取。
-POTION_RARITY_WEIGHTS = [
-    ("common", 65),
-    ("uncommon", 25),
-    ("rare", 10),
-]
+POTION_RARITY_START_WEIGHTS = {
+    "common": 13.0,
+    "uncommon": 6.0,
+    "rare": 1.0,
+}
+
+POTION_RARITY_TARGET_WEIGHTS = {
+    "common": 10.0,
+    "uncommon": 7.0,
+    "rare": 3.0,
+}
+
+POTION_RARITY_TRANSITION_REWARDS = 20
 
 # 战斗后普通卡牌奖励稀有度权重。
 # 第 1 次战斗奖励使用 13:6:1；随后按奖励次数线性靠近 10:7:3。
@@ -781,12 +831,27 @@ def get_card_reward_rarity_weights(run_state=None):
 
     return result
 
+def get_potion_rarity_weights(run_state=None):
+    """药水稀有度权重：第 1 次奖励 13:6:1，之后线性靠近 10:7:3。"""
+    if run_state is None:
+        progress_index = 0
+    else:
+        progress_index = max(0, int(getattr(run_state, "reward_count", 0) or 0) - 1)
+
+    transition = max(1, int(POTION_RARITY_TRANSITION_REWARDS))
+    progress = min(1.0, float(progress_index) / float(transition))
+
+    result = []
+    for quantity in ("common", "uncommon", "rare"):
+        start = float(POTION_RARITY_START_WEIGHTS.get(quantity, 0.0))
+        target = float(POTION_RARITY_TARGET_WEIGHTS.get(quantity, start))
+        result.append((quantity, start + (target - start) * progress))
+    return result
+
 def get_available_potion_ids_by_quantity(run_state=None, include_event=False, include_test=False):
     current_character_id = getattr(run_state, "character_id", "") if run_state is not None else ""
     result = {"common": [], "uncommon": [], "rare": [], "event": []}
     for potion_id in POTION_REGISTRY.keys():
-        if potion_id.startswith("potion.test_") and not include_test:
-            continue
         potion = create_potion(potion_id)
         owner = getattr(potion, "owner_character_id", "")
         if owner and owner != current_character_id:
@@ -811,7 +876,7 @@ def roll_potion_id_by_rarity(rng, run_state=None, include_event=False):
         available_all.extend(ids)
     if not available_all:
         return None
-    target_quantity = _weighted_choice_quantity(rng, POTION_RARITY_WEIGHTS)
+    target_quantity = _weighted_choice_quantity(rng, get_potion_rarity_weights(run_state))
     candidates = by_quantity.get(target_quantity, [])
     if candidates:
         return rng.choice(candidates)
@@ -1363,6 +1428,14 @@ def take_reward_option(run_state, reward_state, option_index):
             return "药水奖励异常，已跳过。"
         max_slots = getattr(run_state, "max_potion_slots", 3)
         if len(run_state.potions) >= max_slots:
+            if getattr(potion, "potion_id", "") == "potion.fruit_juice":
+                logs = drink_fruit_juice_reward(run_state, potion, source="奖励")
+                option.claimed = True
+                record_reward_taken(run_state, "potion")
+                return "\n".join([
+                    "药水栏已满，直接喝掉{}。".format(format_potion_display_name(potion))
+                ] + logs)
+
             return "\n".join([
                 "药水栏已满，无法直接获得{}。".format(format_potion_display_name(potion)),
                 "",
@@ -1582,6 +1655,22 @@ def format_potion_slots(run_state):
         ))
 
     return "\n".join(lines)
+
+def drink_fruit_juice_reward(run_state, potion, source="奖励"):
+    """果汁在药水栏满时从奖励列表直接喝掉。"""
+    from game.relic_logic.run_relic_utils import increase_max_hp, has_run_relic
+
+    amount = int(getattr(potion, "effect_vars", {}).get("max_hp", 5) or 5)
+
+    logs = []
+    if has_run_relic(run_state, "relic.sacred_bark"):
+        amount *= 2
+        logs.append("【神圣树皮】触发：【{}】的数值翻倍。".format(
+            getattr(potion, "name", "果汁")
+        ))
+
+    logs.extend(increase_max_hp(run_state, amount, getattr(potion, "name", "果汁")))
+    return logs
 
 def replace_potion_reward(run_state, reward_state, option_index, potion_index):
     """

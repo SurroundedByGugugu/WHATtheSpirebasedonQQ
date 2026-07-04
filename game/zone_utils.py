@@ -265,7 +265,7 @@ ZONE_FIRE_BURN = {
 }
 
 ZONE_EARTH_TEMP_THORNS_RATIO = {
-    "earth": (1.0, 1.6),
+    "earth": (0.8, 1.6),
 }
 
 ZONE_WATER_REGEN = {

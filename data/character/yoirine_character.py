@@ -6,7 +6,7 @@ class YoirineCharacter(CharacterTemplate):
 
     初始 HP：70
     初始遗物：饱和裂隙（展开zone效果时自动重复展开极zone
-    初始牌组：4打4防 1x，1晶zone，1晶茧
+    初始牌组：4打4防 1晶zone，1晶茧
 
     """
 

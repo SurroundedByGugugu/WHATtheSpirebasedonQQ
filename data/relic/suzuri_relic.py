@@ -1,0 +1,70 @@
+# -*- coding: utf-8 -*-
+
+from data.relic.base_relic import RelicTemplate
+from game.constants import EVENT_BATTLE_START, EVENT_DAMAGE_AFTER
+
+
+class PiercingLanceRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.piercing_lance",
+            name="“贯岩”",
+            story="坚硬的重型骑枪。锐利的尖端仿佛能贯穿一切阻碍。",
+            description="每场战斗第一次，攻击被完全格挡时，直接破除全部格挡。",
+            quantity="starting",
+            owner_character_id="character.suzuri",
+            allow_duplicate=False,
+        )
+        self.used_this_battle = False
+
+    def on_event(self, event_name, context):
+        if event_name == EVENT_BATTLE_START:
+            self.used_this_battle = False
+            return []
+
+        if event_name != EVENT_DAMAGE_AFTER:
+            return []
+
+        if self.used_this_battle:
+            return []
+
+        game_state = getattr(context, "game_state", None)
+        player = getattr(context, "player", None)
+        source = getattr(context, "source", None)
+        target = getattr(context, "target", None)
+        card = getattr(context, "card", None)
+        extra = getattr(context, "extra", {}) or {}
+
+        if game_state is None or player is None:
+            return []
+        if source is not player:
+            return []
+        if target is None or not hasattr(target, "enemy_id"):
+            return []
+        if getattr(card, "card_type", "") != "attack":
+            return []
+        if extra.get("damage_kind") != "attack":
+            return []
+        if bool(extra.get("ignore_block", False)):
+            return []
+        if int(extra.get("amount", 0) or 0) <= 0:
+            return []
+        if int(extra.get("real_damage", 0) or 0) != 0:
+            return []
+
+        current_block = int(getattr(target, "block", 0) or 0)
+        if current_block <= 0:
+            return []
+
+        self.used_this_battle = True
+        target.block = 0
+
+        return [
+            "【{}】触发：【{}】的攻击被完全格挡，破除【{}】全部 {} 点格挡。".format(
+                self.name,
+                getattr(card, "name", "攻击牌"),
+                getattr(target, "name", "敌人"),
+                current_block
+            )
+        ]

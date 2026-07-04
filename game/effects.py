@@ -240,7 +240,9 @@ def resolve_amount(
             value += int(card_vars.get(then_var, 0))
         else:
             value += int(card_vars.get(else_var, 0))
-
+    potion_amount_multiplier = float(effect_context.get("potion_amount_multiplier", 1.0) or 1.0)
+    if potion_amount_multiplier != 1.0:
+        value = int(value * potion_amount_multiplier)
     modifier_profile = amount_spec.get("modifier_profile")
 
     zone_element = ""
@@ -476,7 +478,7 @@ def get_auto_play_target_index(game_state, card):
 
     return 0
 
-def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reason="havoc"):
+def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reason="havoc", force_exhaust=True):
     """
     被其他效果自动打出的牌。
 
@@ -488,7 +490,7 @@ def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reas
     logs = []
 
     from data.card.keyword_rules import can_play_card
-    from game.engine import validate_card_target, move_card_to_exhaust_pile
+    from game.engine import validate_card_target, move_card_to_exhaust_pile, move_played_card_to_destination
     from game.x_value import is_x_cost_card, calculate_card_x_value
     from game.zone_utils import (
         is_card_first_play_this_battle,
@@ -510,11 +512,14 @@ def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reas
             played_card.name,
             cannot_play_reason
         ))
-        logs.extend(move_card_to_exhaust_pile(
-            game_state=game_state,
-            card=played_card,
-            reason=reason
-        ))
+        if force_exhaust:
+            logs.extend(move_card_to_exhaust_pile(
+                game_state=game_state,
+                card=played_card,
+                reason=reason
+            ))
+        else:
+            logs.extend(move_played_card_to_destination(game_state, played_card))
         return logs
 
     target_index = get_auto_play_target_index(game_state, played_card)
@@ -764,6 +769,7 @@ def handle_heal_player(game_state, card, effect, target_index, effect_context):
 def handle_heal_player_by_max_hp_percent(game_state, card, effect, target_index, effect_context):
     player = game_state.player
     percent = float(effect.get("percent", 0.0) or 0.0)
+    percent *= float(effect_context.get("potion_amount_multiplier", 1.0) or 1.0)
 
     amount = int(int(getattr(player, "max_hp", 0)) * percent)
     if amount <= 0 and percent > 0:
@@ -1880,6 +1886,109 @@ def handle_gain_bomb(game_state, card, effect, target_index, effect_context):
     game_state.player.gain_status("the_bomb", damage)
     setattr(game_state.player, "_the_bomb_turns", int(effect.get("turns", 3)))
     return ["【{}】已设置炸弹：{} 回合后对所有敌人造成 {} 点伤害。".format(card.name, int(effect.get("turns", 3)), damage)]
+
+@register_effect("consume_status_gain_energy_if_present")
+def handle_consume_status_gain_energy_if_present(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    status_key = str(effect.get("status", "") or "")
+    if not status_key:
+        return ["【{}】效果失败：缺少要消耗的状态。".format(card.name)]
+
+    current = get_status_value(player, status_key)
+    if current <= 0:
+        from game.status.status_defs import get_status_name
+        logs.append("{} 没有{}，【{}】未获得额外费用。".format(
+            player.name,
+            get_status_name(status_key),
+            card.name
+        ))
+        return logs
+
+    energy = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("energy", 0),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    energy = int(energy)
+
+    player.statuses.remove(status_key)
+
+    from game.status.status_defs import get_status_name
+    logs.append("【{}】消耗 {} 层{}。".format(
+        card.name,
+        current,
+        get_status_name(status_key)
+    ))
+
+    if energy > 0:
+        player.cost += energy
+        logs.append("{} 获得 {} 点费用。当前费用：{}。".format(
+            player.name,
+            energy,
+            player.cost
+        ))
+
+    return logs
+
+
+@register_effect("choose_hand_add_retain")
+def handle_choose_hand_add_retain(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+
+    count = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("count", 1),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    count = int(count)
+
+    if count <= 0:
+        return ["【{}】不需要选择保留牌。".format(card.name)]
+
+    from game.constants import KEYWORD_RETAIN
+
+    options = [
+        hand_card
+        for hand_card in list(getattr(player, "hand", []) or [])
+        if KEYWORD_RETAIN not in getattr(hand_card, "keywords", [])
+    ]
+
+    if not options:
+        return ["【{}】没有可添加保留的手牌。".format(card.name)]
+
+    from game.pending_choice import PendingChoice, set_pending_choice
+
+    set_pending_choice(game_state, PendingChoice(
+        kind="retain_hand",
+        source=card.name,
+        prompt="=== {}：选择至多 {} 张手牌添加保留 ===".format(card.name, count),
+        command_hint="用法：/card retain 0 或 /card retain 0,1；跳过则 /card retain skip。",
+        block_message="当前需要先处理保留选择。用法：/card retain 0 或 /card retain skip。",
+        options=options,
+        payload={
+            "max_count": count,
+        }
+    ))
+
+    logs = [
+        "=== {}：选择至多 {} 张手牌添加保留 ===".format(card.name, count)
+    ]
+
+    for index, hand_card in enumerate(options):
+        logs.append("[{}] {}".format(index, hand_card.summary_text()))
+
+    logs.append("")
+    logs.append("用法：/card retain 0 或 /card retain 0,1；跳过则 /card retain skip。")
+
+    return logs
 
 
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):
@@ -4400,6 +4509,136 @@ def handle_exhaust_status_and_curse_hand_gain_stats(game_state, card, effect, ta
         current_strength,
         current_dexterity
     ))
+
+    return logs
+
+@register_effect("increase_player_max_hp")
+def handle_increase_player_max_hp(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=player,
+        target=player,
+        effect_context=effect_context,
+    )
+    amount = int(amount)
+
+    if amount <= 0:
+        return ["【{}】没有提升最大生命。".format(getattr(card, "name", "效果"))]
+
+    old_max = int(getattr(player, "max_hp", 0))
+    old_hp = int(getattr(player, "hp", 0))
+
+    player.max_hp = old_max + amount
+
+    if any(getattr(relic, "relic_id", "") == "relic.mark_of_the_bloom" for relic in getattr(player, "relics", []) or []):
+        player.hp = min(player.max_hp, old_hp)
+    else:
+        player.hp = min(player.max_hp, old_hp + amount)
+
+    return ["【{}】生效：最大生命值 {} -> {}，HP {} -> {}。".format(
+        getattr(card, "name", "效果"),
+        old_max,
+        player.max_hp,
+        old_hp,
+        player.hp
+    )]
+
+
+@register_effect("play_draw_pile_top_count")
+def handle_play_draw_pile_top_count(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    logs = []
+
+    times = resolve_effect_times(
+        game_state=game_state,
+        card=card,
+        effect=effect,
+        effect_context=effect_context,
+    )
+    times = int(times)
+
+    if times <= 0:
+        return ["【{}】没有打出抽牌堆顶牌。".format(card.name)]
+
+    for index in range(times):
+        if game_state.battle_over:
+            logs.append("战斗已经结束，后续抽牌堆顶牌不再打出。")
+            break
+
+        has_draw_card = reshuffle_discard_into_draw_if_needed(
+            player,
+            logs,
+            game_state=game_state
+        )
+
+        if not has_draw_card:
+            logs.append("抽牌堆和弃牌堆都为空，【{}】停止结算。".format(card.name))
+            break
+
+        top_card = player.draw_pile.pop()
+
+        logs.append("【{}】第 {}/{} 张：抽牌堆顶为【{}】。".format(
+            card.name,
+            index + 1,
+            times,
+            top_card.name
+        ))
+
+        logs.extend(play_card_from_effect_and_exhaust(
+            game_state=game_state,
+            source_card=card,
+            played_card=top_card,
+            reason="distilled_chaos",
+            force_exhaust=False,
+        ))
+
+    return logs
+
+
+@register_effect("randomize_hand_costs")
+def handle_randomize_hand_costs(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    logs = []
+
+    changed = 0
+    skipped_corruption = 0
+
+    from game.modifiers import get_status_value
+
+    has_corruption = get_status_value(player, "corruption") > 0
+
+    for hand_card in getattr(player, "hand", []) or []:
+        if getattr(hand_card, "card_type", "") in ("status", "curse"):
+            continue
+
+        if getattr(hand_card, "cost", None) == "X":
+            continue
+
+        if has_corruption and getattr(hand_card, "card_type", "") == "skill":
+            # 修复原版异蛇之油 + 腐化时技能牌可能被随机成 1~3 的问题。
+            if hasattr(hand_card, "temporary_cost_override"):
+                delattr(hand_card, "temporary_cost_override")
+            skipped_corruption += 1
+            continue
+
+        new_cost = random.randint(0, 3)
+        setattr(hand_card, "temporary_cost_override", new_cost)
+
+        logs.append("【异蛇之油】使【{}】本回合费用随机变为 {}。".format(
+            hand_card.name,
+            new_cost
+        ))
+        changed += 1
+
+    if skipped_corruption > 0:
+        logs.append("【异蛇之油】检测到腐化：{} 张技能牌保持 0 费。".format(skipped_corruption))
+
+    if changed <= 0 and skipped_corruption <= 0:
+        logs.append("【{}】没有可随机化费用的手牌。".format(card.name))
 
     return logs
 

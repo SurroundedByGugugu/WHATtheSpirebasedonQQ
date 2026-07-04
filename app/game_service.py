@@ -21,6 +21,7 @@ from game.engine import (
     choose_pending_upgrade_hand_card,
     choose_pending_duplicate_hand_card,
     choose_pending_element_plating,
+    choose_pending_retain_hand_cards,
     choose_pending_exhume_card,
     choose_pending_potion_card,
     choose_pending_elixir_cards,
@@ -100,6 +101,11 @@ CHARACTER_CHOICES = [
         "index": 3,
         "character_id": "character.yoirine",
         "name": "Yoirine"
+    },
+    {
+        "index": 4,
+        "character_id": "character.suzuri",
+        "name": "Suzuri"
     }
 ]
 
@@ -841,7 +847,17 @@ class GameService(object):
 
         if game_state.pending_exhume_selection:
             return get_pending_player_choice_hint(game_state)
-
+        if command in ("retain", "retain_hand", "选择保留", "保留"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not pending_choice_is(game_state, "retain_hand"):
+                return "当前没有需要处理的保留选择。"
+            reply = self.handle_retain_hand(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if pending_choice_is(game_state, "retain_hand"):
+            return get_pending_player_choice_hint(game_state)
+        
         if command in ("potion_pick", "potion_card", "药水选牌", "选择药水牌"):
             game_state = run_state.current_battle
             if game_state is None:
@@ -1463,7 +1479,29 @@ class GameService(object):
             return "选择编号必须是数字。"
 
         return choose_pending_exhume_card(game_state, choice_index)
+    def handle_retain_hand(self, game_state, parts):
+        """
+        /card retain 0
+        /card retain 0,1
+        /card retain skip
+        """
+        if not pending_choice_is(game_state, "retain_hand"):
+            return "当前没有需要处理的保留选择。"
 
+        if len(parts) < 3:
+            return "用法：/card retain 0 或 /card retain 0,1；跳过则 /card retain skip。"
+
+        raw = " ".join(parts[2:]).strip().lower()
+
+        if raw in ("skip", "none", "no", "不选", "跳过"):
+            return choose_pending_retain_hand_cards(game_state, [], skip=True)
+
+        choice_indices = self.parse_index_list(parts[2])
+
+        if choice_indices is None:
+            return "手牌编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card retain 0,1。"
+
+        return choose_pending_retain_hand_cards(game_state, choice_indices, skip=False)
     def handle_potion_pick(self, game_state, parts):
         """
         /card potion_pick 0

@@ -2,6 +2,7 @@
 
 from data.relic.lumine_relic import CrossEarringRelic
 from data.relic.yoirine_relic import FlowerInAbyssRelic, MatteFalseEyeRelic, SaturatedFissureRelic, UnsealedAbyssRelic
+from data.relic.suzuri_relic import PiercingLanceRelic
 from data.relic.armored_warrior_relic import (BurningBloodRelic, CharonAshesRelic)
 from data.relic.common_relics import (
     JuzuBraceletRelic, TinyChestRelic,
@@ -207,6 +208,8 @@ RELIC_REGISTRY = {
     "relic.flower_in_abyss": FlowerInAbyssRelic,
     "relic.saturated_fissure": SaturatedFissureRelic,
     "relic.unsealed_abyss": UnsealedAbyssRelic,
+
+    "relic.piercing_lance": PiercingLanceRelic,
 }
 
 

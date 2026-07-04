@@ -1204,6 +1204,71 @@ def choose_pending_element_plating(game_state, choice_index):
         chosen_card.name
     )
 
+def clear_pending_retain_hand_selection(game_state):
+    clear_pending_choice(game_state, "retain_hand")
+
+
+def choose_pending_retain_hand_cards(game_state, choice_indices=None, skip=False):
+    if not pending_choice_is(game_state, "retain_hand"):
+        return "当前没有需要处理的保留选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    options = list(getattr(pending_choice, "options", []) or [])
+    source = getattr(pending_choice, "source", "保留")
+    payload = getattr(pending_choice, "payload", {}) or {}
+    max_count = int(payload.get("max_count", 1) or 1)
+
+    if skip:
+        clear_pending_retain_hand_selection(game_state)
+        return "【{}】未选择添加保留的手牌。".format(source)
+
+    if choice_indices is None:
+        choice_indices = []
+
+    unique_indices = []
+    seen = set()
+
+    for index in choice_indices:
+        if index in seen:
+            continue
+        seen.add(index)
+        unique_indices.append(index)
+
+    if not unique_indices:
+        clear_pending_retain_hand_selection(game_state)
+        return "【{}】未选择添加保留的手牌。".format(source)
+
+    if len(unique_indices) > max_count:
+        return "最多只能选择 {} 张手牌。".format(max_count)
+
+    for index in unique_indices:
+        if index < 0 or index >= len(options):
+            return "选择编号无效：{}。".format(index)
+
+    from game.constants import KEYWORD_RETAIN
+
+    player = game_state.player
+    chosen_cards = []
+
+    for index in unique_indices:
+        chosen_card = options[index]
+
+        if chosen_card not in player.hand:
+            clear_pending_retain_hand_selection(game_state)
+            return "所选牌已经不在手牌中，选择已取消。"
+
+        if KEYWORD_RETAIN not in getattr(chosen_card, "keywords", []):
+            chosen_card.keywords.append(KEYWORD_RETAIN)
+
+        chosen_cards.append(chosen_card)
+
+    clear_pending_retain_hand_selection(game_state)
+
+    return "【{}】为 {} 添加保留。".format(
+        source,
+        "、".join(["【{}】".format(card.name) for card in chosen_cards])
+    )
+
 def clear_pending_exhume_selection(game_state):
     game_state.pending_exhume_selection = False
     game_state.pending_exhume_source = ""
@@ -1277,6 +1342,8 @@ def discard_selected_hand_cards(game_state, hand_indices):
             game_state.pending_discard_source = ""
             if source == "gambling_chip":
                 return "【赌博筹码】未选择丢弃手牌。"
+            if source == "gamblers_brew":
+                return "【赌徒特酿】未选择丢弃手牌。"
             return "未选择丢弃手牌。"
         return "没有指定要丢弃的手牌。"
 
@@ -1302,9 +1369,17 @@ def discard_selected_hand_cards(game_state, hand_indices):
             trigger_clever=True
         ))
 
-    if pending_source == "gambling_chip" and indexed_cards:
-        logs.append("【赌博筹码】抽取与丢弃数量相同的牌：{} 张。".format(len(indexed_cards)))
-        logs.extend(player.draw_cards(len(indexed_cards), game_state=game_state, draw_source="gambling_chip"))
+    if pending_source in ("gambling_chip", "gamblers_brew") and indexed_cards:
+        source_name = "赌博筹码" if pending_source == "gambling_chip" else "赌徒特酿"
+        logs.append("【{}】抽取与丢弃数量相同的牌：{} 张。".format(
+            source_name,
+            len(indexed_cards)
+        ))
+        logs.extend(player.draw_cards(
+            len(indexed_cards),
+            game_state=game_state,
+            draw_source=pending_source
+        ))
 
     if game_state.pending_discard_selection:
         game_state.pending_discard_selection = False
@@ -1898,6 +1973,7 @@ def potion_has_sacred_bark(player, potion):
         "potion.elixir",
         "potion.stance",
         "potion.ambrosia",
+        "potion.gamblers_brew",
     }
     return getattr(potion, "potion_id", "") not in sacred_bark_excluded
 
@@ -1928,47 +2004,74 @@ def add_temporary_card_to_hand_or_discard(game_state, card, source_name="药水"
     return logs
 
 
-def get_potion_card_pool(game_state, wanted_card_type):
-    from data.card.AAAregistry import create_card
+def get_potion_card_pool(game_state, wanted_card_type=None, colorless_only=False):
+    from data.card.AAAregistry import CARD_REGISTRY, create_card
     from data.content_gate import filter_card_ids
     from game.reward import get_card_reward_pool, CARD_REWARD_POOL
+
     run_state = getattr(game_state, "run_state", None)
-    if run_state is not None:
+
+    if colorless_only:
+        pool_ids = filter_card_ids(CARD_REGISTRY.keys())
+    elif run_state is not None:
         pool_ids = get_card_reward_pool(run_state, ignore_prismatic=True)
     else:
         pool_ids = filter_card_ids(CARD_REWARD_POOL)
+
     result = []
+
     for card_id in pool_ids:
         try:
             card = create_card(card_id)
         except Exception:
             continue
-        if getattr(card, "card_type", "") != wanted_card_type:
+
+        if colorless_only and getattr(card, "owner_character_id", "") != "":
             continue
+
+        if wanted_card_type and getattr(card, "card_type", "") != wanted_card_type:
+            continue
+
+        if getattr(card, "card_type", "") in ("status", "curse"):
+            continue
+
         if getattr(card, "quantity", "") in ("status", "curse", "starting", "test"):
             continue
+
         if getattr(card, "cost", None) == "X":
             continue
+
         result.append(card_id)
+
     return result
 
 
-def roll_potion_card_options(game_state, wanted_card_type, count=3):
+def roll_potion_card_options(game_state, wanted_card_type=None, count=3, colorless_only=False):
     from data.card.AAAregistry import create_card
-    pool = get_potion_card_pool(game_state, wanted_card_type)
+
+    pool = get_potion_card_pool(
+        game_state,
+        wanted_card_type,
+        colorless_only=colorless_only
+    )
+
     if not pool:
         return []
+
     if len(pool) <= count:
         selected = list(pool)
     else:
         selected = random.sample(pool, count)
+
     cards = []
+
     for card_id in selected:
         card = create_card(card_id)
         setattr(card, "temporary", True)
         setattr(card, "created_in_battle", True)
         setattr(card, "temporary_cost_override", 0)
         cards.append(card)
+
     return cards
 
 
@@ -2275,9 +2378,11 @@ def use_potion(game_state, potion_index, target_index=None):
         "potion.skill": "skill",
         "potion.power": "power",
     }.get(potion_id)
+
     if potion_card_type:
         options = roll_potion_card_options(game_state, potion_card_type, count=3)
         logs.extend(dispatch_potion_after())
+
         if not options:
             logs.append("【{}】没有可生成的{}牌。".format(potion.name, potion_card_type))
         else:
@@ -2286,15 +2391,46 @@ def use_potion(game_state, potion_index, target_index=None):
             game_state.pending_potion_card_options = options
             game_state.pending_potion_card_copy_count = 2 if bark else 1
             game_state.pending_potion_card_mode = "generated_card"
+
             if bark:
                 logs.append("【神圣树皮】触发：选中的牌将加入手牌 2 次。")
+
             logs.append(format_pending_potion_card_selection(game_state))
+
+        return "\n".join(logs)
+
+    # 无色药水：只选择一次；神圣树皮使选中的牌加入两次。
+    if potion_id == "potion.colorless":
+        options = roll_potion_card_options(
+            game_state,
+            wanted_card_type=None,
+            count=3,
+            colorless_only=True
+        )
+
+        logs.extend(dispatch_potion_after())
+
+        if not options:
+            logs.append("【{}】没有可生成的无色牌。".format(potion.name))
+        else:
+            game_state.pending_potion_card_selection = True
+            game_state.pending_potion_card_source = potion.name
+            game_state.pending_potion_card_options = options
+            game_state.pending_potion_card_copy_count = 2 if bark else 1
+            game_state.pending_potion_card_mode = "generated_card"
+
+            if bark:
+                logs.append("【神圣树皮】触发：选中的牌将加入手牌 2 次。")
+
+            logs.append(format_pending_potion_card_selection(game_state))
+
         return "\n".join(logs)
 
     # 液态记忆：只选择一次；神圣树皮使选中的弃牌加入两次。
     if potion_id == "potion.liquid_memories":
         options = [(i, card) for i, card in enumerate(getattr(player, "discard_pile", []) or [])]
         logs.extend(dispatch_potion_after())
+
         if not options:
             logs.append("【{}】没有可选择的弃牌堆卡牌。".format(potion.name))
         else:
@@ -2303,15 +2439,20 @@ def use_potion(game_state, potion_index, target_index=None):
             game_state.pending_potion_card_options = [card for _, card in options]
             game_state.pending_potion_card_copy_count = 2 if bark else 1
             game_state.pending_potion_card_mode = "liquid_memories"
+
             if bark:
                 logs.append("【神圣树皮】触发：选中的牌将加入手牌 2 次。")
+
             logs.append(format_pending_potion_card_selection(game_state))
+
         return "\n".join(logs)
 
     # 万灵药水：消耗任意张手牌。神圣树皮排除，不翻倍。
     if potion_id == "potion.elixir":
         logs.extend(dispatch_potion_after())
+
         options = [(i, card) for i, card in enumerate(getattr(player, "hand", []) or [])]
+
         if not options:
             logs.append("【{}】当前没有可消耗的手牌。".format(potion.name))
         else:
@@ -2319,18 +2460,47 @@ def use_potion(game_state, potion_index, target_index=None):
             game_state.pending_elixir_source = potion.name
             game_state.pending_elixir_options = options
             logs.append(format_pending_elixir_selection(game_state))
+
         return "\n".join(logs)
 
     # 狡诈药水：3 张小刀+；神圣树皮改为 6 张。
     if potion_id == "potion.cunning":
         amount = 6 if bark else 3
+
         if bark:
             logs.append("【神圣树皮】触发：【{}】生成数量 3 -> 6。".format(potion.name))
+
         logs.extend(add_upgraded_shivs_to_hand(game_state, amount, source_name=potion.name))
         logs.extend(dispatch_potion_after())
+
         result = check_battle_result(game_state)
         if result:
             logs.append(result)
+
+        return "\n".join(logs)
+
+    # 赌徒特酿：丢弃任意张牌，然后抽相同数量。神圣树皮排除，不翻倍。
+    if potion_id == "potion.gamblers_brew":
+        logs.extend(dispatch_potion_after())
+
+        options = [(i, card) for i, card in enumerate(getattr(player, "hand", []) or [])]
+
+        if not options:
+            logs.append("【{}】当前没有可丢弃的手牌。".format(potion.name))
+        else:
+            game_state.pending_discard_selection = True
+            game_state.pending_discard_source = "gamblers_brew"
+
+            logs.append("=== {}：选择任意张手牌丢弃 ===".format(potion.name))
+            logs.append("丢弃后抽取相同数量的牌。可选择 0 张。")
+            logs.append("")
+
+            for index, hand_card in options:
+                logs.append("[{}] {}".format(index, hand_card.summary_text()))
+
+            logs.append("")
+            logs.append("使用 /card drop 0,1,2；不丢弃则 /card drop none。")
+
         return "\n".join(logs)
 
     # 混沌药水：填满所有空药水栏；可产出混沌药水。神圣树皮排除，不翻倍。
@@ -2338,58 +2508,58 @@ def use_potion(game_state, potion_index, target_index=None):
         from data.potion.AAAregistry import create_potion
         from game.reward import POTION_REWARD_POOL
         from game.relic_logic.run_relic_utils import try_gain_potion_with_relics
+
         empty_slots = int(getattr(player, "max_potion_slots", 3)) - len(getattr(player, "potions", []) or [])
+
         if empty_slots <= 0:
             logs.append("【{}】没有空药水栏位。".format(potion.name))
         else:
             logs.append("【{}】填充 {} 个空药水栏位。".format(potion.name, empty_slots))
+
             for _ in range(empty_slots):
                 new_potion = create_potion(random.choice(POTION_REWARD_POOL))
                 logs.extend(try_gain_potion_with_relics(player, new_potion, source=potion.name))
+
         logs.extend(dispatch_potion_after())
+
         result = check_battle_result(game_state)
         if result:
             logs.append(result)
+
         return "\n".join(logs)
 
     # 烟雾弹：非 Boss 战逃离，不获得任何奖励；仍分发药水使用与战斗结束事件。
     if potion_id == "potion.smoke_bomb":
         logs.append("【{}】触发：你从战斗中逃离。".format(potion.name))
         logs.extend(dispatch_potion_after())
+
         game_state.battle_over = True
         game_state.victory = True
         game_state.smoke_bomb_escaped = True
+
         return "\n".join(logs)
 
-    sacred_bark_excluded = {
-        "potion.fairy_in_a_bottle",
-        "potion.chaos",
-        "potion.smoke_bomb",
-        "potion.forges_blessing",
-        "potion.elixir",
-        "potion.stance",
-        "potion.ambrosia",
-    }
-    bark_multiplier = 1
-    if (
-        potion_id not in sacred_bark_excluded
-        and any(getattr(relic, "relic_id", "") == "relic.sacred_bark" for relic in getattr(player, "relics", []) or [])
-    ):
-        bark_multiplier = 2
-        logs.append("【神圣树皮】触发：药水效果结算 2 次。")
+    # 其他普通效果药水：神圣树皮使数值翻倍。
+    potion_amount_multiplier = 2 if bark else 1
 
-    for _ in range(bark_multiplier):
-        logs.extend(apply_card_effects(
-            game_state=game_state,
-            card=potion,
-            target_index=target_index
-        ))
+    if potion_amount_multiplier > 1:
+        logs.append("【神圣树皮】触发：【{}】的数值翻倍。".format(potion.name))
+
+    logs.extend(apply_card_effects(
+        game_state=game_state,
+        card=potion,
+        target_index=target_index,
+        effect_context={
+            "potion_amount_multiplier": potion_amount_multiplier
+        }
+    ))
 
     logs.extend(dispatch_potion_after())
 
     result = check_battle_result(game_state)
     if result:
         logs.append(result)
+
     return "\n".join(logs)
 
 def get_status_decay_entities(game_state):

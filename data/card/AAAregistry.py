@@ -208,6 +208,13 @@ from data.card.character.yoirine_cards import (
     create_precipitate,
 )
 
+from data.card.character.suzuri_cards import (
+    create_earth_origin_dominion,
+    create_anatexis_action,
+    create_anatexis,
+    create_eruption_action,
+)
+
 from data.card.character.lumine_cards import (
     create_mirage_shadows,
     create_deva_form,
@@ -420,6 +427,11 @@ CARD_REGISTRY = {
     "card.crystal_dust_explosion": create_crystal_dust_explosion,
     "card.precipitate":create_precipitate,
     "card.shade_zone":create_shade_zone,
+    #suzuri
+    "card.earth_origin_dominion": create_earth_origin_dominion,
+    "card.anatexis_action": create_anatexis_action,
+    "card.anatexis": create_anatexis,
+    "card.eruption_action": create_eruption_action,
     #昼
     "card.mirage_shadows": create_mirage_shadows,
     "card.deva_form": create_deva_form,

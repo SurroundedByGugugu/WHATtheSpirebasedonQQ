@@ -52,8 +52,11 @@ STATUS_EVENT_PRIORITY = {
     "slow": 12,
     "curious": 12,
     "time_warp": 12,
+    "rock_layer": 12,
+    "magma_layer": 12,
     "flex": 11,
     "temporary_dexterity_loss": 10,
+    "temporary_dexterity_gain": 10,
     "crystal_cocoon": 10,
     "reminiscence": 10,
     "abyssal_form": 10,
@@ -1393,7 +1396,31 @@ def handle_temporary_dexterity_loss(event_name, context, owner, value):
         current
     ))
     return logs
+def handle_temporary_dexterity_gain(event_name, context, owner, value):
+    logs = []
 
+    if event_name != EVENT_TURN_END:
+        return logs
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    current = owner.gain_status("dexterity", -amount)
+
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("temporary_dexterity_gain")
+
+    logs.append("{} 的临时敏捷提升结束，失去 {} 点敏捷。当前敏捷：{}。".format(
+        owner.name,
+        amount,
+        current
+    ))
+
+    return logs
 def handle_flex(event_name, context, owner, value):
     logs = []
     if event_name != EVENT_TURN_END:
@@ -2002,6 +2029,73 @@ def handle_pain_stab(event_name, context, owner, value):
     ))
     return logs
 
+def handle_rock_layer(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_GAIN_BLOCK_AFTER:
+        return logs
+    if owner is None or context.target is not owner:
+        return logs
+
+    extra = getattr(context, "extra", {}) or {}
+    if extra.get("block_source") != BLOCK_SOURCE_PLAYED_CARD:
+        return logs
+    if int(extra.get("amount", 0) or 0) <= 0:
+        return logs
+
+    layers = int(value)
+    if layers <= 0:
+        return logs
+
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("rock_layer")
+
+    logs.append("{} 的岩层被本次获得格挡消耗。".format(owner.name))
+    return logs
+
+
+def handle_magma_layer(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_DAMAGE_AFTER:
+        return logs
+    if owner is None or context.target is not owner:
+        return logs
+
+    extra = getattr(context, "extra", {}) or {}
+    if extra.get("damage_kind") != "attack":
+        return logs
+    if extra.get("is_reaction_damage"):
+        return logs
+    if int(extra.get("amount", 0) or 0) <= 0:
+        return logs
+
+    source = context.source
+    if source is None or source is owner:
+        return logs
+    if not getattr(source, "is_alive", lambda: True)():
+        return logs
+
+    burn_amount = int(value)
+    if burn_amount <= 0:
+        return logs
+
+    if hasattr(source, "gain_status_with_result"):
+        result = source.gain_status_with_result("burn", burn_amount)
+        from game.status.status_gain import format_status_gain_log
+        logs.append("{} 的岩浆层触发。".format(owner.name))
+        logs.append(format_status_gain_log(source, "burn", burn_amount, result))
+    elif hasattr(source, "gain_status"):
+        current = source.gain_status("burn", burn_amount)
+        logs.append("{} 的岩浆层触发，使 {} 获得 {} 层烧伤。当前烧伤：{}。".format(
+            owner.name,
+            source.name,
+            burn_amount,
+            current
+        ))
+
+    return logs
+
 def handle_vigor(event_name, context, owner, value):
     logs = []
     if event_name != EVENT_CARD_PLAY_AFTER:
@@ -2420,4 +2514,7 @@ STATUS_EVENT_HANDLERS = {
     "slow": handle_slow,
     "curious": handle_curious,
     "time_warp": handle_time_warp,
+    "rock_layer": handle_rock_layer,
+    "magma_layer": handle_magma_layer,
+    "temporary_dexterity_gain": handle_temporary_dexterity_gain,
 }

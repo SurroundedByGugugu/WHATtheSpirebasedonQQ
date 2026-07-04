@@ -6,9 +6,10 @@ from data.potion.base_potion import PotionTemplate
 def create_test_strength_potion():
     return PotionTemplate(
         potion_id="potion.test_strength",
-        name="测试力量药水",
+        name="力量药水",
         description="获得 2 点力量。",
         target="self",
+        quantity="common",
         effect_vars={
             "strength": 2
         },
@@ -27,9 +28,10 @@ def create_test_strength_potion():
 def create_test_fire_potion():
     return PotionTemplate(
         potion_id="potion.test_fire",
-        name="测试火焰药水",
+        name="火焰药水",
         description="对目标敌人造成 20 点攻击伤害。",
         target="enemy",
+        quantity="common",
         effect_vars={
             "damage": 20
         },
@@ -48,7 +50,7 @@ def create_test_fire_potion():
 def create_test_dexterity_potion():
     return PotionTemplate(
         potion_id="potion.test_dexterity",
-        name="测试敏捷药水",
+        name="敏捷药水",
         description="获得 2 点敏捷。",
         target="self",
         quantity="common",

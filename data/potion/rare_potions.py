@@ -34,3 +34,96 @@ def create_smoke_bomb():
         quantity="rare",
         effects=[],
     )
+
+def create_cultist_potion():
+    return PotionTemplate(
+        potion_id="potion.cultist",
+        name="邪教徒药水",
+        description="获得 1 层仪式。",
+        target="self",
+        quantity="rare",
+        effect_vars={"ritual": 1},
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "ritual",
+                "amount": {"var": "ritual"}
+            }
+        ],
+    )
+
+
+def create_fruit_juice():
+    return PotionTemplate(
+        potion_id="potion.fruit_juice",
+        name="果汁",
+        description="获得 5 点最大生命。药水栏已满时，可在奖励列表中直接喝掉。",
+        target="self",
+        quantity="rare",
+        effect_vars={"max_hp": 5},
+        effects=[
+            {
+                "op": "increase_player_max_hp",
+                "amount": {"var": "max_hp"}
+            }
+        ],
+    )
+
+
+def create_ghost_in_a_jar():
+    return PotionTemplate(
+        potion_id="potion.ghost_in_a_jar",
+        name="罐装幽灵",
+        description="获得 1 层无实体。",
+        target="self",
+        quantity="rare",
+        effect_vars={"intangible": 1},
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "intangible",
+                "amount": {"var": "intangible"}
+            }
+        ],
+    )
+
+
+def create_heart_of_iron():
+    return PotionTemplate(
+        potion_id="potion.heart_of_iron",
+        name="铁之心",
+        description="获得 6 层金属化。",
+        target="self",
+        quantity="rare",
+        effect_vars={"metallicize": 6},
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "metallicize",
+                "amount": {"var": "metallicize"}
+            }
+        ],
+    )
+
+
+def create_snecko_oil():
+    return PotionTemplate(
+        potion_id="potion.snecko_oil",
+        name="异蛇之油",
+        description="抽 5 张牌。随机化你手牌的耗能。",
+        target="self",
+        quantity="rare",
+        effect_vars={"draw": 5},
+        effects=[
+            {
+                "op": "draw_cards",
+                "amount": {"var": "draw"}
+            },
+            {
+                "op": "randomize_hand_costs"
+            },
+        ],
+    )
