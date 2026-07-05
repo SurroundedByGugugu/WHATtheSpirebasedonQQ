@@ -266,6 +266,7 @@ class GameService(object):
             "upgrade_hand", "upgradehand", "armaments", "选择升级", "升级手牌",
             "duplicate_hand", "dual_wield", "复制手牌", "双持",
             "exhume", "发掘", "选择发掘",
+            "retain", "retain_hand", "选择保留", "保留",
             "potion_pick", "potion_card", "药水选牌", "选择药水牌",
             "elixir", "万灵", "万灵药水",
             "codex", "nilry", "nilrys", "宝典", "尼利",

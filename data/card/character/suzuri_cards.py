@@ -3,9 +3,7 @@
 from data.card.base_card import CardTemplate
 from game.constants import KEYWORD_EXHAUST
 
-
 # starting
-
 def create_earth_origin_dominion():
     return CardTemplate(
         card_id="card.earth_origin_dominion",
@@ -69,8 +67,6 @@ def create_earth_origin_dominion():
             ],
         }
     )
-
-
 def create_anatexis_action():
     return CardTemplate(
         card_id="card.anatexis_action",
@@ -115,7 +111,6 @@ def create_anatexis_action():
         }
     )
 
-
 def create_rock_forming_action():
     return CardTemplate(
         card_id="card.rock_forming_action",
@@ -146,6 +141,46 @@ def create_rock_forming_action():
 
 
 # common
+def create_stone_blade():
+    return CardTemplate(
+        card_id="card.stone_blade",
+        name="石刃",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 8 点伤害。若岩层大于 5，本次伤害 ×1.5。",
+        quantity="common",
+        attack_type="slash",
+        attack_element="earth",
+        owner_character_id="character.suzuri",
+        card_vars={
+            "damage": 8,
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage",
+                    "status_conditional_multiplier": {
+                        "target": "self",
+                        "status": "rock_layer",
+                        "gt": 5,
+                        "multiplier": 1.5,
+                    },
+                },
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "石刃+",
+            "description": "造成 10 点伤害。若岩层大于 5，本次伤害 ×1.5。",
+            "card_vars": {
+                "damage": 10,
+            },
+        }
+    )
 
 def create_anatexis():
     return CardTemplate(
@@ -210,7 +245,6 @@ def create_anatexis():
 
 
 # uncommon
-
 def create_eruption_action():
     return CardTemplate(
         card_id="card.eruption_action",
@@ -249,10 +283,47 @@ def create_eruption_action():
             },
         }
     )
-
+def create_hidden_gravel():
+    return CardTemplate(
+        card_id="card.hidden_gravel",
+        name="隐蔽石砾",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="消耗。获得 2 层隐蔽石砾。地 Zone 下额外获得 1 层。",
+        quantity="uncommon",
+        attack_element="earth",
+        owner_character_id="character.suzuri",
+        keywords=[KEYWORD_EXHAUST],
+        card_vars={
+            "hidden_gravel": 2,
+            "zone_bonus": 1,
+        },
+        effects=[
+            {
+                "op": "gain_status_with_zone_bonus",
+                "target": "self",
+                "status": "hidden_gravel",
+                "amount": {
+                    "var": "hidden_gravel",
+                },
+                "zone_element": "earth",
+                "zone_bonus": {
+                    "var": "zone_bonus",
+                },
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "隐蔽石砾+",
+            "description": "消耗。获得 3 层隐蔽石砾。地 Zone 下额外获得 1 层。",
+            "card_vars": {
+                "hidden_gravel": 3,
+            },
+        }
+    )
 
 # event
-
 def create_radiant_crystal_reflection():
     return CardTemplate(
         card_id="card.radiant_crystal_reflection",

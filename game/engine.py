@@ -3679,6 +3679,16 @@ def process_enemy_action(game_state, enemy):
     for log in result.logs:
         logs.append(log)
 
+    from game.status.status_effects import resolve_hidden_gravel_before_enemy_action
+    logs.extend(resolve_hidden_gravel_before_enemy_action(
+        game_state=game_state,
+        enemy=enemy,
+        action=result.action
+    ))
+
+    if game_state.battle_over or not enemy.is_alive():
+        return logs
+
     before_enemy_action = getattr(enemy, "before_enemy_action", None)
     if before_enemy_action is not None:
         before_logs = before_enemy_action(game_state)

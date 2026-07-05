@@ -591,7 +591,16 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
-
+register_status_def(StatusDef(
+    key="hidden_gravel",
+    name="隐蔽石砾",
+    description="敌人执行不含攻击的意图前，对该敌人造成等同于层数的效果伤害。",
+    category="buff",
+    display_mode="stack",
+    order=63,
+    decay_timing="none",
+    decay_amount=0,
+))
 register_status_def(StatusDef(
     key="magma_layer",
     name="岩浆层",

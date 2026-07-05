@@ -279,6 +279,35 @@ def resolve_amount(
             zone_element=zone_element
         )
 
+    status_conditional_multiplier = amount_spec.get("status_conditional_multiplier")
+    if status_conditional_multiplier:
+        status_key = str(status_conditional_multiplier.get("status", "") or "")
+        status_target_key = str(status_conditional_multiplier.get("target", "self") or "self")
+
+        if status_target_key in ("self", "player"):
+            status_target = source
+        elif status_target_key in ("target", "selected_enemy", "enemy"):
+            status_target = target
+        else:
+            status_target = source
+
+        current_status = get_status_value(status_target, status_key)
+
+        matched = True
+
+        if "gt" in status_conditional_multiplier:
+            matched = matched and current_status > int(status_conditional_multiplier.get("gt", 0))
+        if "gte" in status_conditional_multiplier:
+            matched = matched and current_status >= int(status_conditional_multiplier.get("gte", 0))
+        if "lt" in status_conditional_multiplier:
+            matched = matched and current_status < int(status_conditional_multiplier.get("lt", 0))
+        if "lte" in status_conditional_multiplier:
+            matched = matched and current_status <= int(status_conditional_multiplier.get("lte", 0))
+
+        if matched:
+            multiplier = float(status_conditional_multiplier.get("multiplier", 1.0) or 1.0)
+            value = int(value * multiplier)
+
     return int(value)
 
 def is_enemy_selectable(enemy):
@@ -2034,6 +2063,96 @@ def handle_consume_status_gain_energy_if_present(game_state, card, effect, targe
             energy,
             player.cost
         ))
+
+    return logs
+
+@register_effect("gain_status_with_zone_bonus")
+def handle_gain_status_with_zone_bonus(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    status_key = str(effect.get("status", "") or "")
+    if not status_key:
+        return ["【{}】效果失败：缺少状态。".format(card.name)]
+
+    target_key = effect.get("target", "self")
+    target_entity = get_effect_target_entity(
+        game_state=game_state,
+        target_key=target_key,
+        target_index=target_index
+    )
+
+    if target_entity is None:
+        return ["【{}】状态目标无效。".format(card.name)]
+
+    zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+    local_context = make_zone_effect_context(effect_context, zone_element)
+
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount", 0),
+        source=player,
+        target=target_entity,
+        effect_context=local_context
+    )
+    amount = int(amount)
+
+    required_zone_element = str(effect.get("zone_element", "") or "").strip().lower()
+    bonus = 0
+
+    if required_zone_element and zone_element == required_zone_element:
+        bonus = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("zone_bonus", 0),
+            source=player,
+            target=target_entity,
+            effect_context=local_context
+        )
+        bonus = int(bonus)
+
+    total_amount = amount + bonus
+
+    if bonus > 0:
+        logs.append("地 Zone 使【{}】额外获得 {} 层隐蔽石砾。".format(
+            card.name,
+            bonus
+        ))
+
+    if target_entity is not player and hasattr(target_entity, "enemy_id"):
+        from game.relic_logic.combat_relic_utils import apply_status_with_player_relics
+        logs.extend(apply_status_with_player_relics(
+            game_state=game_state,
+            source=player,
+            target=target_entity,
+            status_key=status_key,
+            amount=total_amount
+        ))
+        return logs
+
+    if hasattr(target_entity, "gain_status_with_result"):
+        result = target_entity.gain_status_with_result(status_key, total_amount)
+
+        from game.status.status_gain import format_status_gain_log
+        logs.append(format_status_gain_log(
+            target_entity,
+            status_key,
+            total_amount,
+            result
+        ))
+        return logs
+
+    current = target_entity.gain_status(status_key, total_amount)
+
+    from game.status.status_defs import get_status_name
+    logs.append("{} 获得 {} 层{}。当前{}：{}。".format(
+        target_entity.name,
+        total_amount,
+        get_status_name(status_key),
+        get_status_name(status_key),
+        current
+    ))
 
     return logs
 

@@ -203,6 +203,70 @@ def deal_status_damage_all_enemies(context, owner, amount, status_key):
 
     return logs
 
+def enemy_action_contains_attack(game_state, enemy, action):
+    if action is None:
+        return False
+
+    op = action.get("op", "")
+
+    if op == "enemy_attack":
+        return True
+
+    if op == "enemy_multi_action":
+        for child_action in list(action.get("actions", []) or []):
+            if enemy_action_contains_attack(game_state, enemy, child_action):
+                return True
+        return False
+
+    # 持盾地精这类：有队友时是格挡意图，无队友时实际攻击。
+    if op == "enemy_smart_ally_block_or_attack":
+        allies = [
+            other for other in getattr(game_state, "enemies", []) or []
+            if other is not enemy and other.is_alive()
+        ]
+        return not bool(allies)
+
+    return False
+
+
+def resolve_hidden_gravel_before_enemy_action(game_state, enemy, action):
+    logs = []
+
+    player = getattr(game_state, "player", None)
+    if player is None or not player.is_alive():
+        return logs
+
+    if enemy is None or not enemy.is_alive():
+        return logs
+
+    amount = get_status_value(player, "hidden_gravel")
+    if amount <= 0:
+        return logs
+
+    if enemy_action_contains_attack(game_state, enemy, action):
+        return logs
+
+    logs.append("{} 的隐蔽石砾刺向 {}，造成 {} 点伤害。".format(
+        player.name,
+        enemy.name,
+        amount
+    ))
+
+    from game.damage import deal_damage
+
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=player,
+        target=enemy,
+        amount=amount,
+        damage_kind="effect",
+        card=None,
+        is_reaction_damage=True,
+        ignore_block=False
+    ))
+
+    return logs
+
 def draw_cards_from_status(context, owner, count, status_key):
     """
     状态触发抽牌。

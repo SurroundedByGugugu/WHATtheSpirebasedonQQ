@@ -162,6 +162,8 @@ CARD_REWARD_POOL = [
     "card.shade_zone",
     # Suzuri
     "card.anatexis",
+    "card.stone_blade",
+    "card.hidden_gravel",
     "card.eruption_action",
 
     #昼
