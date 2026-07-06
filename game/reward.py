@@ -665,7 +665,7 @@ def create_battle_reward(run_state, node_type, seed=DEBUG_SEED):
         }
     ))
 
-    if node_type == "normal_enemy" and has_run_relic(run_state, "relic.prayer_wheel"):
+    if node_type in ("starting", "normal_enemy") and has_run_relic(run_state, "relic.prayer_wheel"):
         extra_card_choices = roll_card_rewards(
             count=reward_card_count,
             rng=rng,

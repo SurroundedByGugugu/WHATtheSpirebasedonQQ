@@ -2223,13 +2223,15 @@ def handle_choose_hand_add_retain(game_state, card, effect, target_index, effect
 
     from game.constants import KEYWORD_RETAIN
 
-    options = [
-        hand_card
-        for hand_card in list(getattr(player, "hand", []) or [])
+    hand = list(getattr(player, "hand", []) or [])
+
+    selectable_indices = [
+        index
+        for index, hand_card in enumerate(hand)
         if KEYWORD_RETAIN not in getattr(hand_card, "keywords", [])
     ]
 
-    if not options:
+    if not selectable_indices:
         return ["【{}】没有可添加保留的手牌。".format(card.name)]
 
     from game.pending_choice import PendingChoice, set_pending_choice
@@ -2238,23 +2240,27 @@ def handle_choose_hand_add_retain(game_state, card, effect, target_index, effect
         kind="retain_hand",
         source=card.name,
         prompt="=== {}：选择至多 {} 张手牌添加保留 ===".format(card.name, count),
-        command_hint="用法：/card retain 0 或 /card retain 0,1；跳过则 /card retain skip。",
-        block_message="当前需要先处理保留选择。用法：/card retain 0 或 /card retain skip。",
-        options=options,
+        command_hint="用法：/card retain 手牌编号，例如 /card retain 4 或 /card retain 4,6；跳过则 /card retain skip。",
+        block_message="当前需要先处理保留选择。用法：/card retain 手牌编号，或 /card retain skip。",
+        options=[],
         payload={
             "max_count": count,
         }
     ))
 
     logs = [
-        "=== {}：选择至多 {} 张手牌添加保留 ===".format(card.name, count)
+        "=== {}：选择至多 {} 张手牌添加保留 ===".format(card.name, count),
+        "编号使用当前手牌编号。"
     ]
 
-    for index, hand_card in enumerate(options):
-        logs.append("[{}] {}".format(index, hand_card.summary_text()))
+    for index, hand_card in enumerate(hand):
+        if KEYWORD_RETAIN in getattr(hand_card, "keywords", []):
+            logs.append("[{}] {}（已有保留）".format(index, hand_card.summary_text()))
+        else:
+            logs.append("[{}] {}".format(index, hand_card.summary_text()))
 
     logs.append("")
-    logs.append("用法：/card retain 0 或 /card retain 0,1；跳过则 /card retain skip。")
+    logs.append("用法：/card retain 手牌编号，例如 /card retain 4 或 /card retain 4,6；跳过则 /card retain skip。")
 
     return logs
 

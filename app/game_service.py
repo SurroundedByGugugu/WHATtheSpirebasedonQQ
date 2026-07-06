@@ -22,6 +22,7 @@ from game.engine import (
     choose_pending_duplicate_hand_card,
     choose_pending_element_plating,
     choose_pending_retain_hand_cards,
+    format_pending_retain_hand_selection,
     choose_pending_radiant_reflection_cards,
     choose_pending_exhume_card,
     choose_pending_potion_card,
@@ -223,7 +224,7 @@ class GameService(object):
             "yes", "y", "确认", "是",
             "no", "cancel", "取消", "否",
             "exit", "退出", "下一把",
-            "sl", "读档", "回档", "回退",
+            "sl", "读档", "回档", "回退","slyes",
             "hand", "view", "查看", "手牌", "查看战斗状态", "查看手牌", "run", "角色状态", "当前状态",
             "status", "状态", "查看状态", "查看buff", "buff", "debuff",
             "state", "zone", "field", "场地", "查看场地", "查看zone", "查看field",
@@ -377,7 +378,8 @@ class GameService(object):
 
         if command in ("sl", "读档", "回档", "回退"):
             return self.request_sl(session_id, run_state)
-
+        if command == "slyes":
+            return self.execute_sl(session_id, run_state)
         # 这些命令是 Run 层命令，允许当前没有战斗
         if command in ("hand", "view", "查看", "手牌", "查看战斗状态", "查看手牌", "run", "info", "角色", "角色状态", "当前状态"):
             return get_run_view(run_state)
@@ -977,7 +979,16 @@ class GameService(object):
             command_tip("yes", "使用 /card yes 确认。"),
             command_tip("no", "使用 /card no 取消。"),
         ])
+    def execute_sl(self, session_id, run_state):
+        if getattr(run_state, "node_entry_snapshot", None) is None:
+            return "当前节点没有可读取的节点入口快照。"
 
+        self.pending_confirmations.pop(session_id, None)
+        new_run_state, reply = reset_current_node_from_snapshot(run_state, seed=DEBUG_SEED)
+        self.sessions[session_id] = new_run_state
+        if new_run_state.run_over:
+            self.clear_run(session_id)
+        return reply
     def request_new_run(self, session_id, character_id, user_id):
         self.pending_confirmations[session_id] = {
             "action": "new_run",
@@ -1018,11 +1029,7 @@ class GameService(object):
             return "已结束当前 Run，按失败处理。\n可以使用 /card new [角色序号] 开始下一把。"
         
         if action == "sl":
-            new_run_state, reply = reset_current_node_from_snapshot(run_state, seed=DEBUG_SEED)
-            self.sessions[session_id] = new_run_state
-            if new_run_state.run_over:
-                self.clear_run(session_id)
-            return reply
+            return self.execute_sl(session_id, run_state)
 
         if action == "new_run":
             character_id = pending.get("character_id")
@@ -1500,7 +1507,7 @@ class GameService(object):
             return "当前没有需要处理的保留选择。"
 
         if len(parts) < 3:
-            return "用法：/card retain 0 或 /card retain 0,1；跳过则 /card retain skip。"
+            return format_pending_retain_hand_selection(game_state)
 
         raw = " ".join(parts[2:]).strip().lower()
 
@@ -1606,7 +1613,7 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.7.4",
+            "当前版本：v26.7.6",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",

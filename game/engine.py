@@ -397,6 +397,9 @@ def has_pending_player_choice(game_state):
 
 
 def get_pending_player_choice_hint(game_state):
+    if pending_choice_is(game_state, "retain_hand"):
+        return format_pending_retain_hand_selection(game_state)
+
     pending_choice_hint = format_pending_choice_hint(game_state)
     if pending_choice_hint:
         return pending_choice_hint
@@ -1235,12 +1238,51 @@ def clear_pending_retain_hand_selection(game_state):
     clear_pending_choice(game_state, "retain_hand")
 
 
+def format_pending_retain_hand_selection(game_state):
+    if not pending_choice_is(game_state, "retain_hand"):
+        return "当前没有需要处理的保留选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    source = getattr(pending_choice, "source", "保留")
+    payload = getattr(pending_choice, "payload", {}) or {}
+    max_count = int(payload.get("max_count", 1) or 1)
+
+    from game.constants import KEYWORD_RETAIN
+
+    player = game_state.player
+    hand = list(getattr(player, "hand", []) or [])
+
+    selectable_indices = [
+        index
+        for index, hand_card in enumerate(hand)
+        if KEYWORD_RETAIN not in getattr(hand_card, "keywords", [])
+    ]
+
+    if not selectable_indices:
+        return "【{}】没有可添加保留的手牌。".format(source)
+
+    lines = [
+        "=== {}：选择至多 {} 张手牌添加保留 ===".format(source, max_count),
+        "编号使用当前手牌编号。"
+    ]
+
+    for index, hand_card in enumerate(hand):
+        if KEYWORD_RETAIN in getattr(hand_card, "keywords", []):
+            lines.append("[{}] {}（已有保留）".format(index, hand_card.summary_text()))
+        else:
+            lines.append("[{}] {}".format(index, hand_card.summary_text()))
+
+    lines.append("")
+    lines.append("用法：/card retain 手牌编号，例如 /card retain 4 或 /card retain 4,6；跳过则 /card retain skip。")
+
+    return "\n".join(lines)
+
+
 def choose_pending_retain_hand_cards(game_state, choice_indices=None, skip=False):
     if not pending_choice_is(game_state, "retain_hand"):
         return "当前没有需要处理的保留选择。"
 
     pending_choice = get_pending_choice(game_state)
-    options = list(getattr(pending_choice, "options", []) or [])
     source = getattr(pending_choice, "source", "保留")
     payload = getattr(pending_choice, "payload", {}) or {}
     max_count = int(payload.get("max_count", 1) or 1)
@@ -1268,34 +1310,52 @@ def choose_pending_retain_hand_cards(game_state, choice_indices=None, skip=False
     if len(unique_indices) > max_count:
         return "最多只能选择 {} 张手牌。".format(max_count)
 
-    for index in unique_indices:
-        if index < 0 or index >= len(options):
-            return "选择编号无效：{}。".format(index)
-
     from game.constants import KEYWORD_RETAIN
 
     player = game_state.player
-    chosen_cards = []
+    hand = list(getattr(player, "hand", []) or [])
 
     for index in unique_indices:
-        chosen_card = options[index]
+        if index < 0 or index >= len(hand):
+            return "手牌编号无效：{}。".format(index)
+
+    chosen_cards = []
+    already_retain_cards = []
+
+    for index in unique_indices:
+        chosen_card = hand[index]
 
         if chosen_card not in player.hand:
             clear_pending_retain_hand_selection(game_state)
             return "所选牌已经不在手牌中，选择已取消。"
 
-        if KEYWORD_RETAIN not in getattr(chosen_card, "keywords", []):
-            chosen_card.keywords.append(KEYWORD_RETAIN)
+        if KEYWORD_RETAIN in getattr(chosen_card, "keywords", []):
+            already_retain_cards.append(chosen_card)
+            continue
 
+        chosen_card.keywords.append(KEYWORD_RETAIN)
         chosen_cards.append(chosen_card)
 
     clear_pending_retain_hand_selection(game_state)
 
-    return "【{}】为 {} 添加保留。".format(
-        source,
-        "、".join(["【{}】".format(card.name) for card in chosen_cards])
-    )
+    logs = []
 
+    if chosen_cards:
+        logs.append("【{}】为 {} 添加保留。".format(
+            source,
+            "、".join(["【{}】".format(card.name) for card in chosen_cards])
+        ))
+
+    if already_retain_cards:
+        logs.append("{} 已经拥有保留。".format(
+            "、".join(["【{}】".format(card.name) for card in already_retain_cards])
+        ))
+
+    if not logs:
+        logs.append("【{}】未选择可添加保留的手牌。".format(source))
+
+    return "\n".join(logs)
+    
 def clear_pending_radiant_reflection_selection(game_state):
     clear_pending_choice(game_state, "radiant_reflection")
 
