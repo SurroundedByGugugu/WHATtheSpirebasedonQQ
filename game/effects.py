@@ -229,6 +229,24 @@ def resolve_amount(
     if x_var_name:
         value += int(effect_context.get(x_var_name, 0))
 
+    context_var_name = amount_spec.get("context_var")
+    if context_var_name:
+        context_value = int(effect_context.get(context_var_name, 0) or 0)
+
+        divisor = int(amount_spec.get("divisor", 1) or 1)
+        if divisor != 1:
+            context_value = int(context_value // divisor)
+
+        multiplier = int(amount_spec.get("multiplier", 1) or 1)
+        context_value = context_value * multiplier
+
+        add_value = int(amount_spec.get("add", 0) or 0)
+        add_var = amount_spec.get("add_var")
+        if add_var:
+            add_value += int(card_vars.get(add_var, 0) or 0)
+
+        value += context_value + add_value
+
     x_conditional_var = amount_spec.get("x_conditional_var")
     if x_conditional_var:
         x_value = int(effect_context.get("x", 0))
@@ -2018,6 +2036,128 @@ def handle_gain_bomb(game_state, card, effect, target_index, effect_context):
     setattr(game_state.player, "_the_bomb_turns", int(effect.get("turns", 3)))
     return ["【{}】已设置炸弹：{} 回合后对所有敌人造成 {} 点伤害。".format(card.name, int(effect.get("turns", 3)), damage)]
 
+
+@register_effect("gain_rock_layer")
+def handle_gain_rock_layer(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+
+    target_key = effect.get("target", "self")
+    target_entity = get_effect_target_entity(
+        game_state=game_state,
+        target_key=target_key,
+        target_index=target_index
+    )
+
+    if target_entity is None:
+        return ["【{}】岩层目标无效。".format(card.name)]
+
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount", 0),
+        source=player,
+        target=target_entity,
+        effect_context=effect_context
+    )
+
+    from game.suzuri_rock import gain_rock_layer
+
+    return gain_rock_layer(
+        game_state=game_state,
+        target=target_entity,
+        amount=amount,
+        source_name=card.name
+    )
+
+
+@register_effect("consume_rock_layer_to_context")
+def handle_consume_rock_layer_to_context(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+
+    context_key = str(effect.get("context_key", "consumed_rock") or "consumed_rock")
+    mode = str(effect.get("mode", "amount") or "amount")
+
+    from game.suzuri_rock import consume_rock_layer, calculate_ratio_rock_consume
+
+    current = get_status_value(player, "rock_layer")
+
+    if mode == "all":
+        consume_amount = current
+    elif mode == "ratio":
+        ratio = float(effect.get("ratio", 1.0) or 1.0)
+        rounding = str(effect.get("rounding", "ceil") or "ceil")
+        consume_amount = calculate_ratio_rock_consume(current, ratio, rounding=rounding)
+    else:
+        consume_amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount", 0),
+            source=player,
+            target=player,
+            effect_context=effect_context
+        )
+
+    consumed, logs = consume_rock_layer(
+        game_state=game_state,
+        target=player,
+        amount=consume_amount,
+        source_name=card.name
+    )
+
+    effect_context[context_key] = consumed
+
+    return logs
+
+
+@register_effect("request_fossil_exhaust_hand_gain_rock_layer")
+def handle_request_fossil_exhaust_hand_gain_rock_layer(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    options = list(enumerate(getattr(player, "hand", []) or []))
+
+    draw_after = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("draw_after", 0),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    draw_after = int(draw_after)
+
+    if not options:
+        logs = ["【{}】当前没有可消耗的手牌。".format(card.name)]
+        if draw_after > 0:
+            logs.extend(player.draw_cards(draw_after, game_state=game_state, draw_source=card.card_id))
+        return logs
+
+    from game.pending_choice import PendingChoice, set_pending_choice
+
+    set_pending_choice(game_state, PendingChoice(
+        kind="fossil_exhaust_hand",
+        source=card.name,
+        prompt="=== {}：选择任意数量手牌消耗 ===".format(card.name),
+        command_hint="用法：/card fossil 0,1,2；不消耗则 /card fossil none。",
+        block_message="当前需要先处理化石选择。用法：/card fossil 0,1,2；不消耗则 /card fossil none。",
+        options=options,
+        payload={
+            "draw_after": draw_after,
+        }
+    ))
+
+    logs = [
+        "=== {}：选择任意数量手牌消耗 ===".format(card.name),
+        "每消耗 1 张手牌，获得 1 层岩层。",
+        ""
+    ]
+
+    for index, hand_card in options:
+        logs.append("[{}] {}".format(index, hand_card.summary_text()))
+
+    logs.append("")
+    logs.append("用法：/card fossil 0,1,2；不消耗则 /card fossil none。")
+
+    return logs
+
 @register_effect("consume_status_gain_energy_if_present")
 def handle_consume_status_gain_energy_if_present(game_state, card, effect, target_index, effect_context):
     logs = []
@@ -2047,14 +2187,24 @@ def handle_consume_status_gain_energy_if_present(game_state, card, effect, targe
     )
     energy = int(energy)
 
-    player.statuses.remove(status_key)
-
     from game.status.status_defs import get_status_name
-    logs.append("【{}】消耗 {} 层{}。".format(
-        card.name,
-        current,
-        get_status_name(status_key)
-    ))
+
+    if status_key == "rock_layer":
+        from game.suzuri_rock import consume_rock_layer
+        consumed, rock_logs = consume_rock_layer(
+            game_state=game_state,
+            target=player,
+            amount=current,
+            source_name=card.name
+        )
+        logs.extend(rock_logs)
+    else:
+        player.statuses.remove(status_key)
+        logs.append("【{}】消耗 {} 层{}。".format(
+            card.name,
+            current,
+            get_status_name(status_key)
+        ))
 
     if energy > 0:
         player.cost += energy
@@ -2190,6 +2340,18 @@ def handle_consume_status_amount(game_state, card, effect, target_index, effect_
             status_name,
             current
         ))
+        return logs
+
+    if status_key == "rock_layer":
+        from game.suzuri_rock import consume_rock_layer
+
+        consumed, rock_logs = consume_rock_layer(
+            game_state=game_state,
+            target=player,
+            amount=amount,
+            source_name=card.name
+        )
+        logs.extend(rock_logs)
         return logs
 
     remaining = player.statuses.add(status_key, -amount)

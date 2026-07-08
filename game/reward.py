@@ -163,8 +163,14 @@ CARD_REWARD_POOL = [
     # Suzuri
     "card.anatexis",
     "card.stone_blade",
+    "card.solidification",
+    "card.rockslide",
+    "card.fossil",
+    "card.heavy_rock",
     "card.hidden_gravel",
+    "card.rock_polishing",
     "card.eruption_action",
+    "card.sedimentation",
 
     #昼
     "card.mirage_shadows",
@@ -227,6 +233,7 @@ RARE_POTION_POOL=[
     "potion.ghost_in_a_jar",
     "potion.heart_of_iron",
     "potion.snecko_oil",
+    "potion.saturated_calcium_carbonate_solution",
 ]
 EVENT_POTION_POOL=[]
 
@@ -269,6 +276,7 @@ COMMON_RELIC_POOL = [
     "relic.anchor",
     "relic.matte_false_eye",
     "relic.nostalgic_crystal",
+    "relic.stalactite",
 ]
 
 UNCOMMON_RELIC_POOL = [

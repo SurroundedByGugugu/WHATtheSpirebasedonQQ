@@ -127,3 +127,25 @@ def create_snecko_oil():
             },
         ],
     )
+
+def create_saturated_calcium_carbonate_solution():
+    return PotionTemplate(
+        potion_id="potion.saturated_calcium_carbonate_solution",
+        name="饱和碳酸钙溶液",
+        description="战斗中使用：获得 3 层岩层。战斗外使用：获得遗物【钟乳石】；若已有，则【钟乳石】战斗开始获得的岩层数 +1。",
+        target="self",
+        quantity="rare",
+        owner_character_id="character.suzuri",
+        effect_vars={
+            "rock_layer": 3,
+        },
+        effects=[
+            {
+                "op": "gain_rock_layer",
+                "target": "self",
+                "amount": {
+                    "var": "rock_layer",
+                },
+            },
+        ],
+    )

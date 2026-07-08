@@ -601,6 +601,48 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="heavy_rock",
+    name="重岩",
+    description="每次获得岩层时，额外获得 2 层岩层。多层叠加。",
+    category="buff",
+    display_mode="stack",
+    order=65,
+    decay_timing="none",
+    decay_amount=0,
+))
+register_status_def(StatusDef(
+    key="sedimentation",
+    name="沉积作用",
+    description="你的回合结束时，获得等同于层数的岩层。",
+    category="buff",
+    display_mode="stack",
+    order=66,
+    decay_timing="none",
+    decay_amount=0,
+))
+register_status_def(StatusDef(
+    key="rock_polishing_9",
+    name="岩石打磨",
+    description="一次性消耗 9 层及以上岩层时，获得等同于层数的敏捷。",
+    category="buff",
+    display_mode="stack",
+    order=67,
+    decay_timing="none",
+    decay_amount=0,
+))
+register_status_def(StatusDef(
+    key="rock_polishing_6",
+    name="岩石打磨+",
+    description="一次性消耗 6 层及以上岩层时，获得等同于层数的敏捷。",
+    category="buff",
+    display_mode="stack",
+    order=68,
+    decay_timing="none",
+    decay_amount=0,
+))
+
 register_status_def(StatusDef(
     key="magma_layer",
     name="岩浆层",

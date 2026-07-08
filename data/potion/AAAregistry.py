@@ -43,6 +43,7 @@ from data.potion.rare_potions import (
     create_ghost_in_a_jar,
     create_heart_of_iron,
     create_snecko_oil,
+    create_saturated_calcium_carbonate_solution,
 )
 
 
@@ -86,6 +87,7 @@ POTION_REGISTRY = {
     "potion.ghost_in_a_jar": create_ghost_in_a_jar,
     "potion.heart_of_iron": create_heart_of_iron,
     "potion.snecko_oil": create_snecko_oil,
+    "potion.saturated_calcium_carbonate_solution": create_saturated_calcium_carbonate_solution,
 }
 
 

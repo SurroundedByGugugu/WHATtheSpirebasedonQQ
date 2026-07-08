@@ -277,26 +277,23 @@ class TinyHouseRelic(RelicTemplate):
     def on_obtained(self, run_state):
         from data.potion.AAAregistry import create_potion
         from game.relic_logic.run_relic_utils import gain_gold_with_relics, increase_max_hp, add_card_to_master_deck_with_relics, try_gain_potion_with_relics
-        from game.reward import roll_card_rewards, get_card_reward_upgrade_chance, POTION_REWARD_POOL
+        from game.reward import roll_card_rewards, get_card_reward_upgrade_chance, roll_potion_id_by_rarity
         from data.card.upgrade_rules import has_upgrade, upgrade_card
+
         rng = random.Random(int(getattr(run_state, "run_seed", 0) or 0) + 22881)
         logs = ["【{}】触发。".format(self.name)]
-        potion = create_potion(rng.choice(POTION_REWARD_POOL))
-        logs.extend(try_gain_potion_with_relics(run_state, potion, source=self.name))
-        logs.extend(gain_gold_with_relics(run_state, 50, source=self.name))
-        logs.extend(increase_max_hp(run_state, 5, self.name))
-        cards = roll_card_rewards(1, rng, get_card_reward_upgrade_chance(run_state), run_state=run_state)
-        if cards:
-            logs.extend(add_card_to_master_deck_with_relics(run_state, cards[0], source=self.name))
-        candidates = [(i, c) for i, c in enumerate(getattr(run_state, "master_deck", []) or []) if has_upgrade(c) and not getattr(c, "upgraded", False)]
-        if candidates:
-            idx, card = rng.choice(candidates)
-            upgraded = upgrade_card(card)
-            run_state.master_deck[idx] = upgraded
-            logs.append("【{}】随机升级：【{}】 -> 【{}】。".format(self.name, card.name, upgraded.name))
+
+        potion_id = roll_potion_id_by_rarity(
+            rng=rng,
+            run_state=run_state,
+            include_event=False
+        )
+
+        if potion_id:
+            potion = create_potion(potion_id)
+            logs.extend(try_gain_potion_with_relics(run_state, potion, source=self.name))
         else:
-            logs.append("【{}】没有找到可随机升级的牌。".format(self.name))
-        return logs
+            logs.append("没有可获得的药水。")
 
 
 class VelvetChokerRelic(_EnergyBossRelic):

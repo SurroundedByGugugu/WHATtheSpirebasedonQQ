@@ -53,6 +53,10 @@ STATUS_EVENT_PRIORITY = {
     "curious": 12,
     "time_warp": 12,
     "magma_layer": 12,
+    "sedimentation": 12,
+    "heavy_rock": 12,
+    "rock_polishing_9": 12,
+    "rock_polishing_6": 12,
     "flex": 11,
     "temporary_dexterity_loss": 10,
     "temporary_dexterity_gain": 10,
@@ -2117,6 +2121,33 @@ def handle_rock_layer(event_name, context, owner, value):
     return logs
 
 
+
+def handle_sedimentation(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_PLAYER_TURN_END:
+        return logs
+
+    if owner is None or owner is not context.game_state.player or not owner.is_alive():
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    from game.suzuri_rock import gain_rock_layer
+
+    logs.append("{} 的沉积作用触发。".format(owner.name))
+    logs.extend(gain_rock_layer(
+        game_state=context.game_state,
+        target=owner,
+        amount=amount,
+        source_name="沉积作用"
+    ))
+
+    return logs
+
+
 def handle_magma_layer(event_name, context, owner, value):
     logs = []
 
@@ -2578,5 +2609,6 @@ STATUS_EVENT_HANDLERS = {
     "curious": handle_curious,
     "time_warp": handle_time_warp,
     "magma_layer": handle_magma_layer,
+    "sedimentation": handle_sedimentation,
     "temporary_dexterity_gain": handle_temporary_dexterity_gain,
 }

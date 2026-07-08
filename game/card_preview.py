@@ -32,6 +32,29 @@ def _preview_effect(game_state, card, effect, effect_context):
     attack_type = effect.get("attack_type", getattr(card, "attack_type", ""))
     attack_element = effect.get("attack_element", getattr(card, "attack_element", ""))
 
+
+    if op == "consume_rock_layer_to_context":
+        from game.modifiers import get_status_value
+        from game.suzuri_rock import calculate_ratio_rock_consume
+
+        current = get_status_value(game_state.player, "rock_layer")
+        context_key = effect.get("context_key", "consumed_rock")
+        mode = effect.get("mode", "amount")
+
+        if mode == "all":
+            consumed = current
+        elif mode == "ratio":
+            consumed = calculate_ratio_rock_consume(
+                current,
+                float(effect.get("ratio", 1.0) or 1.0),
+                rounding=str(effect.get("rounding", "ceil") or "ceil")
+            )
+        else:
+            consumed = 0
+
+        effect_context[context_key] = consumed
+        return ""
+
     if op == "deal_damage":
         target = effect.get("target", "selected_enemy")
         if target in ("selected_enemy", "enemy"):

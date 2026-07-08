@@ -18,7 +18,6 @@ from game.display_names import (
     format_relic_display_name,
 )
 from game.reward import (
-    POTION_REWARD_POOL,
     roll_potion_id_by_rarity,
     SHOP_RELIC_POOL,
     FALLBACK_RELIC_ID,

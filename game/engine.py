@@ -1356,6 +1356,85 @@ def choose_pending_retain_hand_cards(game_state, choice_indices=None, skip=False
 
     return "\n".join(logs)
     
+
+def clear_pending_fossil_exhaust_hand_selection(game_state):
+    clear_pending_choice(game_state, "fossil_exhaust_hand")
+
+
+def choose_pending_fossil_exhaust_hand_cards(game_state, choice_indices=None, skip=False):
+    if not pending_choice_is(game_state, "fossil_exhaust_hand"):
+        return "当前没有需要处理的化石选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    source = getattr(pending_choice, "source", "化石")
+    payload = getattr(pending_choice, "payload", {}) or {}
+    draw_after = int(payload.get("draw_after", 0) or 0)
+
+    player = game_state.player
+    hand = player.hand
+
+    if skip:
+        clear_pending_fossil_exhaust_hand_selection(game_state)
+        logs = ["【{}】未选择消耗手牌。".format(source)]
+        if draw_after > 0:
+            logs.extend(player.draw_cards(draw_after, game_state=game_state, draw_source="fossil"))
+        return "\n".join(logs)
+
+    if choice_indices is None:
+        choice_indices = []
+
+    unique_indices = []
+    seen = set()
+
+    for index in choice_indices:
+        if index in seen:
+            continue
+        seen.add(index)
+        unique_indices.append(index)
+
+    if not unique_indices:
+        clear_pending_fossil_exhaust_hand_selection(game_state)
+        logs = ["【{}】未选择消耗手牌。".format(source)]
+        if draw_after > 0:
+            logs.extend(player.draw_cards(draw_after, game_state=game_state, draw_source="fossil"))
+        return "\n".join(logs)
+
+    for index in unique_indices:
+        if index < 0 or index >= len(hand):
+            return "手牌编号无效：{}。".format(index)
+
+    indexed_cards = [(index, hand[index]) for index in unique_indices]
+
+    for index in sorted(unique_indices, reverse=True):
+        hand.pop(index)
+
+    logs = ["【{}】消耗 {} 张手牌。".format(source, len(indexed_cards))]
+
+    for index, chosen_card in indexed_cards:
+        logs.append("选择消耗手牌 [{}]【{}】。".format(index, chosen_card.name))
+        logs.extend(move_card_to_exhaust_pile(game_state, chosen_card, reason="fossil"))
+
+    from game.suzuri_rock import gain_rock_layer
+
+    logs.extend(gain_rock_layer(
+        game_state=game_state,
+        target=player,
+        amount=len(indexed_cards),
+        source_name=source
+    ))
+
+    if draw_after > 0:
+        logs.extend(player.draw_cards(draw_after, game_state=game_state, draw_source="fossil"))
+
+    clear_pending_fossil_exhaust_hand_selection(game_state)
+
+    result = check_battle_result(game_state)
+    if result:
+        logs.append(result)
+
+    return "\n".join(logs)
+
+
 def clear_pending_radiant_reflection_selection(game_state):
     clear_pending_choice(game_state, "radiant_reflection")
 
@@ -2665,10 +2744,11 @@ def use_potion(game_state, potion_index, target_index=None):
     # 混沌药水：填满所有空药水栏；可产出混沌药水。神圣树皮排除，不翻倍。
     if potion_id == "potion.chaos":
         from data.potion.AAAregistry import create_potion
-        from game.reward import POTION_REWARD_POOL
+        from game.reward import roll_potion_id_by_rarity
         from game.relic_logic.run_relic_utils import try_gain_potion_with_relics
 
         empty_slots = int(getattr(player, "max_potion_slots", 3)) - len(getattr(player, "potions", []) or [])
+        run_state = getattr(game_state, "run_state", None)
 
         if empty_slots <= 0:
             logs.append("【{}】没有空药水栏位。".format(potion.name))
@@ -2676,7 +2756,17 @@ def use_potion(game_state, potion_index, target_index=None):
             logs.append("【{}】填充 {} 个空药水栏位。".format(potion.name, empty_slots))
 
             for _ in range(empty_slots):
-                new_potion = create_potion(random.choice(POTION_REWARD_POOL))
+                new_potion_id = roll_potion_id_by_rarity(
+                    rng=random,
+                    run_state=run_state,
+                    include_event=False
+                )
+
+                if not new_potion_id:
+                    logs.append("没有可生成的药水。")
+                    break
+
+                new_potion = create_potion(new_potion_id)
                 logs.extend(try_gain_potion_with_relics(player, new_potion, source=potion.name))
 
         logs.extend(dispatch_potion_after())

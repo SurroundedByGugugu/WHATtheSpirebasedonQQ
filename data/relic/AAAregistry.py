@@ -2,7 +2,7 @@
 
 from data.relic.lumine_relic import CrossEarringRelic
 from data.relic.yoirine_relic import FlowerInAbyssRelic, MatteFalseEyeRelic, SaturatedFissureRelic, UnsealedAbyssRelic
-from data.relic.suzuri_relic import NostalgicCrystalRelic, PiercingLanceRelic
+from data.relic.suzuri_relic import NostalgicCrystalRelic, PiercingLanceRelic, StalactiteRelic
 
 from data.relic.armored_warrior_relic import (BurningBloodRelic, CharonAshesRelic)
 from data.relic.common_relics import (
@@ -212,6 +212,7 @@ RELIC_REGISTRY = {
 
     "relic.piercing_lance": PiercingLanceRelic,
     "relic.nostalgic_crystal": NostalgicCrystalRelic,
+    "relic.stalactite": StalactiteRelic,
 }
 
 

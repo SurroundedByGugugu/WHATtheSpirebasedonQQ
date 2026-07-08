@@ -23,6 +23,7 @@ from game.engine import (
     choose_pending_element_plating,
     choose_pending_retain_hand_cards,
     format_pending_retain_hand_selection,
+    choose_pending_fossil_exhaust_hand_cards,
     choose_pending_radiant_reflection_cards,
     choose_pending_exhume_card,
     choose_pending_potion_card,
@@ -268,6 +269,7 @@ class GameService(object):
             "duplicate_hand", "dual_wield", "复制手牌", "双持",
             "exhume", "发掘", "选择发掘",
             "retain", "retain_hand", "选择保留", "保留",
+            "fossil", "化石",
             "potion_pick", "potion_card", "药水选牌", "选择药水牌",
             "elixir", "万灵", "万灵药水",
             "codex", "nilry", "nilrys", "宝典", "尼利",
@@ -733,6 +735,12 @@ class GameService(object):
 
         game_state = run_state.current_battle
 
+        if command in ("potion", "use_potion", "useitem", "item", "使用药水", "使用道具"):
+            if game_state is None:
+                return self.handle_use_potion_outside_battle(run_state, parts)
+            reply = self.handle_use_potion(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
         if game_state is None:
             return "当前不在战斗中。可以使用 /card route 查看路线，或 /card next 0 进入下一节点。"
         if command in ("plate", "plating", "镀层", "选择镀层"):
@@ -863,6 +871,17 @@ class GameService(object):
         if pending_choice_is(game_state, "retain_hand"):
             return get_pending_player_choice_hint(game_state)
         
+        if command in ("fossil", "化石"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not pending_choice_is(game_state, "fossil_exhaust_hand"):
+                return "当前没有需要处理的化石选择。"
+            reply = self.handle_fossil(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if pending_choice_is(game_state, "fossil_exhaust_hand"):
+            return get_pending_player_choice_hint(game_state)
+        
         if command in ("reflect", "reflection", "映照", "辉晶映照"):
             game_state = run_state.current_battle
             if game_state is None:
@@ -910,11 +929,7 @@ class GameService(object):
         if command in ("potion", "use_potion", "useitem", "item", "使用药水", "使用道具"):
             game_state = run_state.current_battle
             if game_state is None:
-                # 一些画饼的占位符：
-                # if 污浊药水： （战斗外使用效果不同
-                # if 果汁： 战斗外允许使用
-                # if 散装佛珠：（下一个？必定不是战斗）
-                return "当前不在战斗中，不能使用药水。"
+                return self.handle_use_potion_outside_battle(run_state, parts)
             reply = self.handle_use_potion(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
 
@@ -1348,6 +1363,103 @@ class GameService(object):
 
         return use_potion(game_state, potion_index, target_index)
 
+
+
+    def handle_use_potion_outside_battle(self, run_state, parts):
+        if len(parts) < 3:
+            return "用法：/card potion 药水编号。"
+
+        try:
+            potion_index = int(parts[2])
+        except ValueError:
+            return "药水编号必须是数字。"
+
+        potions = getattr(run_state, "potions", []) or []
+
+        if potion_index < 0 or potion_index >= len(potions):
+            return "药水编号无效。"
+
+        potion = potions[potion_index]
+        potion_id = getattr(potion, "potion_id", "")
+
+        outside_usable_potion_ids = {
+            "potion.saturated_calcium_carbonate_solution",
+            "potion.fruit_juice",
+            "potion.blood",
+        }
+
+        if potion_id not in outside_usable_potion_ids:
+            return "当前不在战斗中，不能使用【{}】。".format(getattr(potion, "name", "药水"))
+
+        potions.pop(potion_index)
+
+        logs = ["战斗外使用【{}】。".format(potion.name)]
+
+        has_sacred_bark = any(
+            getattr(relic, "relic_id", "") == "relic.sacred_bark"
+            for relic in getattr(run_state, "relics", []) or []
+        )
+
+        if potion_id == "potion.fruit_juice":
+            from game.relic_logic.run_relic_utils import increase_max_hp
+
+            amount = int(getattr(potion, "effect_vars", {}).get("max_hp", 5) or 5)
+
+            if has_sacred_bark:
+                amount *= 2
+                logs.append("【神圣树皮】触发：【{}】的数值翻倍。".format(potion.name))
+
+            logs.extend(increase_max_hp(run_state, amount, potion.name))
+            return "\n".join(logs)
+
+        if potion_id == "potion.blood":
+            from game.relic_logic.run_relic_utils import heal_run_hp_with_relics
+
+            percent = 0.20
+            if has_sacred_bark:
+                percent *= 2
+                logs.append("【神圣树皮】触发：【{}】的数值翻倍。".format(potion.name))
+
+            amount = int(int(getattr(run_state, "max_hp", 0) or 0) * percent)
+            logs.extend(heal_run_hp_with_relics(run_state, amount, source=potion.name))
+            return "\n".join(logs)
+
+        relic = None
+        for owned_relic in getattr(run_state, "relics", []) or []:
+            if getattr(owned_relic, "relic_id", "") == "relic.stalactite":
+                relic = owned_relic
+                break
+
+        if relic is None:
+            from data.relic.AAAregistry import create_relic
+
+            relic = create_relic("relic.stalactite")
+            run_state.relics.append(relic)
+            logs.append("获得遗物：【{}】。".format(relic.name))
+
+            if has_sacred_bark:
+                increase = getattr(relic, "increase_start_rock_layer", None)
+                if increase is not None:
+                    increase(1)
+                else:
+                    relic.extra_rock_layer = int(getattr(relic, "extra_rock_layer", 0) or 0) + 1
+                logs.append("【神圣树皮】触发：新获得的【钟乳石】战斗开始获得的岩层数 +1。当前额外值：{}。".format(
+                    int(getattr(relic, "extra_rock_layer", 0) or 0)
+                ))
+        else:
+            increase = getattr(relic, "increase_start_rock_layer", None)
+            if increase is not None:
+                increase(1)
+            else:
+                relic.extra_rock_layer = int(getattr(relic, "extra_rock_layer", 0) or 0) + 1
+
+            logs.append("已有【钟乳石】，其战斗开始获得的岩层数 +1。当前额外值：{}。".format(
+                int(getattr(relic, "extra_rock_layer", 0) or 0)
+            ))
+
+        return "\n".join(logs)
+
+
     def handle_drop(self, game_state, parts):
         """
         /card drop 0 2 3
@@ -1521,6 +1633,32 @@ class GameService(object):
 
         return choose_pending_retain_hand_cards(game_state, choice_indices, skip=False)
     
+
+
+    def handle_fossil(self, game_state, parts):
+        """
+        /card fossil 0,1,2
+        /card fossil none
+        """
+        if not pending_choice_is(game_state, "fossil_exhaust_hand"):
+            return "当前没有需要处理的化石选择。"
+
+        if len(parts) < 3:
+            return get_pending_player_choice_hint(game_state)
+
+        raw = " ".join(parts[2:]).strip().lower()
+
+        if raw in ("none", "skip", "no", "不选", "跳过"):
+            return choose_pending_fossil_exhaust_hand_cards(game_state, [], skip=True)
+
+        choice_indices = self.parse_index_list(parts[2])
+
+        if choice_indices is None:
+            return "手牌编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card fossil 0,1。"
+
+        return choose_pending_fossil_exhaust_hand_cards(game_state, choice_indices, skip=False)
+
+
     def handle_radiant_reflection(self, game_state, parts):
         """
         /card reflect 0
@@ -1613,7 +1751,7 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.7.6",
+            "当前版本：v26.7.8",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",
