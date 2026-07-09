@@ -3,30 +3,30 @@
 from data.character.base_character import CharacterTemplate
 
 
-class ArmoredWarriorCharacter(CharacterTemplate):
+class SilentHuntressCharacter(CharacterTemplate):
     """
-    战士哥，何时来的？更新于版本260526
-    初始 HP：80
-    初始遗物：燃烧之血
+    静默猎手。
+    初始 HP：70
+    初始遗物：蛇之戒指
     初始牌组：
-        5 张打击：打 6
-        4 张格挡：防 5
-        1 张痛击：打8 易伤2
+        5 张打击
+        5 张格挡
+        1 张中和
+        1 张生存者
     """
 
     def __init__(self):
         CharacterTemplate.__init__(
             self,
-            character_id="character.armored_warrior",
-            name="铁甲战士",
-            max_hp=80,
+            character_id="character.silent_huntress",
+            name="静默猎手",
+            max_hp=70,
             max_cost=3,
             starting_relic_ids=[
-                "relic.burning_blood"
+                "relic.ring_of_the_snake",
             ],
-            max_potion_slots = 3,
-            starting_gold = 99,
-
+            max_potion_slots=3,
+            starting_gold=99,
             starting_deck_ids=[
                 "card.strike",
                 "card.strike",
@@ -37,6 +37,8 @@ class ArmoredWarriorCharacter(CharacterTemplate):
                 "card.defend",
                 "card.defend",
                 "card.defend",
-                "card.hard_blow",
-            ]
+                "card.defend",
+                "card.neutralize",
+                "card.survivor",
+            ],
         )

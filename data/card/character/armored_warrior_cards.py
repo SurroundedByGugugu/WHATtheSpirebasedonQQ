@@ -52,6 +52,7 @@ def create_hard_blow():
             },
         }
     )
+
 def create_clothesline():
     return CardTemplate(
         card_id="card.clothesline",

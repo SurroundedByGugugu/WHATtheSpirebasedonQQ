@@ -66,6 +66,9 @@ STATUS_EVENT_PRIORITY = {
     "phantom_form": 10,
     "crystal_mist": 10,
     "abyss_mist": 10,
+    "next_turn_energy": 10,
+    "next_turn_block": 10,
+    "temporary_strength_loss": 10,
     "abyss_mist_extreme": 10,
     "tailwind": 10,
     "flinch": 10,
@@ -1445,6 +1448,86 @@ def handle_mirage_shadows(event_name, context, owner, value):
             logs.append("{} 的蜃楼复影消散了。".format(owner.name))
     return logs
 
+def handle_next_turn_energy(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_START:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    owner.cost += amount
+
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("next_turn_energy")
+
+    logs.append("{} 获得 {} 点下回合费用。当前费用：{}。".format(
+        owner.name,
+        amount,
+        owner.cost
+    ))
+
+    return logs
+
+
+def handle_next_turn_block(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_START:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    logs.extend(gain_block_without_modifiers(
+        game_state=context.game_state,
+        source=owner,
+        target=owner,
+        amount=amount,
+        block_source="next_turn_block",
+        card=None,
+        message="{} 的下回合格挡触发，获得 {} 点格挡。当前格挡：{}。".format(
+            owner.name,
+            amount,
+            owner.block + amount
+        )
+    ))
+
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("next_turn_block")
+
+    return logs
+
+
+def handle_temporary_strength_loss(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_TURN_END:
+        return logs
+    if owner is None or not owner.is_alive():
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    current = owner.gain_status("strength", amount)
+
+    if hasattr(owner, "statuses"):
+        owner.statuses.remove("temporary_strength_loss")
+
+    logs.append("{} 的临时力量降低结束，恢复 {} 点力量。当前力量：{}。".format(
+        owner.name,
+        amount,
+        current
+    ))
+
+    return logs
+
 def handle_temporary_dexterity_loss(event_name, context, owner, value):
     logs = []
     if event_name != EVENT_TURN_END:
@@ -2611,4 +2694,7 @@ STATUS_EVENT_HANDLERS = {
     "magma_layer": handle_magma_layer,
     "sedimentation": handle_sedimentation,
     "temporary_dexterity_gain": handle_temporary_dexterity_gain,
+    "next_turn_energy": handle_next_turn_energy,
+    "next_turn_block": handle_next_turn_block,
+    "temporary_strength_loss": handle_temporary_strength_loss,
 }

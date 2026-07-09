@@ -104,7 +104,10 @@ class GameState:
         "status": 0,
         "curse": 0,
     })
-    
+    # 本回合玩家主动丢弃过的牌数量。
+    # 用于【隐秘打击】等效果。
+    player_discarded_cards_this_turn: int = 0
+
     # 本场战斗中，击败盗贼后可以返还的被偷金币。
     # 每个元素形如：{"source": "抢劫的", "amount": 15}
     stolen_gold_rewards: List[Any] = field(default_factory=list)

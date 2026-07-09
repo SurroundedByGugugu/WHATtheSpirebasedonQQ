@@ -4,7 +4,15 @@ from data.relic.lumine_relic import CrossEarringRelic
 from data.relic.yoirine_relic import FlowerInAbyssRelic, MatteFalseEyeRelic, SaturatedFissureRelic, UnsealedAbyssRelic
 from data.relic.suzuri_relic import NostalgicCrystalRelic, PiercingLanceRelic, StalactiteRelic
 
-from data.relic.armored_warrior_relic import (BurningBloodRelic, CharonAshesRelic)
+from data.relic.armored_warrior_relic import (
+    BurningBloodRelic, 
+    BlackBloodRelic,
+    CharonAshesRelic
+    )
+from data.relic.silent_huntress_relic import (
+    RingOfTheSnakeRelic,
+    RingOfTheSerpentRelic,
+    )
 from data.relic.common_relics import (
     JuzuBraceletRelic, TinyChestRelic,
     BagOfMarblesRelic, BloodVialRelic, BronzeScalesRelic, CentennialPuzzleRelic,
@@ -18,22 +26,51 @@ from data.relic.common_relics import (
 )
 
 from data.relic.placeholder_stone_relic import PlaceholderStoneRelic
+
 from data.relic.Homunculus import HomunculusPrototypeRelic
 
-from data.relic.shop_relics import (XPotionRelic, TwistedFunnelRelic, MembershipCardRelic, DragonFruitRelic, MedicalKitRelic, CauldronRelic, LeesWaffleRelic, OrreryRelic, StrangeSpoonRelic, ToolboxRelic, TheAbacusRelic, DollysMirrorRelic, ClockworkSouvenirRelic, HandDrillRelic, SlingOfCourageRelic, OrangePelletsRelic, BrimstoneRelic, PrismaticShardRelic)
+from data.relic.shop_relics import (
+    XPotionRelic, TwistedFunnelRelic, MembershipCardRelic, DragonFruitRelic, MedicalKitRelic, CauldronRelic, 
+    LeesWaffleRelic, OrreryRelic, StrangeSpoonRelic, ToolboxRelic, TheAbacusRelic, DollysMirrorRelic, 
+    ClockworkSouvenirRelic, HandDrillRelic, SlingOfCourageRelic, OrangePelletsRelic, BrimstoneRelic, PrismaticShardRelic)
 
-from data.relic.uncommon_relics import (EtherMediumRelic, BottledLightningRelic, BottledFlameRelic, BottledTornadoRelic, PearRelic, WarPaintRelic, TheCourierRelic, HornCleatRelic, BlueCandleRelic, EternalFeatherRelic, FrozenEggRelic, ToxicEggRelic, MoltenEggRelic, DarkstonePeriaptRelic, GremlinHornRelic, KunaiRelic, ShurikenRelic, OrnamentalFanRelic, LetterOpenerRelic, MatryoshkaRelic, MeatOnTheBoneRelic, MercuryHourglassRelic, MummifiedHandRelic, NinjaScrollRelic, PantographRelic, PaperCraneRelic, PaperFrogRelic, QuestionCardRelic, SelfFormingClayRelic, SingingBowlRelic, WhiteBeastStatueRelic, InkBottleRelic, StrikeDummyRelic, SundialRelic)
-from data.relic.rare_relics import (CalipersRelic, KeystoneOfTheTombRelic, MangoRelic, CaptainsWheelRelic, IceCreamRelic, IncenseBurnerRelic, StoneCalendarRelic, PocketwatchRelic, FossilizedHelixRelic, CloakClaspRelic, TungstenRodRelic, GamblingChipRelic, BirdFacedUrnRelic, ChampionBeltRelic, DuVuDollRelic, DeadBranchRelic, GingerRelic, TurnipRelic, CabbageRelic, GiryaRelic, PeacePipeRelic, ShovelRelic, MiniatureTentRelic, LizardTailRelic, MagicFlowerRelic, OldCoinRelic, PrayerWheelRelic, TheSpecimenRelic, ThreadAndNeedleRelic, TingshaRelic, ToriiRelic, ToughBandagesRelic, UnceasingTopRelic)
-from data.relic.event_relics import (GoldenIdolRelic, OddMushroomRelic, SsserpentHeadRelic, WarpedTongsRelic, SpiritPoopRelic, RedMaskRelic, BloodyIdolRelic, EnchiridionRelic, NecronomiconRelic, NilrysCodexRelic, NlothsGiftRelic, MarkOfTheBloomRelic, NlothsMaskRelic, FaceOfClericRelic, CultistMaskRelic, GremlinMaskRelic, MutagenicStrengthRelic)
+from data.relic.uncommon_relics import (
+    EtherMediumRelic, BottledLightningRelic, BottledFlameRelic, BottledTornadoRelic, 
+    PearRelic, WarPaintRelic, TheCourierRelic, HornCleatRelic, BlueCandleRelic, 
+    EternalFeatherRelic, FrozenEggRelic, ToxicEggRelic, MoltenEggRelic, DarkstonePeriaptRelic, 
+    GremlinHornRelic, KunaiRelic, ShurikenRelic, OrnamentalFanRelic, LetterOpenerRelic, 
+    MatryoshkaRelic, MeatOnTheBoneRelic, MercuryHourglassRelic, MummifiedHandRelic, 
+    NinjaScrollRelic, PantographRelic, PaperCraneRelic, PaperFrogRelic, QuestionCardRelic, 
+    SelfFormingClayRelic, SingingBowlRelic, WhiteBeastStatueRelic, InkBottleRelic, 
+    StrikeDummyRelic, SundialRelic)
 
-from data.relic.myth_relics import BlackBloodRelic
-from data.relic.boss_relics import (AstrolabeRelic, XanthosisRelic, BlackStarRelic, WhiteStarRelic, CallingBellRelic, CursedKeyRelic, MarkOfPainRelic, PandorasBoxRelic, PhilosophersStoneRelic, RunicCubeRelic, RunicDomeRelic, RunicPyramidRelic, SneckoEyeRelic, SozuRelic, EctoplasmRelic, TinyHouseRelic, VelvetChokerRelic, BustedCrownRelic, EmptyCageRelic, FusionHammerRelic, CoffeeDripperRelic, HoveringKiteRelic, WristBladeRelic, SacredBarkRelic, SlaversCollarRelic)
+from data.relic.rare_relics import (
+    CalipersRelic, KeystoneOfTheTombRelic, MangoRelic, CaptainsWheelRelic, 
+    IceCreamRelic, IncenseBurnerRelic, StoneCalendarRelic, PocketwatchRelic, FossilizedHelixRelic, CloakClaspRelic, 
+    TungstenRodRelic, GamblingChipRelic, BirdFacedUrnRelic, ChampionBeltRelic, DuVuDollRelic, DeadBranchRelic, 
+    GingerRelic, TurnipRelic, CabbageRelic, GiryaRelic, PeacePipeRelic, ShovelRelic, MiniatureTentRelic, LizardTailRelic, 
+    MagicFlowerRelic, OldCoinRelic, PrayerWheelRelic, TheSpecimenRelic, ThreadAndNeedleRelic, TingshaRelic, ToriiRelic, 
+    ToughBandagesRelic, UnceasingTopRelic)
+
+from data.relic.event_relics import (
+    GoldenIdolRelic, OddMushroomRelic, SsserpentHeadRelic, WarpedTongsRelic, SpiritPoopRelic, 
+    RedMaskRelic, BloodyIdolRelic, EnchiridionRelic, NecronomiconRelic, NilrysCodexRelic, NlothsGiftRelic, 
+    MarkOfTheBloomRelic, NlothsMaskRelic, FaceOfClericRelic, CultistMaskRelic, GremlinMaskRelic, MutagenicStrengthRelic)
+
+from data.relic.boss_relics import (
+    AstrolabeRelic, XanthosisRelic, BlackStarRelic, WhiteStarRelic, CallingBellRelic, CursedKeyRelic, MarkOfPainRelic, 
+    PandorasBoxRelic, PhilosophersStoneRelic, RunicCubeRelic, RunicDomeRelic, RunicPyramidRelic, SneckoEyeRelic, SozuRelic, 
+    EctoplasmRelic, TinyHouseRelic, VelvetChokerRelic, BustedCrownRelic, EmptyCageRelic, FusionHammerRelic, CoffeeDripperRelic, 
+    HoveringKiteRelic, WristBladeRelic, SacredBarkRelic, SlaversCollarRelic)
 
 RELIC_REGISTRY = {
     "relic.homunculus_prototype":HomunculusPrototypeRelic,
     
     "relic.burning_blood":BurningBloodRelic,
+    "relic.black_blood": BlackBloodRelic,
     "relic.cross_earring": CrossEarringRelic,
+    "relic.ring_of_the_snake": RingOfTheSnakeRelic,
+    "relic.ring_of_the_serpent": RingOfTheSerpentRelic,
 
     "relic.placeholder_stone": PlaceholderStoneRelic,
     "relic.charon_ashes":CharonAshesRelic,
@@ -179,7 +216,6 @@ RELIC_REGISTRY = {
     "relic.spirit_poop": SpiritPoopRelic,
 
     "relic.astrolabe": AstrolabeRelic,
-    "relic.black_blood": BlackBloodRelic,
     "relic.xanthosis": XanthosisRelic,
     "relic.black_star": BlackStarRelic,
     "relic.white_star": WhiteStarRelic,

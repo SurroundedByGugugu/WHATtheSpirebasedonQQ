@@ -554,6 +554,13 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
     player = game_state.player
     logs = []
 
+    if reason != "回合结束丢弃":
+        game_state.player_discarded_cards_this_turn = int(getattr(
+            game_state,
+            "player_discarded_cards_this_turn",
+            0
+        ) or 0) + 1
+
     if trigger_clever and should_play_when_discarded(card):
         can_play, cannot_play_reason = can_play_card(
             game_state=game_state,
@@ -1573,17 +1580,34 @@ def discard_selected_hand_cards(game_state, hand_indices):
         seen.add(index)
         unique_indices.append(index)
 
+    min_count = int(getattr(game_state, "pending_discard_min_count", 0) or 0)
+    max_count = getattr(game_state, "pending_discard_max_count", None)
+    if max_count is not None:
+        max_count = int(max_count)
+
     if not unique_indices:
         if game_state.pending_discard_selection:
             source = getattr(game_state, "pending_discard_source", "")
+            if min_count > 0:
+                return "至少需要丢弃 {} 张手牌。".format(min_count)
+
             game_state.pending_discard_selection = False
             game_state.pending_discard_source = ""
+            game_state.pending_discard_min_count = 0
+            game_state.pending_discard_max_count = None
+
             if source == "gambling_chip":
                 return "【赌博筹码】未选择丢弃手牌。"
             if source == "gamblers_brew":
                 return "【赌徒特酿】未选择丢弃手牌。"
             return "未选择丢弃手牌。"
         return "没有指定要丢弃的手牌。"
+
+    if len(unique_indices) < min_count:
+        return "至少需要丢弃 {} 张手牌。".format(min_count)
+
+    if max_count is not None and len(unique_indices) > max_count:
+        return "最多只能丢弃 {} 张手牌。".format(max_count)
 
     for index in unique_indices:
         if index < 0 or index >= len(player.hand):
@@ -1622,6 +1646,8 @@ def discard_selected_hand_cards(game_state, hand_indices):
     if game_state.pending_discard_selection:
         game_state.pending_discard_selection = False
         game_state.pending_discard_source = ""
+        game_state.pending_discard_min_count = 0
+        game_state.pending_discard_max_count = None
 
     result = check_battle_result(game_state)
     if result:
@@ -3984,6 +4010,7 @@ def end_turn(game_state):
     # 进入下一回合
     game_state.turn_count += 1
     game_state.player_card_type_played_counts_this_turn = make_empty_player_card_type_played_counts()
+    game_state.player_discarded_cards_this_turn = 0
     game_state.player_lost_hp_this_turn = False
     game_state.player_lost_hp_total_this_turn = 0
     cleared_temp_costs = clear_turn_temporary_card_costs(player)

@@ -4,12 +4,14 @@ from data.character.lumine_character import LumineCharacter
 from data.character.yoirine_character import YoirineCharacter
 from data.character.suzuri_character import SuzuriCharacter
 from data.character.armored_warrior_character import ArmoredWarriorCharacter
+from data.character.silent_huntress_character import SilentHuntressCharacter
 from data.character.test_character import TestCharacter
 
 
 CHARACTER_REGISTRY = {
     "character.test": TestCharacter,
     "character.armored_warrior" : ArmoredWarriorCharacter,
+    "character.silent_huntress": SilentHuntressCharacter,
     "character.lumine": LumineCharacter,
     "character.yoirine":YoirineCharacter,
     "character.suzuri": SuzuriCharacter,

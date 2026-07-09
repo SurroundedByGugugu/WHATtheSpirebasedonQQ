@@ -35,6 +35,39 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="next_turn_energy",
+    name="下回合费用",
+    description="下个玩家回合开始时，获得等同于层数的费用，然后移除此状态。",
+    category="buff",
+    display_mode="stack",
+    order=74,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="next_turn_block",
+    name="下回合格挡",
+    description="下个玩家回合开始时，获得等同于层数的格挡，然后移除此状态。",
+    category="buff",
+    display_mode="stack",
+    order=75,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="temporary_strength_loss",
+    name="临时力量降低",
+    description="回合结束时恢复等同于层数的力量。",
+    category="debuff",
+    display_mode="stack",
+    order=76,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
     key="anger",
     name="生气",
     description="每当受到攻击伤害时，获得等同于层数的力量。",

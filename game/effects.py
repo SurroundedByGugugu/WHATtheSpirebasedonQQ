@@ -3860,6 +3860,107 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             ))
         return logs
 
+    if op == "gain_energy_if_discarded_this_turn":
+        discarded_count = int(getattr(game_state, "player_discarded_cards_this_turn", 0) or 0)
+
+        if discarded_count <= 0:
+            logs.append("本回合没有丢弃过牌，【{}】未获得额外费用。".format(card.name))
+            return logs
+
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=game_state.player,
+            effect_context=effect_context
+        )
+        amount = int(amount)
+
+        if amount <= 0:
+            return logs
+
+        game_state.player.cost += amount
+
+        logs.append("本回合已丢弃过牌，【{}】获得 {} 点费用。当前费用：{}。".format(
+            card.name,
+            amount,
+            game_state.player.cost
+        ))
+
+        return logs
+
+    if op == "gain_next_turn_block":
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=game_state.player,
+            block_source="played_card",
+            effect_context=effect_context
+        )
+        amount = int(amount)
+
+        if amount <= 0:
+            return logs
+
+        result = game_state.player.gain_status_with_result("next_turn_block", amount)
+
+        from game.status.status_gain import format_status_gain_log
+
+        logs.append(format_status_gain_log(
+            game_state.player,
+            "next_turn_block",
+            amount,
+            result
+        ))
+
+        return logs
+
+    if op == "gain_temporary_strength_loss_all_enemies":
+        amount = resolve_amount(
+            game_state=game_state,
+            card=card,
+            amount_spec=effect.get("amount"),
+            source=game_state.player,
+            target=game_state.player,
+            effect_context=effect_context
+        )
+        amount = int(amount)
+
+        if amount <= 0:
+            return logs
+
+        from game.status.status_gain import format_status_gain_log
+
+        alive_enemies = get_all_alive_enemies(game_state)
+        if not alive_enemies:
+            logs.append("没有敌人受到力量降低。")
+            return logs
+
+        for enemy in alive_enemies:
+            temp_result = enemy.gain_status_with_result("temporary_strength_loss", amount)
+            logs.append(format_status_gain_log(
+                enemy,
+                "temporary_strength_loss",
+                amount,
+                temp_result
+            ))
+
+            if temp_result.get("blocked"):
+                continue
+
+            strength_result = enemy.gain_status_with_result("strength", -amount)
+            logs.append(format_status_gain_log(
+                enemy,
+                "strength",
+                -amount,
+                strength_result
+            ))
+
+        return logs
+
     if op == "lose_dexterity_this_turn":
         compatibility_effect = {
             "op": "gain_temporary_status_delta",
@@ -4779,9 +4880,56 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         return logs
 
     if op == "request_discard_any":
+        player = game_state.player
+        available_count = len(getattr(player, "hand", []) or [])
+        min_count = int(effect.get("min_count", 0) or 0)
+        max_count_raw = effect.get("max_count", None)
+        max_count = None if max_count_raw is None else int(max_count_raw)
+
+        if available_count <= 0:
+            return logs
+
+        if max_count is not None and max_count <= 0:
+            logs.append("无需丢弃手牌。")
+            return logs
+
+        # 强制丢弃 X 张：若当前手牌数 <= X，自动全部丢弃。
+        # 这里按“主动丢弃”结算，能触发奇巧。
+        if min_count > 0 and max_count is not None and min_count == max_count and available_count <= max_count:
+            indexed_cards = list(enumerate(list(player.hand)))
+            player.hand = []
+
+            logs.append("需要丢弃 {} 张牌，当前手牌只有 {} 张，自动全部丢弃。".format(
+                min_count,
+                available_count
+            ))
+
+            from game.engine import resolve_discarded_card
+
+            for index, discard_card in indexed_cards:
+                logs.append("选择丢弃手牌 [{}] 【{}】。".format(index, discard_card.name))
+                logs.extend(resolve_discarded_card(
+                    game_state,
+                    discard_card,
+                    reason="主动丢弃",
+                    trigger_clever=True
+                ))
+
+            return logs
+
         game_state.pending_discard_selection = True
         game_state.pending_discard_source = card.name
-        logs.append("请选择任意张手牌丢弃：/card drop 0 2 3。若不丢弃，使用 /card drop none。")
+        game_state.pending_discard_min_count = min_count
+        game_state.pending_discard_max_count = max_count
+
+        if min_count == 1 and max_count == 1:
+            logs.append("请选择 1 张手牌丢弃：/card drop 0。")
+        elif max_count is not None:
+            logs.append("请选择 {} 到 {} 张手牌丢弃：/card drop 0 2 3。".format(min_count, max_count))
+        elif min_count > 0:
+            logs.append("请选择至少 {} 张手牌丢弃：/card drop 0 2 3。".format(min_count))
+        else:
+            logs.append("请选择任意张手牌丢弃：/card drop 0 2 3。若不丢弃，使用 /card drop none。")
         return logs
     
     if op == "repeat_x":

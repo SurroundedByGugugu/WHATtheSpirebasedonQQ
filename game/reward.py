@@ -131,6 +131,27 @@ CARD_REWARD_POOL = [
     "card.fire_strike",
     "card.fire_zone",
 
+    # 静默猎手
+    "card.bane",
+    "card.dagger_spray",
+    "card.dagger_throw",
+    "card.flying_knee",
+    "card.poisoned_stab",
+    "card.quick_slash",
+    "card.slice",
+    "card.sucker_punch",
+    "card.sneaky_strike",
+    "card.acrobatics",
+    "card.backflip",
+    "card.blade_dance",
+    "card.cloak_and_dagger",
+    "card.deadly_poison",
+    "card.deflect",
+    "card.dodge_and_roll",
+    "card.outmaneuver",
+    "card.piercing_wail",
+    "card.prepared",
+
     #yoi
     "card.crystal_piercing",
     "card.spreading_wing",
