@@ -12,6 +12,7 @@ STARTING_RELIC_MYTH_MAP = {
     "relic.ring_of_the_snake": "relic.ring_of_the_serpent",
     
     "relic.saturated_fissure": "relic.unsealed_abyss",
+    "relic.hometown_clear_stone": "relic.resonant_azure_sky_stone",
 }
 
 

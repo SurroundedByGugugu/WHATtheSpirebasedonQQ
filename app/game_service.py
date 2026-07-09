@@ -1758,6 +1758,7 @@ class GameService(object):
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
             "当前版本：v26.7.9",
             "- 开始搬运猎宝的内容",
+            "- suzuri酱上修",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",
