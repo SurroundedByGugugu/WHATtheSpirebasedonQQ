@@ -136,3 +136,42 @@ class StalactiteRelic(RelicTemplate):
         ))
 
         return logs
+    
+
+class HometownClearStoneRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.hometown_clear_stone",
+            name="故乡的坚石",
+            story="来自穹云高原的石头，像高原的天空一样清透。",
+            description="获得岩层时，额外获得本次实际获得岩层数一半的格挡。",
+            quantity="starting",
+            owner_character_id="character.suzuri",
+            allow_duplicate=False,
+        )
+
+
+class ResonantAzureSkyStoneRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.resonant_azure_sky_stone",
+            name="苍空鸣响之石",
+            story="在某种共鸣下，这块宝石中的天空仿佛在涌动。",
+            description="替换故乡的坚石。获得岩层时，额外获得等量格挡和隐蔽石砾。",
+            quantity="myth",
+            owner_character_id="character.suzuri",
+            allow_duplicate=False,
+        )
+
+    def on_obtained(self, run_state):
+        logs = []
+
+        for index, relic in enumerate(list(getattr(run_state, "relics", []) or [])):
+            if getattr(relic, "relic_id", "") == "relic.hometown_clear_stone":
+                run_state.relics.pop(index)
+                logs.append("【{}】替换了【故乡的坚石】。".format(self.name))
+                break
+
+        return logs

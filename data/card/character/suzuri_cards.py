@@ -74,13 +74,13 @@ def create_anatexis_action():
         card_type="skill",
         cost=1,
         target="self",
-        description="获得 4 点格挡和 3 层岩层。",
+        description="获得 6 点格挡和 4 层岩层。",
         quantity="starting",
         attack_element="earth",
         owner_character_id="character.suzuri",
         card_vars={
-            "block": 4,
-            "rock_layer": 3,
+            "block": 6,
+            "rock_layer": 4,
         },
         effects=[
             {
@@ -102,10 +102,10 @@ def create_anatexis_action():
         upgraded=False,
         upgrade_patch={
             "name": "熔离作用+",
-            "description": "获得 6 点格挡和 4 层岩层。",
+            "description": "获得 8 点格挡和 6 层岩层。",
             "card_vars": {
-                "block": 6,
-                "rock_layer": 4,
+                "block": 8,
+                "rock_layer": 6,
             },
         }
     )
@@ -147,7 +147,7 @@ def create_stone_blade():
         card_type="attack",
         cost=1,
         target="enemy",
-        description="造成 8 点伤害。若岩层大于 5，本次伤害 ×1.5。",
+        description="造成 8 点伤害。每有 5 层岩层，本次伤害增加 0.5 倍。",
         quantity="common",
         attack_type="slash",
         attack_element="earth",
@@ -162,11 +162,11 @@ def create_stone_blade():
                 "amount": {
                     "base_var": "damage",
                     "modifier_profile": "attack_damage",
-                    "status_conditional_multiplier": {
+                    "status_step_multiplier": {
                         "target": "self",
                         "status": "rock_layer",
-                        "gt": 5,
-                        "multiplier": 1.5,
+                        "step": 5,
+                        "multiplier_per_step": 0.5,
                     },
                 },
             },
@@ -174,13 +174,12 @@ def create_stone_blade():
         upgraded=False,
         upgrade_patch={
             "name": "石刃+",
-            "description": "造成 10 点伤害。若岩层大于 5，本次伤害 ×1.5。",
+            "description": "造成 10 点伤害。每有 5 层岩层，本次伤害增加 0.5 倍。",
             "card_vars": {
                 "damage": 10,
             },
         }
     )
-
 def create_anatexis():
     return CardTemplate(
         card_id="card.anatexis",
@@ -319,6 +318,7 @@ def create_hidden_gravel():
             "card_vars": {
                 "hidden_gravel": 3,
             },
+            "remove_keywords": [KEYWORD_EXHAUST],
         }
     )
 
@@ -492,13 +492,6 @@ def create_rockslide():
             "damage": 6,
             "base_times": 1,
         },
-        play_conditions=[
-            {
-                "op": "has_status_at_least",
-                "status": "rock_layer",
-                "amount": 1,
-            }
-        ],
         effects=[
             {
                 "op": "consume_rock_layer_to_context",
@@ -536,27 +529,23 @@ def create_rock_polishing():
         card_type="power",
         cost=2,
         target="self",
-        description="一次性消耗岩层 >= 9 时，获得 1 点敏捷。",
+        description="每累计消耗 9 层岩层，获得 1 点敏捷。每张【岩石打磨】独立计数。",
         quantity="uncommon",
         owner_character_id="character.suzuri",
         effects=[
             {
-                "op": "gain_status",
-                "target": "self",
-                "status": "rock_polishing_9",
-                "amount": 1,
+                "op": "gain_rock_polishing_counter",
+                "threshold": 9,
             },
         ],
         upgraded=False,
         upgrade_patch={
             "name": "岩石打磨+",
-            "description": "一次性消耗岩层 >= 6 时，获得 1 点敏捷。",
+            "description": "每累计消耗 6 层岩层，获得 1 点敏捷。每张【岩石打磨】独立计数。",
             "effects": [
                 {
-                    "op": "gain_status",
-                    "target": "self",
-                    "status": "rock_polishing_6",
-                    "amount": 1,
+                    "op": "gain_rock_polishing_counter",
+                    "threshold": 6,
                 },
             ],
         }

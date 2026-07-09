@@ -325,7 +325,27 @@ def resolve_amount(
         if matched:
             multiplier = float(status_conditional_multiplier.get("multiplier", 1.0) or 1.0)
             value = int(value * multiplier)
+    status_step_multiplier = amount_spec.get("status_step_multiplier")
+    if status_step_multiplier:
+        status_key = str(status_step_multiplier.get("status", "") or "")
+        status_target_key = str(status_step_multiplier.get("target", "self") or "self")
 
+        if status_target_key in ("self", "player"):
+            status_target = source
+        elif status_target_key in ("target", "selected_enemy", "enemy"):
+            status_target = target
+        else:
+            status_target = source
+
+        current_status = get_status_value(status_target, status_key)
+        step = int(status_step_multiplier.get("step", 1) or 1)
+
+        if step > 0 and current_status > 0:
+            step_count = current_status // step
+            if step_count > 0:
+                multiplier_per_step = float(status_step_multiplier.get("multiplier_per_step", 0.0) or 0.0)
+                final_multiplier = 1.0 + step_count * multiplier_per_step
+                value = int(value * final_multiplier)
     return int(value)
 
 def is_enemy_selectable(enemy):
@@ -2425,6 +2445,20 @@ def handle_choose_hand_add_retain(game_state, card, effect, target_index, effect
     logs.append("用法：/card retain 手牌编号，例如 /card retain 4 或 /card retain 4,6；跳过则 /card retain skip。")
 
     return logs
+
+@register_effect("gain_rock_polishing_counter")
+def handle_gain_rock_polishing_counter(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    threshold = int(effect.get("threshold", 9) or 9)
+
+    from game.suzuri_rock import add_rock_polishing_counter
+
+    return add_rock_polishing_counter(
+        game_state=game_state,
+        target=player,
+        threshold=threshold,
+        source_name=card.name
+    )
 
 
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):

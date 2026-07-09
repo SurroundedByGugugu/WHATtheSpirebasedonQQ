@@ -1,8 +1,19 @@
 # -*- coding: utf-8 -*-
 
 from data.relic.lumine_relic import CrossEarringRelic
-from data.relic.yoirine_relic import FlowerInAbyssRelic, MatteFalseEyeRelic, SaturatedFissureRelic, UnsealedAbyssRelic
-from data.relic.suzuri_relic import NostalgicCrystalRelic, PiercingLanceRelic, StalactiteRelic
+from data.relic.yoirine_relic import (
+    FlowerInAbyssRelic, 
+    MatteFalseEyeRelic, 
+    SaturatedFissureRelic, 
+    UnsealedAbyssRelic
+    )
+from data.relic.suzuri_relic import (
+    NostalgicCrystalRelic,
+    PiercingLanceRelic,
+    HometownClearStoneRelic,
+    ResonantAzureSkyStoneRelic,
+    StalactiteRelic,
+    )
 
 from data.relic.armored_warrior_relic import (
     BurningBloodRelic, 
@@ -249,6 +260,8 @@ RELIC_REGISTRY = {
     "relic.piercing_lance": PiercingLanceRelic,
     "relic.nostalgic_crystal": NostalgicCrystalRelic,
     "relic.stalactite": StalactiteRelic,
+    "relic.hometown_clear_stone": HometownClearStoneRelic,
+    "relic.resonant_azure_sky_stone": ResonantAzureSkyStoneRelic,
 }
 
 

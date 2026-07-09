@@ -20,7 +20,8 @@ class SuzuriCharacter(CharacterTemplate):
             max_hp=76,
             max_cost=3,
             starting_relic_ids=[
-                "relic.piercing_lance"
+                "relic.piercing_lance",
+                "relic.hometown_clear_stone",
             ],
             max_potion_slots=3,
             starting_gold=99,

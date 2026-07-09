@@ -658,7 +658,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="rock_polishing_9",
     name="岩石打磨",
-    description="一次性消耗 9 层及以上岩层时，获得等同于层数的敏捷。",
+    description="每个实例独立累计消耗岩层。每累计消耗 9 层岩层，获得 1 点敏捷。",
     category="buff",
     display_mode="stack",
     order=67,
@@ -668,7 +668,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="rock_polishing_6",
     name="岩石打磨+",
-    description="一次性消耗 6 层及以上岩层时，获得等同于层数的敏捷。",
+    description="每个实例独立累计消耗岩层。每累计消耗 6 层岩层，获得 1 点敏捷。",
     category="buff",
     display_mode="stack",
     order=68,
