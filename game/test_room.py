@@ -123,7 +123,7 @@ def normalize_test_room_type(raw_room_type):
 
 
 def get_test_room_usage():
-    return "用法：/ctrl testroom battle 或 /ctrl testroom event。也可用 /card testroom battle。"
+    return "用法：/ctrl testroom battle 或 /ctrl testroom event（/ctrl、.ctrl、。ctrl 等价）。也可用 /card testroom battle。"
 
 
 def reset_run_for_test_room(run_state, config):

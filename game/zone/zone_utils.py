@@ -442,6 +442,11 @@ def get_effective_zone_element_for_card(game_state, card=None, effect=None, effe
 
     zone_element = normalize_element(getattr(zone, "element", ""))
 
+    if effect_context is not None:
+        override = normalize_element(effect_context.get("zone_element_override", ""))
+        if override and override == zone_element:
+            return zone_element
+        
     if card_has_ether_medium_override(game_state, effect_context):
         return zone_element
 

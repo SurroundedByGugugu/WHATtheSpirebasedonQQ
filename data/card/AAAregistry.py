@@ -224,6 +224,7 @@ from data.card.character.yoirine_cards import (
     create_fleeting_shadow,
     create_call_of_the_abyss,
     create_strikeYoirine,
+    create_synchronization,
     create_to_your_tranquility,
     create_trace_pursuit,
     create_abyss_gaze,
@@ -246,6 +247,7 @@ from data.card.character.suzuri_cards import (
     create_anatexis,
     create_fossil,
     create_heavy_rock,
+    create_quartz_ritual,
     create_sedimentation,
     create_solidification,
     create_rockslide,
@@ -500,6 +502,7 @@ CARD_REGISTRY = {
     "card.crystal_dust_explosion": create_crystal_dust_explosion,
     "card.precipitate":create_precipitate,
     "card.shade_zone":create_shade_zone,
+    "card.synchronization": create_synchronization,
     
     #suzuri
     "card.defend_suzuri":create_defendSuzuri,
@@ -518,7 +521,7 @@ CARD_REGISTRY = {
     "card.eruption_action": create_eruption_action,
     "card.rock_forming_action": create_rock_forming_action,
     "card.radiant_crystal_reflection": create_radiant_crystal_reflection,
-
+    "card.quartz_ritual": create_quartz_ritual,
     #昼
     "card.defend_lumine":create_defendLumine,
     "card.strike_lumine":create_strikeLumine,

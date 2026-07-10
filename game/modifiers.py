@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from game.zone_utils import (
+from game.zone.zone_utils import (
     apply_zone_damage_modifier,
     get_zone_damage_multiplier,
     get_zone_base_amount_multiplier
@@ -212,7 +212,14 @@ def apply_attack_damage_modifiers(
         zone_element=zone_element
     )
     value = int(value * environment_multiplier)
-
+    if (
+        damage_source == DAMAGE_SOURCE_PLAYED_CARD
+        and str(attack_element or "").strip().lower() == "earth"
+        and getattr(card, "card_type", "") == "attack"
+    ):
+        quartz_ritual = get_status_value(source, "quartz_ritual")
+        if quartz_ritual > 0:
+            value = int(value * (1.0 + 0.5 * quartz_ritual))
     # 5. 钢笔尖：大多数伤害修正之后翻倍。
     if damage_source == DAMAGE_SOURCE_PLAYED_CARD and getattr(source, "_pen_nib_active_card", None) is card:
         value = int(value * 2)

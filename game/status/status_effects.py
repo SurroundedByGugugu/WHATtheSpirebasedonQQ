@@ -42,6 +42,7 @@ STATUS_EVENT_PRIORITY = {
     "confusion": 14,
     "hex": 14,
     "entangled": 13,
+    "quartz_ritual": 12,
     "pain_stab": 12,
     "rage": 12,
     "anger": 12,
@@ -2338,7 +2339,7 @@ def handle_reminiscence(event_name, context, owner, value):
     if zone is None:
         return logs
 
-    from game.zone_utils import normalize_element
+    from game.zone.zone_utils import normalize_element
     zone_element = normalize_element(getattr(zone, "element", ""))
 
     if zone_element != "crystal":
@@ -2637,6 +2638,31 @@ def handle_time_warp(event_name, context, owner, value):
 
     return logs
 
+def handle_quartz_ritual(event_name, context, owner, value):
+    logs = []
+
+    if event_name != EVENT_TURN_START:
+        return logs
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    amount = int(value)
+    if amount <= 0:
+        return logs
+
+    owner.max_cost += amount
+    owner.cost += amount
+
+    logs.append("{} 的石英祭仪触发，本场战斗费用上限增加 {}。当前费用：{}/{}。".format(
+        owner.name,
+        amount,
+        owner.cost,
+        owner.max_cost
+    ))
+
+    return logs
+
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "temporary_thorns": handle_temporary_thorns,
@@ -2697,4 +2723,5 @@ STATUS_EVENT_HANDLERS = {
     "next_turn_energy": handle_next_turn_energy,
     "next_turn_block": handle_next_turn_block,
     "temporary_strength_loss": handle_temporary_strength_loss,
+    "quartz_ritual": handle_quartz_ritual,
 }

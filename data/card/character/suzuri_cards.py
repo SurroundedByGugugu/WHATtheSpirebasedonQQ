@@ -36,8 +36,6 @@ def create_strikeSuzuri():
             }
         }
     )
-
-
 def create_defendSuzuri():
     return CardTemplate(
         card_id="card.defend_suzuri",
@@ -248,6 +246,51 @@ def create_stone_blade():
             },
         }
     )
+def create_rockslide():
+    return CardTemplate(
+        card_id="card.rockslide",
+        name="岩崩",
+        card_type="attack",
+        cost=1,
+        target="all_enemies",
+        description="消耗所有岩层。对所有敌人造成岩层数 / 10 + 1 次 6 点伤害。",
+        quantity="common",
+        attack_type="blunt",
+        attack_element="earth",
+        owner_character_id="character.suzuri",
+        card_vars={
+            "damage": 6,
+            "base_times": 1,
+        },
+        effects=[
+            {
+                "op": "consume_rock_layer_to_context",
+                "mode": "all",
+                "context_key": "consumed_rock",
+            },
+            {
+                "op": "deal_damage_all_enemies",
+                "times": {
+                    "context_var": "consumed_rock",
+                    "divisor": 10,
+                    "add_var": "base_times",
+                },
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage",
+                },
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "岩崩+",
+            "description": "消耗所有岩层。对所有敌人造成岩层数 / 10 + 2 次 6 点伤害。",
+            "card_vars": {
+                "base_times": 2,
+            },
+        }
+    )
+
 def create_anatexis():
     return CardTemplate(
         card_id="card.anatexis",
@@ -305,6 +348,64 @@ def create_anatexis():
                         }
                     ],
                 }
+            ],
+        }
+    )
+def create_solidification():
+    return CardTemplate(
+        card_id="card.solidification",
+        name="固结作用",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="消耗所有岩层，获得等量格挡。",
+        quantity="common",
+        attack_element="earth",
+        owner_character_id="character.suzuri",
+        play_conditions=[
+            {
+                "op": "has_status_at_least",
+                "status": "rock_layer",
+                "amount": 1,
+            }
+        ],
+        effects=[
+            {
+                "op": "consume_rock_layer_to_context",
+                "mode": "all",
+                "context_key": "consumed_rock",
+            },
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "context_var": "consumed_rock",
+                    "multiplier": 1,
+                    "modifier_profile": "block",
+                },
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "固结作用+",
+            "description": "消耗当前岩层 60%（向上取整），获得消耗层数 2 倍的格挡。",
+            "effects": [
+                {
+                    "op": "consume_rock_layer_to_context",
+                    "mode": "ratio",
+                    "ratio": 0.6,
+                    "rounding": "ceil",
+                    "context_key": "consumed_rock",
+                },
+                {
+                    "op": "gain_block",
+                    "target": "self",
+                    "amount": {
+                        "context_var": "consumed_rock",
+                        "multiplier": 2,
+                        "modifier_profile": "block",
+                    },
+                },
             ],
         }
     )
@@ -389,8 +490,6 @@ def create_hidden_gravel():
             "remove_keywords": [KEYWORD_EXHAUST],
         }
     )
-
-
 def create_fossil():
     return CardTemplate(
         card_id="card.fossil",
@@ -422,7 +521,34 @@ def create_fossil():
         }
     )
 
-
+def create_rock_polishing():
+    return CardTemplate(
+        card_id="card.rock_polishing",
+        name="岩石打磨",
+        card_type="power",
+        cost=2,
+        target="self",
+        description="每累计消耗 9 层岩层，获得 1 点敏捷。每张【岩石打磨】独立计数。",
+        quantity="uncommon",
+        owner_character_id="character.suzuri",
+        effects=[
+            {
+                "op": "gain_rock_polishing_counter",
+                "threshold": 9,
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "岩石打磨+",
+            "description": "每累计消耗 6 层岩层，获得 1 点敏捷。每张【岩石打磨】独立计数。",
+            "effects": [
+                {
+                    "op": "gain_rock_polishing_counter",
+                    "threshold": 6,
+                },
+            ],
+        }
+    )
 def create_heavy_rock():
     return CardTemplate(
         card_id="card.heavy_rock",
@@ -450,6 +576,7 @@ def create_heavy_rock():
     )
 
 
+#rare
 def create_sedimentation():
     return CardTemplate(
         card_id="card.sedimentation",
@@ -482,140 +609,30 @@ def create_sedimentation():
             },
         }
     )
-
-
-def create_solidification():
+def create_quartz_ritual():
     return CardTemplate(
-        card_id="card.solidification",
-        name="固结作用",
-        card_type="skill",
-        cost=1,
-        target="self",
-        description="消耗所有岩层，获得等量格挡。",
-        quantity="common",
-        attack_element="earth",
-        owner_character_id="character.suzuri",
-        play_conditions=[
-            {
-                "op": "has_status_at_least",
-                "status": "rock_layer",
-                "amount": 1,
-            }
-        ],
-        effects=[
-            {
-                "op": "consume_rock_layer_to_context",
-                "mode": "all",
-                "context_key": "consumed_rock",
-            },
-            {
-                "op": "gain_block",
-                "target": "self",
-                "amount": {
-                    "context_var": "consumed_rock",
-                    "multiplier": 1,
-                    "modifier_profile": "block",
-                },
-            },
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "固结作用+",
-            "description": "消耗当前岩层 60%（向上取整），获得消耗层数 2 倍的格挡。",
-            "effects": [
-                {
-                    "op": "consume_rock_layer_to_context",
-                    "mode": "ratio",
-                    "ratio": 0.6,
-                    "rounding": "ceil",
-                    "context_key": "consumed_rock",
-                },
-                {
-                    "op": "gain_block",
-                    "target": "self",
-                    "amount": {
-                        "context_var": "consumed_rock",
-                        "multiplier": 2,
-                        "modifier_profile": "block",
-                    },
-                },
-            ],
-        }
-    )
-
-
-def create_rockslide():
-    return CardTemplate(
-        card_id="card.rockslide",
-        name="岩崩",
-        card_type="attack",
-        cost=1,
-        target="all_enemies",
-        description="消耗所有岩层。对所有敌人造成岩层数 / 10 + 1 次 6 点伤害。",
-        quantity="common",
-        attack_type="blunt",
-        attack_element="earth",
-        owner_character_id="character.suzuri",
-        card_vars={
-            "damage": 6,
-            "base_times": 1,
-        },
-        effects=[
-            {
-                "op": "consume_rock_layer_to_context",
-                "mode": "all",
-                "context_key": "consumed_rock",
-            },
-            {
-                "op": "deal_damage_all_enemies",
-                "times": {
-                    "context_var": "consumed_rock",
-                    "divisor": 10,
-                    "add_var": "base_times",
-                },
-                "amount": {
-                    "base_var": "damage",
-                    "modifier_profile": "attack_damage",
-                },
-            },
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "岩崩+",
-            "description": "消耗所有岩层。对所有敌人造成岩层数 / 10 + 2 次 6 点伤害。",
-            "card_vars": {
-                "base_times": 2,
-            },
-        }
-    )
-
-
-def create_rock_polishing():
-    return CardTemplate(
-        card_id="card.rock_polishing",
-        name="岩石打磨",
+        card_id="card.quartz_ritual",
+        name="石英祭仪",
         card_type="power",
-        cost=2,
+        cost=3,
         target="self",
-        description="每累计消耗 9 层岩层，获得 1 点敏捷。每张【岩石打磨】独立计数。",
-        quantity="uncommon",
+        description="每回合开始时，本场战斗费用上限增加 1。地属性攻击牌伤害增加 0.5 倍。",
+        quantity="rare",
+        attack_element="earth",
         owner_character_id="character.suzuri",
         effects=[
             {
-                "op": "gain_rock_polishing_counter",
-                "threshold": 9,
+                "op": "gain_status",
+                "target": "self",
+                "status": "quartz_ritual",
+                "amount": 1,
             },
         ],
         upgraded=False,
         upgrade_patch={
-            "name": "岩石打磨+",
-            "description": "每累计消耗 6 层岩层，获得 1 点敏捷。每张【岩石打磨】独立计数。",
-            "effects": [
-                {
-                    "op": "gain_rock_polishing_counter",
-                    "threshold": 6,
-                },
-            ],
+            "name": "石英祭仪+",
+            "cost": 2,
+            "description": "费用减少 1。每回合开始时，本场战斗费用上限增加 1。地属性攻击牌伤害增加 0.5 倍。",
         }
     )
 

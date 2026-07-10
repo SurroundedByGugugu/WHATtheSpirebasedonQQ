@@ -898,6 +898,17 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="quartz_ritual",
+    name="石英祭仪",
+    description="每回合开始时，本场战斗费用上限增加等同于层数的数值。地属性攻击牌伤害增加 0.5 倍，随层数叠加。",
+    category="buff",
+    display_mode="stack",
+    order=69,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
     key="life_link",
     name="生命链接",
     description="若场上还有其他小黑存活，则死亡后在倒计时结束时以 50% 生命复活。",

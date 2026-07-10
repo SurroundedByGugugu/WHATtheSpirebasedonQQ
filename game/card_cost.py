@@ -44,7 +44,7 @@ def get_card_current_cost(game_state, card):
                 current_cost -= count * amount_per_loss
 
             elif op == "reduce_if_active_zone":
-                from game.zone_utils import normalize_element
+                from game.zone.zone_utils import normalize_element
 
                 zone = getattr(game_state, "active_zone", None)
                 wanted_element = normalize_element(rule.get("element", ""))

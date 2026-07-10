@@ -25,6 +25,7 @@ from game.engine import (
     format_pending_retain_hand_selection,
     choose_pending_fossil_exhaust_hand_cards,
     choose_pending_radiant_reflection_cards,
+    choose_pending_synchronization_card,
     choose_pending_exhume_card,
     choose_pending_potion_card,
     choose_pending_elixir_cards,
@@ -77,6 +78,7 @@ from game.reward import format_card_reward_choice
 from game.display_names import format_potion_display_name, format_relic_display_name
 from game.pending_choice import pending_choice_is
 from app.debug_console import handle_debug_console, resolve_status_key, resolve_zone_spec
+from app.command_parser import matches_root_command
 from game.test_room import enter_test_room, get_test_room_usage
 from data.content_gate import (
     get_private_content_status_text,
@@ -285,6 +287,7 @@ class GameService(object):
             "discard", "discardpile", "discard_pile", "弃牌堆", "查看弃牌堆",
             "exhaust", "exhaustpile", "exhaust_pile", "消耗牌堆", "消耗堆", "查看消耗牌堆", "查看消耗堆",
             "reflect", "reflection", "映照", "辉晶映照",
+            "sync", "synchronize", "同调",
             "play",
             "end",
         }
@@ -295,12 +298,8 @@ class GameService(object):
         不认识 QQ，不认识 LLOB。
         """
         text = raw_message.strip()
-        is_card_command = (
-            text.startswith("/card") or text.startswith(".card") or text.startswith("。card")
-        )
-        is_ctrl_command = (
-            text.startswith("/ctrl") or text.startswith(".ctrl") or text.startswith("。ctrl")
-        )
+        is_card_command = matches_root_command(text, "card")
+        is_ctrl_command = matches_root_command(text, "ctrl")
         if not (is_card_command or is_ctrl_command):
             return None
         parts = text.split()
@@ -311,6 +310,9 @@ class GameService(object):
         command = parts[1].lower()
 
         if is_ctrl_command:
+            if command in ("help", "帮助"):
+                return handle_debug_console(None, parts)
+
             run_state = self.get_run(session_id)
             if run_state is None:
                 return "当前会话还没有路线。使用 /card new [角色序号] 开始。"
@@ -901,6 +903,17 @@ class GameService(object):
             reply = self.handle_radiant_reflection(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
         if pending_choice_is(game_state, "radiant_reflection"):
+            return get_pending_player_choice_hint(game_state)
+        
+        if command in ("sync", "synchronize", "同调"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not pending_choice_is(game_state, "synchronization"):
+                return "当前没有需要处理的同调选择。"
+            reply = self.handle_synchronization(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if pending_choice_is(game_state, "synchronization"):
             return get_pending_player_choice_hint(game_state)
         
         if command in ("potion_pick", "potion_card", "药水选牌", "选择药水牌"):
@@ -1686,7 +1699,24 @@ class GameService(object):
             return "编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card reflect 0,1。"
 
         return choose_pending_radiant_reflection_cards(game_state, choice_indices)
+    
+    def handle_synchronization(self, game_state, parts):
+        """
+        /card sync 0
+        """
+        if not pending_choice_is(game_state, "synchronization"):
+            return "当前没有需要处理的同调选择。"
 
+        if len(parts) < 3:
+            return "用法：/card sync 0。"
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "编号必须是数字。"
+
+        return choose_pending_synchronization_card(game_state, choice_index)
+    
     def handle_potion_pick(self, game_state, parts):
         """
         /card potion_pick 0

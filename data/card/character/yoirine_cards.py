@@ -36,8 +36,6 @@ def create_strikeYoirine():
             }
         }
     )
-
-
 def create_defendYoirine():
     return CardTemplate(
         card_id="card.defend_yoirine",
@@ -1098,6 +1096,55 @@ def create_shade_zone():
             "cost": 1
         }
     )
-
+def create_synchronization():
+    return CardTemplate(
+        card_id="card.synchronization",
+        name="同调",
+        card_type="skill",
+        cost=2,
+        target="self",
+        description="消耗。对自己造成 1 点伤害。选择消耗堆以外任意 1 张牌，添加共鸣和消耗。共鸣牌在晶/阴 Zone 下抽到时自动叠加 Zone 属性打出并消耗。",
+        quantity="rare",
+        owner_character_id="character.yoirine",
+        keywords=[KEYWORD_EXHAUST],
+        card_vars={
+            "self_damage": 1,
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "self",
+                "amount": {
+                    "base_var": "self_damage"
+                },
+                "damage_kind": "effect",
+                "ignore_block": True,
+            },
+            {
+                "op": "request_synchronization_choice",
+                "add_exhaust": True,
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "同调+",
+            "description": "消耗。对自己造成 1 点伤害。选择消耗堆以外任意 1 张牌，添加共鸣。共鸣牌在晶/阴 Zone 下抽到时自动叠加 Zone 属性打出并消耗。",
+            "effects": [
+                {
+                    "op": "deal_damage",
+                    "target": "self",
+                    "amount": {
+                        "base_var": "self_damage"
+                    },
+                    "damage_kind": "effect",
+                    "ignore_block": True,
+                },
+                {
+                    "op": "request_synchronization_choice",
+                    "add_exhaust": False,
+                },
+            ],
+        }
+    )
 
 

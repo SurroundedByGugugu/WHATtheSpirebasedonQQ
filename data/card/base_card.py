@@ -55,26 +55,44 @@ class CardTemplate:
 
     # 关键词，后面可以放 exhaust / retain / ethereal 等
     keywords: List[str] = field(default_factory=list)
-    
+
+    # 附魔，与 keywords 平行。
+    # 允许多个附魔，也允许同名附魔重复叠加。
+    enchanted: List[str] = field(default_factory=list)
+
     upgraded: bool = False
     upgrade_patch: Dict[str, Any] = field(default_factory=dict)
 
     def summary_text(self):
         """
-        手牌显示用文本。
+        手牌、牌组和各种卡牌选择界面使用的简略文本。
         """
-        from data.card.keyword_rules import get_card_keyword_display_text
+        from data.card.keyword_rules import (
+            get_card_keyword_display_text
+        )
+        from data.card.enchantment_rules import (
+            get_card_enchantment_display_text
+        )
         from game.display_names import format_card_display_name
 
         keyword_text = get_card_keyword_display_text(self)
+        enchantment_text = get_card_enchantment_display_text(self)
         display_name = format_card_display_name(self)
 
+        extra_parts = []
+
         if keyword_text:
-            return "{}{}费 {} [{}]：{}".format(
+            extra_parts.append("[{}]".format(keyword_text))
+
+        if enchantment_text:
+            extra_parts.append("[{}]".format(enchantment_text))
+
+        if extra_parts:
+            return "{}{}费 {} {}：{}".format(
                 display_name,
                 self.cost,
                 self.card_type,
-                keyword_text,
+                " ".join(extra_parts),
                 self.description
             )
 
@@ -87,3 +105,28 @@ class CardTemplate:
 
     def has_keyword(self, keyword):
         return keyword in self.keywords
+    
+    def is_enchanted(self):
+        return bool(getattr(self, "enchanted", []))
+
+
+    def has_enchantment(self, enchantment_id):
+        from data.card.enchantment_rules import (
+            has_card_enchantment
+        )
+
+        return has_card_enchantment(
+            self,
+            enchantment_id
+        )
+
+
+    def get_enchantment_stacks(self, enchantment_id):
+        from data.card.enchantment_rules import (
+            get_card_enchantment_stacks
+        )
+
+        return get_card_enchantment_stacks(
+            self,
+            enchantment_id
+        )

@@ -233,7 +233,7 @@ def deal_damage(
     else:
         wind_block_multiplier = 1.0
         if damage_kind == "attack":
-            from game.zone_utils import get_zone_wind_block_effect_multiplier
+            from game.zone.zone_utils import get_zone_wind_block_effect_multiplier
             wind_block_multiplier = get_zone_wind_block_effect_multiplier(
                 game_state=game_state,
                 zone_element=zone_element

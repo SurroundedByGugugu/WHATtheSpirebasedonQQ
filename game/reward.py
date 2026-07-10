@@ -181,6 +181,8 @@ CARD_REWARD_POOL = [
     "card.crystal_dust_explosion",
     "card.precipitate",
     "card.shade_zone",
+    "card.synchronization",
+    
     # Suzuri
     "card.anatexis",
     "card.stone_blade",
@@ -192,7 +194,8 @@ CARD_REWARD_POOL = [
     "card.rock_polishing",
     "card.eruption_action",
     "card.sedimentation",
-
+    "card.quartz_ritual",
+    
     #昼
     "card.mirage_shadows",
     "card.deva_form",
@@ -1629,7 +1632,12 @@ def pick_card_from_reward(run_state, reward_state, card_index):
     return reply
 
 def format_card_full_effect(card):
+    from data.card.enchantment_rules import (
+        get_card_enchantment_display_text
+    )
+
     keyword_text = format_keywords(card)
+    enchantment_text = get_card_enchantment_display_text(card)
 
     parts = []
     parts.append("{}费".format(card.cost))
@@ -1638,9 +1646,15 @@ def format_card_full_effect(card):
     if keyword_text:
         parts.append(keyword_text)
 
+    if enchantment_text:
+        parts.append(enchantment_text)
+
     header = " ".join(parts)
 
-    return "{}，{}".format(header, card.description)
+    return "{}，{}".format(
+        header,
+        card.description
+    )
 
 
 def format_keywords(card):

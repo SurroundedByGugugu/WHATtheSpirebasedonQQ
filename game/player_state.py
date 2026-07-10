@@ -174,6 +174,11 @@ class PlayerState:
                     EVENT_DRAW_CARD_AFTER,
                     context
                 ))
+                from game.zone.resonance import trigger_resonance_on_draw
+                logs.extend(trigger_resonance_on_draw(
+                    game_state=game_state,
+                    card=card
+                ))                
 
         return logs
 

@@ -12,7 +12,7 @@ from game.relic_logic.run_relic_utils import assign_new_card_master_uid
 from game.status.status_defs import get_status_name, has_status_def, iter_status_defs
 from game.target_lock import clear_attack_target_lock
 from game.test_room import enter_test_room, get_test_room_usage
-from game.zone_utils import EXTREME_ZONE_DURATION
+from game.zone.zone_utils import EXTREME_ZONE_DURATION
 
 
 def normalize_lookup_key(value):
@@ -706,6 +706,7 @@ def handle_clear_enemies(run_state, args):
 def debug_console_help():
     return "\n".join([
         "ctrl 控制台：",
+        "/ctrl、.ctrl、。ctrl 等价；下面示例的开头都可以互换。",
         "/ctrl addcard 打击+ 手牌",
         "/ctrl removecard 粘液 弃牌堆",
         "/ctrl addrelic 墨水瓶",

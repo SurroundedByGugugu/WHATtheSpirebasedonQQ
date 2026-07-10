@@ -3,6 +3,71 @@
 from app.game_service import GameService
 
 
+CTRL_PREFIXES = ("/", ".", "。")
+
+CTRL_COMMAND_CASES = [
+    {
+        "command": "addcard 打击 牌库",
+        "expected": "ctrl：已向牌库加入",
+    },
+    {
+        "command": "removecard 打击 牌库",
+        "setup": ["/ctrl addcard 打击 牌库"],
+        "expected": "ctrl：",
+    },
+    {
+        "command": "addrelic 墨水瓶",
+        "expected": "ctrl：已获得",
+    },
+    {
+        "command": "removerelic 墨水瓶",
+        "setup": ["/ctrl addrelic 墨水瓶"],
+        "expected": "ctrl：已移除",
+    },
+    {
+        "command": "addstate 力量 1 self",
+        "setup": ["/ctrl testroom battle"],
+        "expected": "ctrl：",
+    },
+    {
+        "command": "removestate 力量 self",
+        "setup": ["/ctrl testroom battle", "/ctrl addstate 力量 1 self"],
+        "expected": "ctrl：",
+    },
+    {
+        "command": "addzone fire",
+        "setup": ["/ctrl testroom battle"],
+        "expected": "ctrl：当前 Zone 已设置",
+    },
+    {
+        "command": "addhp 1",
+        "expected": "ctrl：HP",
+    },
+    {
+        "command": "addmaxhp 1",
+        "expected": "ctrl：最大 HP",
+    },
+    {
+        "command": "addcost 1",
+        "setup": ["/ctrl testroom battle"],
+        "expected": "ctrl：费用",
+    },
+    {
+        "command": "addgold 1",
+        "expected": "ctrl：金币",
+    },
+    {
+        "command": "testroom battle",
+        "expected": "进入测试房间：本地测试战斗房间",
+    },
+    {
+        "command": "clearenemies",
+        "setup": ["/ctrl testroom battle"],
+        "expected": "ctrl：已清空当前房间",
+    },
+]
+
+
 def start_debug_run():
     service = GameService()
     session_id = "cli:test_room"
@@ -12,6 +77,32 @@ def start_debug_run():
     run_state = service.get_run(session_id)
     assert run_state is not None
     return service, session_id, user_id, run_state
+
+
+def test_ctrl_prefixes_are_equivalent_for_help_without_run():
+    service = GameService()
+
+    for prefix in CTRL_PREFIXES:
+        reply = service.handle_message("cli:ctrl_help", "debug_user", "{}ctrl help".format(prefix))
+        assert "ctrl 控制台：" in reply
+        assert "/ctrl、.ctrl、。ctrl 等价" in reply
+
+
+def test_ctrl_prefixes_are_equivalent_for_all_console_commands():
+    for case in CTRL_COMMAND_CASES:
+        for prefix in CTRL_PREFIXES:
+            service, session_id, user_id, _run_state = start_debug_run()
+
+            for setup_command in case.get("setup", []):
+                service.handle_message(session_id, user_id, setup_command)
+
+            reply = service.handle_message(
+                session_id,
+                user_id,
+                "{}ctrl {}".format(prefix, case["command"]),
+            )
+
+            assert case["expected"] in reply
 
 
 def test_ctrl_test_room_battle_assembles_local_room():

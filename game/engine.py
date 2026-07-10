@@ -34,7 +34,7 @@ from data.card.keyword_rules import (
     should_start_in_hand,
     can_play_card,
 )
-from game.zone_utils import (
+from game.zone.zone_utils import (
     tick_zone_turn_end, 
     tick_fields_turn_end, 
     format_zone_field_detail,
@@ -441,6 +441,7 @@ def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
         "after_play": "因消耗",
         "ethereal": "因虚无",
         "relic_play": "因遗物允许打出后",
+        "resonance": "因共鸣",
     }
     reason_text = reason_text_map.get(reason, "因{}".format(reason))
     logs.append("【{}】{}进入消耗堆。".format(card.name, reason_text))
@@ -1511,6 +1512,61 @@ def choose_pending_radiant_reflection_cards(game_state, choice_indices):
         ))
 
     clear_pending_radiant_reflection_selection(game_state)
+
+    return "\n".join(logs)
+
+def clear_pending_synchronization_selection(game_state):
+    clear_pending_choice(game_state, "synchronization")
+
+
+def choose_pending_synchronization_card(game_state, choice_index):
+    if not pending_choice_is(game_state, "synchronization"):
+        return "当前没有需要处理的同调选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    options = list(getattr(pending_choice, "options", []) or [])
+    source = getattr(pending_choice, "source", "同调")
+    payload = getattr(pending_choice, "payload", {}) or {}
+
+    if not options:
+        clear_pending_synchronization_selection(game_state)
+        return "没有可选择的消耗堆以外卡牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(choice_index)
+
+    item = options[choice_index]
+    pile_name = item.get("pile_name", "")
+    pile_label = item.get("pile_label", pile_name)
+    chosen_card = item.get("card")
+
+    if chosen_card is None:
+        clear_pending_synchronization_selection(game_state)
+        return "选择项异常，选择已取消。"
+
+    player = game_state.player
+    pile = getattr(player, pile_name, None)
+
+    if pile is None or chosen_card not in pile:
+        clear_pending_synchronization_selection(game_state)
+        return "所选牌已经不在{}中，选择已取消。".format(pile_label)
+
+    add_exhaust = bool(payload.get("add_exhaust", True))
+
+    from game.zone.resonance import apply_synchronization_to_card
+
+    logs = ["【{}】选择了{}中的【{}】。".format(
+        source,
+        pile_label,
+        chosen_card.name
+    )]
+
+    logs.extend(apply_synchronization_to_card(
+        card=chosen_card,
+        add_exhaust=add_exhaust
+    ))
+
+    clear_pending_synchronization_selection(game_state)
 
     return "\n".join(logs)
 
@@ -2967,7 +3023,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         if not suppress_message:
             logs.append("{}：「{}」".format(enemy.name, message))
 
-    from game.zone_utils import (
+    from game.zone.zone_utils import (
         get_effective_zone_element_for_enemy_action,
         get_zone_replay_extra,
     )
@@ -3058,7 +3114,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             attack_element=attack_element,
             zone_element=zone_element
         )
-        from game.zone_utils import (
+        from game.zone.zone_utils import (
             apply_zone_amount_modifier,
             apply_zone_source_hp_loss_if_needed,
             get_zone_burn_amount,
@@ -3425,7 +3481,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             logs.append("敌人全员状态行动数值为 0。")
             return
 
-        from game.zone_utils import apply_zone_amount_modifier, apply_zone_source_hp_loss_if_needed
+        from game.zone.zone_utils import apply_zone_amount_modifier, apply_zone_source_hp_loss_if_needed
         amount = apply_zone_amount_modifier(amount, game_state, zone_element)
 
         for target in getattr(game_state, "enemies", []) or []:
@@ -3486,7 +3542,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             zone_element=zone_element
         )
 
-        from game.zone_utils import (
+        from game.zone.zone_utils import (
             apply_zone_amount_modifier,
             apply_earth_zone_temp_thorns,
             apply_zone_source_hp_loss_if_needed,
@@ -3534,7 +3590,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             block_source=BLOCK_SOURCE_ENEMY_ACTION,
             zone_element=zone_element
         )
-        from game.zone_utils import (
+        from game.zone.zone_utils import (
             apply_zone_amount_modifier,
             apply_earth_zone_temp_thorns,
             apply_zone_source_hp_loss_if_needed,
@@ -3769,7 +3825,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         target_key = action.get("target", "player")
         status_key = action.get("status", "")
         amount = int(action.get("amount", 0))
-        from game.zone_utils import apply_zone_amount_modifier, apply_zone_source_hp_loss_if_needed
+        from game.zone.zone_utils import apply_zone_amount_modifier, apply_zone_source_hp_loss_if_needed
         amount = apply_zone_amount_modifier(amount, game_state, zone_element)
         if not status_key:
             logs.append("敌人状态行动缺少 status。")

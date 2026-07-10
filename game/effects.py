@@ -5,7 +5,7 @@ from game.status.status_defs import get_status_name
 from game.damage import deal_damage
 import random
 
-from game.zone_utils import (
+from game.zone.zone_utils import (
     get_effective_zone_element_for_card,
     get_zone_replay_extra,
     apply_zone_source_hp_loss_if_needed,
@@ -282,7 +282,7 @@ def resolve_amount(
     )
 
     if zone_element:
-        from game.zone_utils import apply_zone_amount_modifier
+        from game.zone.zone_utils import apply_zone_amount_modifier
         value = apply_zone_amount_modifier(
             value=value,
             game_state=game_state,
@@ -399,7 +399,7 @@ def get_effect_attack_tags(card, effect):
     return attack_type, attack_element
 
 def get_effect_zone_element(game_state, card, effect, effect_context):
-    from game.zone_utils import get_effective_zone_element_for_card
+    from game.zone.zone_utils import get_effective_zone_element_for_card
     return get_effective_zone_element_for_card(
         game_state=game_state,
         card=card,
@@ -445,13 +445,13 @@ def get_all_alive_enemies(game_state):
     return [enemy for enemy in game_state.enemies if is_enemy_selectable(enemy)]
 
 def should_convert_enemy_target_to_all(game_state, zone_element, target_key):
-    from game.zone_utils import should_zone_thunder_make_all
+    from game.zone.zone_utils import should_zone_thunder_make_all
     if target_key not in ("selected_enemy", "enemy", "random_enemy"):
         return False
     return should_zone_thunder_make_all(game_state, zone_element)
 
 def deal_card_attack_damage_to_target(game_state, card, effect, target_entity, effect_context, attack_type, attack_element, zone_element, logs, prefix):
-    from game.zone_utils import apply_fire_zone_burn
+    from game.zone.zone_utils import apply_fire_zone_burn
 
     damage = resolve_amount(
         game_state=game_state,
@@ -545,7 +545,15 @@ def get_auto_play_target_index(game_state, card):
 
     return 0
 
-def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reason="havoc", force_exhaust=True):
+def play_card_from_effect_and_exhaust(
+        game_state,
+        source_card,
+        played_card,
+        reason="havoc",
+        force_exhaust=True,
+        effect_context_extra=None,
+        source_label=None
+    ):
     """
     被其他效果自动打出的牌。
 
@@ -559,7 +567,7 @@ def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reas
     from data.card.keyword_rules import can_play_card
     from game.engine import validate_card_target, move_card_to_exhaust_pile, move_played_card_to_destination
     from game.x_value import is_x_cost_card, calculate_card_x_value
-    from game.zone_utils import (
+    from game.zone.zone_utils import (
         is_card_first_play_this_battle,
         mark_card_played_this_battle
     )
@@ -611,9 +619,11 @@ def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reas
             played_card
         ),
         "played_by_effect": True,
-        "source_card_id": source_card.card_id
+        "source_card_id": getattr(source_card, "card_id", ""),
     }
 
+    if effect_context_extra:
+        effect_context.update(effect_context_extra)
     if is_x_cost_card(played_card):
         raw_x = 0
         x_value, x_logs = calculate_card_x_value(
@@ -625,17 +635,30 @@ def play_card_from_effect_and_exhaust(game_state, source_card, played_card, reas
         effect_context["x"] = x_value
         effect_context["spent_cost"] = 0
 
-        logs.append("【{}】免费打出抽牌堆顶的【{}】，最终 X = {}。".format(
-            source_card.name,
-            played_card.name,
-            x_value
-        ))
+        if source_label:
+            logs.append("【{}】自动打出【{}】，最终 X = {}。".format(
+                source_label,
+                played_card.name,
+                x_value
+            ))
+        else:
+            logs.append("【{}】免费打出抽牌堆顶的【{}】，最终 X = {}。".format(
+                source_card.name,
+                played_card.name,
+                x_value
+            ))
         logs.extend(x_logs)
     else:
-        logs.append("【{}】免费打出抽牌堆顶的【{}】。".format(
-            source_card.name,
-            played_card.name
-        ))
+        if source_label:
+            logs.append("【{}】自动打出【{}】。".format(
+                source_label,
+                played_card.name
+            ))
+        else:
+            logs.append("【{}】免费打出抽牌堆顶的【{}】。".format(
+                source_card.name,
+                played_card.name
+            ))
     from game.engine import apply_next_card_replay_statuses
     apply_next_card_replay_statuses(
         game_state=game_state,
@@ -979,7 +1002,7 @@ def handle_deal_damage_heal_on_full_hp_kill(game_state, card, effect, target_ind
         zone_element=zone_element
     ))
 
-    from game.zone_utils import apply_fire_zone_burn
+    from game.zone.zone_utils import apply_fire_zone_burn
     apply_fire_zone_burn(
         game_state=game_state,
         source=game_state.player,
@@ -1080,7 +1103,7 @@ def handle_trigger_shade_hp_loss_then_draw(game_state, card, effect, target_inde
     logs = []
     player = game_state.player
 
-    from game.zone_utils import apply_zone_source_hp_loss_if_needed
+    from game.zone.zone_utils import apply_zone_source_hp_loss_if_needed
 
     apply_zone_source_hp_loss_if_needed(
         game_state=game_state,
@@ -1225,7 +1248,7 @@ def handle_abyss_mire_damage_by_gaze(game_state, card, effect, target_index, eff
         )
 
         if zone_element:
-            from game.zone_utils import apply_zone_amount_modifier
+            from game.zone.zone_utils import apply_zone_amount_modifier
             damage = apply_zone_amount_modifier(
                 value=damage,
                 game_state=game_state,
@@ -1479,6 +1502,52 @@ def handle_crystal_dust_explosion(game_state, card, effect, target_index, effect
             logs=logs,
             source_name=card.name
         )
+
+    return logs
+
+@register_effect("request_synchronization_choice")
+def handle_request_synchronization_choice(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+
+    add_exhaust = bool(effect.get("add_exhaust", True))
+
+    from game.zone.resonance import collect_non_exhaust_pile_cards
+    from game.pending_choice import PendingChoice, set_pending_choice
+
+    options = collect_non_exhaust_pile_cards(player)
+
+    if not options:
+        return ["【{}】没有可选择的消耗堆以外卡牌。".format(card.name)]
+
+    set_pending_choice(game_state, PendingChoice(
+        kind="synchronization",
+        source=card.name,
+        prompt="=== {}：选择 1 张消耗堆以外的牌添加共鸣{} ===".format(
+            card.name,
+            "和消耗" if add_exhaust else ""
+        ),
+        command_hint="用法：/card sync 0。",
+        block_message="当前需要先处理同调选择。用法：/card sync 0。",
+        options=options,
+        payload={
+            "add_exhaust": add_exhaust,
+        }
+    ))
+
+    logs = [
+        "=== {}：选择 1 张消耗堆以外的牌添加共鸣{} ===".format(
+            card.name,
+            "和消耗" if add_exhaust else ""
+        )
+    ]
+
+    for index, item in enumerate(options):
+        pile_label = item.get("pile_label", "")
+        target_card = item.get("card")
+        logs.append("[{}] {}：{}".format(index, pile_label, target_card.summary_text()))
+
+    logs.append("")
+    logs.append("用法：/card sync 0。")
 
     return logs
 
@@ -2710,7 +2779,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 attack_element=attack_element,
                 zone_element=zone_element
             ))
-            from game.zone_utils import apply_fire_zone_burn
+            from game.zone.zone_utils import apply_fire_zone_burn
             apply_fire_zone_burn(
                 game_state=game_state,
                 source=game_state.player,
@@ -2822,7 +2891,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             zone_element=zone_element
         ))
 
-        from game.zone_utils import apply_fire_zone_burn
+        from game.zone.zone_utils import apply_fire_zone_burn
         apply_fire_zone_burn(
             game_state=game_state,
             source=game_state.player,
@@ -2914,7 +2983,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             zone_element=zone_element
         ))
 
-        from game.zone_utils import apply_fire_zone_burn
+        from game.zone.zone_utils import apply_fire_zone_burn
         apply_fire_zone_burn(
             game_state=game_state,
             source=game_state.player,
@@ -3001,7 +3070,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             zone_element=zone_element
         ))
 
-        from game.zone_utils import apply_fire_zone_burn
+        from game.zone.zone_utils import apply_fire_zone_burn
         apply_fire_zone_burn(
             game_state=game_state,
             source=game_state.player,
@@ -3103,7 +3172,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
 
             total_real_damage += real_damage
 
-            from game.zone_utils import apply_fire_zone_burn
+            from game.zone.zone_utils import apply_fire_zone_burn
             apply_fire_zone_burn(
                 game_state=game_state,
                 source=game_state.player,
@@ -3181,7 +3250,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             block_source="played_card",
             card=card
         ))
-        from game.zone_utils import apply_earth_zone_temp_thorns
+        from game.zone.zone_utils import apply_earth_zone_temp_thorns
         apply_earth_zone_temp_thorns(
             game_state=game_state,
             target=target_entity,
@@ -3440,7 +3509,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 and status_key == "fire_breathing_history"
                 and target_entity is game_state.player
             ):
-                from game.zone_utils import get_player_attack_cards_played_this_turn
+                from game.zone.zone_utils import get_player_attack_cards_played_this_turn
 
                 current_attack_count = get_player_attack_cards_played_this_turn(game_state)
 
@@ -4553,7 +4622,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             return logs
 
         from game.engine import move_card_to_exhaust_pile
-        from game.zone_utils import apply_earth_zone_temp_thorns
+        from game.zone.zone_utils import apply_earth_zone_temp_thorns
 
         exhausted_count = 0
 
@@ -5004,7 +5073,7 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         return logs
 
     if op in ("set_zone", "deploy_zone"):
-        from game.zone_utils import deploy_element_zone
+        from game.zone.zone_utils import deploy_element_zone
         element = effect.get("element", getattr(card, "attack_element", ""))
         force_extreme = bool(effect.get("force_extreme", False))
         logs.extend(deploy_element_zone(
