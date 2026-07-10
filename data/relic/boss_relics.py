@@ -169,7 +169,7 @@ class PandorasBoxRelic(RelicTemplate):
     def on_obtained(self, run_state):
         from game.deck_utils import transform_card_in_master_deck
         rng = random.Random(int(getattr(run_state, "run_seed", 0) or 0) + 19390)
-        indices = [i for i, card in enumerate(getattr(run_state, "master_deck", []) or []) if getattr(card, "name", "") in ("打击", "防御") or getattr(card, "card_id", "") in ("card.strike", "card.defend")]
+        indices = [i for i, card in enumerate(getattr(run_state, "master_deck", []) or []) if getattr(card, "name", "") in ("打击", "打击+", "格挡", "格挡+", "防御", "防御+") or getattr(card, "card_id", "") in ("card.strike", "card.defend")]
         logs = ["【{}】触发：变化所有打击和防御牌。".format(self.name)]
         for idx in reversed(indices):
             old, new, sub = transform_card_in_master_deck(run_state, idx, rng=rng)

@@ -4360,6 +4360,9 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             if getattr(candidate, "card_type", "") != "attack":
                 continue
 
+            if getattr(candidate, "quantity", "") in ("starting", "status", "curse", "test"):
+                continue
+
             if getattr(candidate, "owner_character_id", "") != owner_character_id:
                 continue
 

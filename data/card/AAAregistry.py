@@ -92,11 +92,13 @@ from data.card.character.test_character_cards import (
 )
 
 from data.card.character.armored_warrior_cards import(
+    create_defendAW,
     create_hard_blow,
     create_clothesline,
     create_heavy_blade,
     create_anger,
     create_double_strike,
+    create_strikeAW,
     create_sword_boomerang,
     create_thunderclap,
     create_cleave,
@@ -178,6 +180,8 @@ from data.card.character.armored_warrior_cards import(
 )
 
 from data.card.character.silent_huntress_cards import (
+    create_defendSH,
+    create_strikeSH,
     create_survivor,
     create_neutralize,
     create_bane,
@@ -205,6 +209,7 @@ from data.card.character.silent_huntress_cards import (
 from data.card.character.yoirine_cards import (
     create_crystal_piercing,
     create_crystal_zone,
+    create_defendYoirine,
     create_shade_zone,
     create_spreading_wing,
     create_crystal_cocoon,
@@ -218,6 +223,7 @@ from data.card.character.yoirine_cards import (
     create_roost,
     create_fleeting_shadow,
     create_call_of_the_abyss,
+    create_strikeYoirine,
     create_to_your_tranquility,
     create_trace_pursuit,
     create_abyss_gaze,
@@ -234,6 +240,7 @@ from data.card.character.yoirine_cards import (
 )
 
 from data.card.character.suzuri_cards import (
+    create_defendSuzuri,
     create_earth_origin_dominion,
     create_anatexis_action,
     create_anatexis,
@@ -248,12 +255,15 @@ from data.card.character.suzuri_cards import (
     create_rock_forming_action,
     create_radiant_crystal_reflection,
     create_stone_blade,
+    create_strikeSuzuri,
 )
 
 from data.card.character.lumine_cards import (
+    create_defendLumine,
     create_mirage_shadows,
     create_deva_form,
     create_god_in_hand,
+    create_strikeLumine,
     create_transfer,
     create_inducing,
     create_cheap_intuition,
@@ -351,6 +361,8 @@ CARD_REGISTRY = {
     "card.hard_blow": create_hard_blow,
     "card.test_x_drill": create_test_x_drill,
     #战士哥
+    "card.defend_armored_warrior":create_defendAW,
+    "card.strike_armored_warrior":create_strikeAW,
     "card.whirlwind": create_whirlwind,
     "card.clothesline": create_clothesline,
     "card.heavy_blade": create_heavy_blade,
@@ -434,6 +446,8 @@ CARD_REGISTRY = {
     "card.fire_strike":create_fire_strike,
     "card.fire_zone":create_fire_zone,
     # 静默猎手
+    "card.defend_silent_huntress":create_defendSH,
+    "card.strike_silent_huntress":create_strikeSH,
     "card.survivor": create_survivor,
     "card.neutralize": create_neutralize,
     "card.bane": create_bane,
@@ -456,6 +470,8 @@ CARD_REGISTRY = {
     "card.piercing_wail": create_piercing_wail,
     "card.prepared": create_prepared,
     #yoi
+    "card.defend_yoirine":create_defendYoirine,
+    "card.strike_yoirine":create_strikeYoirine,
     "card.crystal_piercing": create_crystal_piercing,
     "card.crystal_zone": create_crystal_zone,
     "card.spreading_wing":create_spreading_wing,
@@ -486,6 +502,8 @@ CARD_REGISTRY = {
     "card.shade_zone":create_shade_zone,
     
     #suzuri
+    "card.defend_suzuri":create_defendSuzuri,
+    "card.strike_suzuri":create_strikeSuzuri,
     "card.earth_origin_dominion": create_earth_origin_dominion,
     "card.anatexis_action": create_anatexis_action,
     "card.anatexis": create_anatexis,
@@ -502,6 +520,8 @@ CARD_REGISTRY = {
     "card.radiant_crystal_reflection": create_radiant_crystal_reflection,
 
     #昼
+    "card.defend_lumine":create_defendLumine,
+    "card.strike_lumine":create_strikeLumine,
     "card.mirage_shadows": create_mirage_shadows,
     "card.deva_form": create_deva_form,
     "card.god_in_hand": create_god_in_hand,

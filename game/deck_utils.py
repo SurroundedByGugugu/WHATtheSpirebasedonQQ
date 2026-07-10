@@ -112,15 +112,26 @@ def get_transform_candidate_ids(run_state=None, source_card=None):
                 card = create_card(card_id)
             except Exception:
                 continue
+            if getattr(card, "quantity", "") in ("starting", "status", "curse", "test"):
+                continue
             if getattr(card, "card_type", "") in allowed_types:
                 result.append(card_id)
         return result
 
-    return _same_owner_card_ids(
+    result = []
+    for card_id in _same_owner_card_ids(
         source_card=source_card,
         candidate_ids=CARD_REWARD_POOL,
         allowed_types=allowed_types
-    )
+    ):
+        try:
+            card = create_card(card_id)
+        except Exception:
+            continue
+        if getattr(card, "quantity", "") in ("starting", "status", "curse", "test"):
+            continue
+        result.append(card_id)
+    return result
 
 
 def get_typed_transform_candidate_ids(source_card, card_type):

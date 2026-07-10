@@ -24,14 +24,14 @@ class YoirineCharacter(CharacterTemplate):
             starting_gold = 67, #我说yoi没有编制没有工资没钱很合理
             #为什么是67？问就是617！
             starting_deck_ids=[
-                "card.strike",
-                "card.strike",
-                "card.strike",
-                "card.strike",
-                "card.defend",
-                "card.defend",
-                "card.defend",
-                "card.defend",
+                "card.strike_yoirine",
+                "card.strike_yoirine",
+                "card.strike_yoirine",
+                "card.strike_yoirine",
+                "card.defend_yoirine",
+                "card.defend_yoirine",
+                "card.defend_yoirine",
+                "card.defend_yoirine",
                 "card.crystal_plating",
                 "card.crystal_zone",
             ]

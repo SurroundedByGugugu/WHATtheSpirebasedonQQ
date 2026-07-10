@@ -28,15 +28,15 @@ class ArmoredWarriorCharacter(CharacterTemplate):
             starting_gold = 99,
 
             starting_deck_ids=[
-                "card.strike",
-                "card.strike",
-                "card.strike",
-                "card.strike",
-                "card.strike",
-                "card.defend",
-                "card.defend",
-                "card.defend",
-                "card.defend",
+                "card.strike_armored_warrior",
+                "card.strike_armored_warrior",
+                "card.strike_armored_warrior",
+                "card.strike_armored_warrior",
+                "card.strike_armored_warrior",
+                "card.defend_armored_warrior",
+                "card.defend_armored_warrior",
+                "card.defend_armored_warrior",
+                "card.defend_armored_warrior",
                 "card.hard_blow",
             ]
         )

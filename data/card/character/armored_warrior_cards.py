@@ -8,6 +8,74 @@ from game.constants import (
     KEYWORD_CLEVER,
     KEYWORD_INNATE
 )
+# 一对私有打防
+def create_strikeAW():
+    return CardTemplate(
+        card_id="card.strike_armored_warrior",
+        name="打击",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 6 点伤害。",
+        quantity="starting",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "damage": 6
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name":"打击+",
+            "description":"造成 9 点伤害。",
+            "card_vars":{
+                "damage": 9
+            }
+        }
+    )
+
+
+def create_defendAW():
+    return CardTemplate(
+        card_id="card.defend_armored_warrior",
+        name="格挡",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="获得 5 点格挡。",
+        quantity="starting",
+        owner_character_id="character.armored_warrior",
+        card_vars={
+            "block": 5
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name":"格挡+",
+            "description":"获得 8 点格挡。",
+            "card_vars":{
+                "block": 8
+            }
+        }
+    )
+
 #普通 攻击 common attack 
 def create_hard_blow():
     return CardTemplate(
