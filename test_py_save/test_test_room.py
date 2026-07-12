@@ -25,6 +25,23 @@ CTRL_COMMAND_CASES = [
         "expected": "ctrl：已移除",
     },
     {
+        "command": "addpotion 攻击药水",
+        "expected": "ctrl：已获得",
+    },
+    {
+        "command": "removepotion 攻击药水",
+        "setup": ["/ctrl addpotion 攻击药水"],
+        "expected": "ctrl：已移除",
+    },
+    {
+        "command": "setpotionslots 4",
+        "expected": "ctrl：药水栏位",
+    },
+    {
+        "command": "addpotionslots 1",
+        "expected": "ctrl：药水栏位",
+    },
+    {
         "command": "addstate 力量 1 self",
         "setup": ["/ctrl testroom battle"],
         "expected": "ctrl：",
@@ -152,6 +169,46 @@ def test_ctrl_test_room_battle_assembles_local_room():
     ]
     assert battle.enemies[0].statuses.get("vulnerable") == 2
     assert battle.enemies[1].statuses.get("weak") == 1
+
+
+def test_ctrl_can_control_potions_and_slots_in_run_and_battle():
+    service, session_id, user_id, run_state = start_debug_run()
+
+    reply = service.handle_message(session_id, user_id, "/ctrl addpotion 攻击药水")
+
+    assert "ctrl：已获得 1 瓶〔攻击药水〕" in reply
+    assert [potion.potion_id for potion in run_state.potions][-1] == "potion.attack"
+
+    service.handle_message(session_id, user_id, "/ctrl testroom battle")
+    run_state = service.get_run(session_id)
+    battle = run_state.current_battle
+    assert battle is not None
+
+    reply = service.handle_message(session_id, user_id, "/ctrl addpotion 攻击药水")
+    assert "药水栏位不足" in reply
+
+    reply = service.handle_message(session_id, user_id, "/ctrl addpotionslots 1")
+    assert "ctrl：药水栏位 3 -> 4" in reply
+
+    reply = service.handle_message(session_id, user_id, "/ctrl addpotion 攻击药水")
+    assert "药水栏：4/4" in reply
+    assert run_state.max_potion_slots == 4
+    assert battle.player.max_potion_slots == 4
+    assert battle.player.potions is run_state.potions
+    assert [potion.potion_id for potion in run_state.potions][-1] == "potion.attack"
+
+    reply = service.handle_message(session_id, user_id, "/ctrl removepotion 3")
+    assert "ctrl：已移除药水 [3] 〔攻击药水〕" in reply
+    assert len(run_state.potions) == 3
+    assert battle.player.potions is run_state.potions
+
+    reply = service.handle_message(session_id, user_id, "/ctrl setpotionslots 2")
+    assert "ctrl：药水栏位 4 -> 2" in reply
+    assert "丢弃超出栏位的药水" in reply
+    assert run_state.max_potion_slots == 2
+    assert battle.player.max_potion_slots == 2
+    assert len(run_state.potions) == 2
+    assert battle.player.potions is run_state.potions
 
 
 def test_ctrl_clear_enemies_finishes_test_room_without_route_progress():

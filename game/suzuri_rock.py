@@ -223,6 +223,125 @@ def trigger_rock_polishing_if_needed(game_state, target, consumed_amount, source
 
     return logs
 
+def get_living_soil_counters(target):
+    counters = getattr(target, "living_soil_counters", None)
+
+    if counters is None:
+        counters = []
+        setattr(target, "living_soil_counters", counters)
+
+    return counters
+
+
+def sync_living_soil_status(target):
+    counters = get_living_soil_counters(target)
+
+    normal_count = 0
+    upgraded_count = 0
+
+    for counter in counters:
+        threshold = int(counter.get("threshold", 9) or 9)
+
+        if threshold <= 6:
+            upgraded_count += 1
+        else:
+            normal_count += 1
+
+    if hasattr(target, "statuses"):
+        target.statuses.set("living_soil_9", normal_count)
+        target.statuses.set("living_soil_6", upgraded_count)
+
+
+def add_living_soil_counter(game_state, target, threshold, source_name="息壤"):
+    logs = []
+
+    if target is None:
+        return logs
+
+    threshold = int(threshold)
+    if threshold <= 0:
+        threshold = 9
+
+    counters = get_living_soil_counters(target)
+    counters.append({
+        "threshold": threshold,
+        "progress": 0,
+    })
+
+    sync_living_soil_status(target)
+
+    logs.append("【{}】生效：新增 1 个独立计数器，当前进度 0/{}。".format(
+        source_name,
+        threshold
+    ))
+
+    return logs
+
+
+def trigger_living_soil_if_needed(game_state, target, consumed_amount, source_name="岩层消耗"):
+    """
+    息壤：
+    每个计数器独立累计消耗岩层。
+    达到阈值时，获得 5 层岩层，并扣除对应阈值进度。
+    一次消耗大量岩层时，同一个计数器可以触发多次。
+    """
+    logs = []
+
+    consumed_amount = int(consumed_amount)
+    if target is None or consumed_amount <= 0:
+        return logs
+
+    counters = get_living_soil_counters(target)
+
+    if not counters:
+        return logs
+
+    total_rock_gain = 0
+
+    for counter_index, counter in enumerate(counters):
+        threshold = int(counter.get("threshold", 9) or 9)
+        progress = int(counter.get("progress", 0) or 0)
+
+        if threshold <= 0:
+            threshold = 9
+
+        progress += consumed_amount
+        trigger_count = 0
+
+        while progress >= threshold:
+            progress -= threshold
+            trigger_count += 1
+
+        counter["progress"] = progress
+
+        if trigger_count > 0:
+            gain_amount = trigger_count * 5
+            total_rock_gain += gain_amount
+            logs.append("【息壤】计数器 {} 触发 {} 次，剩余进度 {}/{}。".format(
+                counter_index + 1,
+                trigger_count,
+                progress,
+                threshold
+            ))
+        else:
+            logs.append("【息壤】计数器 {} 进度：{}/{}。".format(
+                counter_index + 1,
+                progress,
+                threshold
+            ))
+
+    if total_rock_gain <= 0:
+        return logs
+
+    logs.append("【息壤】获得 {} 层岩层。".format(total_rock_gain))
+    logs.extend(gain_rock_layer(
+        game_state=game_state,
+        target=target,
+        amount=total_rock_gain,
+        source_name="息壤"
+    ))
+
+    return logs
 
 def consume_rock_layer(game_state, target, amount=None, source_name="岩层消耗"):
     """
@@ -262,6 +381,13 @@ def consume_rock_layer(game_state, target, amount=None, source_name="岩层消�
     ))
 
     logs.extend(trigger_rock_polishing_if_needed(
+        game_state=game_state,
+        target=target,
+        consumed_amount=consume_amount,
+        source_name=source_name
+    ))
+
+    logs.extend(trigger_living_soil_if_needed(
         game_state=game_state,
         target=target,
         consumed_amount=consume_amount,

@@ -5,9 +5,10 @@ import re
 
 from data.card.AAAregistry import CARD_REGISTRY, create_card
 from data.card.upgrade_rules import has_upgrade, upgrade_card
+from data.potion.AAAregistry import POTION_REGISTRY, create_potion
 from data.relic.AAAregistry import RELIC_REGISTRY, create_relic
 from data.zones.element_zones import ELEMENT_NAME_MAP, ElementZone, get_element_display_name
-from game.display_names import format_card_display_name, format_relic_display_name
+from game.display_names import format_card_display_name, format_potion_display_name, format_relic_display_name
 from game.relic_logic.run_relic_utils import assign_new_card_master_uid
 from game.status.status_defs import get_status_name, has_status_def, iter_status_defs
 from game.target_lock import clear_attack_target_lock
@@ -183,6 +184,38 @@ def resolve_relic_id(raw_name):
     return RELIC_ALIAS_MAP.get(normalize_lookup_key(raw_text))
 
 
+def build_potion_alias_map():
+    mapping = {}
+    for potion_id in POTION_REGISTRY.keys():
+        try:
+            potion = create_potion(potion_id)
+        except Exception:
+            continue
+        _register_alias(mapping, potion_id, potion_id)
+        if potion_id.startswith("potion."):
+            _register_alias(mapping, potion_id.split(".", 1)[1], potion_id)
+        _register_alias(mapping, potion.name, potion_id)
+        _register_alias(mapping, format_potion_display_name(potion), potion_id)
+    return mapping
+
+
+POTION_ALIAS_MAP = build_potion_alias_map()
+
+
+def resolve_potion_id(raw_name):
+    raw_text = str(raw_name or "").strip()
+    if raw_text in POTION_REGISTRY:
+        return raw_text
+    return POTION_ALIAS_MAP.get(normalize_lookup_key(raw_text))
+
+
+def create_console_potion(raw_name):
+    potion_id = resolve_potion_id(raw_name)
+    if potion_id is None:
+        return None
+    return create_potion(potion_id)
+
+
 PILE_ALIASES = {
     "手牌": "hand",
     "hand": "hand",
@@ -296,6 +329,18 @@ def relic_matches(relic, raw_name):
     )
 
 
+def potion_matches(potion, raw_name):
+    potion_id = resolve_potion_id(raw_name)
+    if potion_id is not None:
+        return getattr(potion, "potion_id", "") == potion_id
+    target = normalize_lookup_key(raw_name)
+    return target in (
+        normalize_lookup_key(getattr(potion, "potion_id", "")),
+        normalize_lookup_key(getattr(potion, "name", "")),
+        normalize_lookup_key(format_potion_display_name(potion)),
+    )
+
+
 def resolve_state_target(run_state, raw_target):
     target_text = normalize_lookup_key(raw_target or "self")
     game_state = getattr(run_state, "current_battle", None)
@@ -342,6 +387,14 @@ def handle_debug_console(run_state, parts):
         return handle_add_relic(run_state, args)
     if command == "removerelic":
         return handle_remove_relic(run_state, args)
+    if command in ("addpotion", "addpot", "添加药水", "加药水"):
+        return handle_add_potion(run_state, args)
+    if command in ("removepotion", "rmpotion", "delpotion", "删除药水", "移除药水"):
+        return handle_remove_potion(run_state, args)
+    if command in ("setpotionslots", "setpotion_slots", "setpotionslot", "设置药水栏", "设置药水栏位"):
+        return handle_set_potion_slots(run_state, args)
+    if command in ("addpotionslots", "addpotion_slots", "addpotionslot", "增加药水栏", "增加药水栏位"):
+        return handle_add_potion_slots(run_state, args)
     if command == "addstate":
         return handle_add_state(run_state, args)
     if command == "removestate":
@@ -476,6 +529,36 @@ def sync_battle_relics(run_state):
         game_state.player.relics = run_state.relics
 
 
+def get_max_potion_slots(run_state):
+    try:
+        max_slots = int(getattr(run_state, "max_potion_slots", 3))
+    except (TypeError, ValueError):
+        max_slots = 3
+    return max(0, max_slots)
+
+
+def sync_battle_potions(run_state):
+    game_state = getattr(run_state, "current_battle", None)
+    if game_state is None or getattr(game_state, "player", None) is None:
+        return
+    game_state.player.max_potion_slots = get_max_potion_slots(run_state)
+    if game_state.player.potions is not run_state.potions:
+        game_state.player.potions = run_state.potions
+
+
+def trim_potions_to_slots(run_state):
+    potions = getattr(run_state, "potions", None)
+    if potions is None:
+        run_state.potions = []
+        potions = run_state.potions
+    max_slots = get_max_potion_slots(run_state)
+    if len(potions) <= max_slots:
+        return []
+    removed = potions[max_slots:]
+    del potions[max_slots:]
+    return removed
+
+
 def handle_remove_relic(run_state, args):
     if not args:
         return "用法：/ctrl removerelic 遗物名。例如 /ctrl removerelic 开心小花。"
@@ -502,6 +585,156 @@ def handle_remove_relic(run_state, args):
         return "ctrl：没有找到遗物【{}】。".format(relic_name)
 
     return "ctrl：已移除 {} 个{}。".format(len(removed), format_relic_display_name(removed[0]))
+
+
+def handle_add_potion(run_state, args):
+    if not args:
+        return "用法：/ctrl addpotion 药水名 [数量]。例如 /ctrl addpotion 攻击药水。"
+
+    potion_name = args[0]
+    count = parse_positive_int(args[1], default=1) if len(args) >= 2 else 1
+    if count is None:
+        return "数量必须是正整数。"
+
+    sample = create_console_potion(potion_name)
+    if sample is None:
+        return "未知药水：{}。".format(potion_name)
+
+    potions = getattr(run_state, "potions", None)
+    if potions is None:
+        run_state.potions = []
+        potions = run_state.potions
+
+    max_slots = get_max_potion_slots(run_state)
+    empty_slots = max_slots - len(potions)
+    if count > empty_slots:
+        return "药水栏位不足：当前 {}/{}，还需要 {} 个空位。可先使用 /ctrl addpotionslots 数量。".format(
+            len(potions),
+            max_slots,
+            count - empty_slots
+        )
+
+    for _ in range(count):
+        potions.append(create_potion(sample.potion_id))
+
+    sync_battle_potions(run_state)
+    return "ctrl：已获得 {} 瓶{}。药水栏：{}/{}。".format(
+        count,
+        format_potion_display_name(sample),
+        len(potions),
+        max_slots
+    )
+
+
+def handle_remove_potion(run_state, args):
+    if not args:
+        return "用法：/ctrl removepotion 药水名 [数量]，或 /ctrl removepotion 药水编号。"
+
+    potions = getattr(run_state, "potions", None)
+    if potions is None:
+        run_state.potions = []
+        potions = run_state.potions
+
+    raw_target = args[0]
+    index = parse_amount(raw_target)
+    if index is not None:
+        if index < 0 or index >= len(potions):
+            return "药水编号无效：{}。".format(index)
+        removed = potions.pop(index)
+        sync_battle_potions(run_state)
+        return "ctrl：已移除药水 [{}] {}。药水栏：{}/{}。".format(
+            index,
+            format_potion_display_name(removed),
+            len(potions),
+            get_max_potion_slots(run_state)
+        )
+
+    count = parse_positive_int(args[1], default=1) if len(args) >= 2 else 1
+    if count is None:
+        return "数量必须是正整数。"
+
+    removed = []
+    kept = []
+    remaining = count
+    for potion in potions:
+        if remaining > 0 and potion_matches(potion, raw_target):
+            removed.append(potion)
+            remaining -= 1
+        else:
+            kept.append(potion)
+
+    potions[:] = kept
+    sync_battle_potions(run_state)
+
+    if not removed:
+        return "ctrl：没有找到药水【{}】。".format(raw_target)
+
+    return "ctrl：已移除 {} 瓶{}。药水栏：{}/{}。".format(
+        len(removed),
+        format_potion_display_name(removed[0]),
+        len(potions),
+        get_max_potion_slots(run_state)
+    )
+
+
+def format_trimmed_potion_text(removed):
+    if not removed:
+        return ""
+    names = [
+        format_potion_display_name(potion)
+        for potion in removed
+    ]
+    return "丢弃超出栏位的药水：{}。".format("、".join(names))
+
+
+def handle_set_potion_slots(run_state, args):
+    if not args:
+        return "用法：/ctrl setpotionslots 数量。例如 /ctrl setpotionslots 4。"
+
+    amount = parse_amount(args[0])
+    if amount is None or amount < 0:
+        return "药水栏位数量必须是非负整数。"
+
+    old_slots = get_max_potion_slots(run_state)
+    run_state.max_potion_slots = amount
+    removed = trim_potions_to_slots(run_state)
+    sync_battle_potions(run_state)
+
+    lines = ["ctrl：药水栏位 {} -> {}。药水栏：{}/{}。".format(
+        old_slots,
+        amount,
+        len(getattr(run_state, "potions", []) or []),
+        get_max_potion_slots(run_state)
+    )]
+    trimmed_text = format_trimmed_potion_text(removed)
+    if trimmed_text:
+        lines.append(trimmed_text)
+    return "\n".join(lines)
+
+
+def handle_add_potion_slots(run_state, args):
+    if not args:
+        return "用法：/ctrl addpotionslots 数量。例如 /ctrl addpotionslots 1。可填负数减少栏位。"
+
+    amount = parse_amount(args[0])
+    if amount is None:
+        return "药水栏位变化量必须是整数。"
+
+    old_slots = get_max_potion_slots(run_state)
+    run_state.max_potion_slots = max(0, old_slots + amount)
+    removed = trim_potions_to_slots(run_state)
+    sync_battle_potions(run_state)
+
+    lines = ["ctrl：药水栏位 {} -> {}。药水栏：{}/{}。".format(
+        old_slots,
+        get_max_potion_slots(run_state),
+        len(getattr(run_state, "potions", []) or []),
+        get_max_potion_slots(run_state)
+    )]
+    trimmed_text = format_trimmed_potion_text(removed)
+    if trimmed_text:
+        lines.append(trimmed_text)
+    return "\n".join(lines)
 
 
 def handle_add_state(run_state, args):
@@ -711,6 +944,10 @@ def debug_console_help():
         "/ctrl removecard 粘液 弃牌堆",
         "/ctrl addrelic 墨水瓶",
         "/ctrl removerelic 开心小花",
+        "/ctrl addpotion 攻击药水",
+        "/ctrl removepotion 0",
+        "/ctrl setpotionslots 4",
+        "/ctrl addpotionslots 1",
         "/ctrl addstate 易伤 1 enemy[0]",
         "/ctrl removestate 易伤 enemy[0]",
         "/ctrl addzone extreme_crystal",

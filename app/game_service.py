@@ -85,6 +85,7 @@ from data.content_gate import (
     set_private_content_enabled,
 )
 from game.multiplayer.service import MultiRoomService
+from game.pvp.service import PvpRoomService
 
 
 CHARACTER_CHOICES = [
@@ -143,6 +144,7 @@ class GameService(object):
         self.session_owners = {}
         self.pending_confirmations = {}
         self.multiplayer_service = MultiRoomService()
+        self.pvp_service = PvpRoomService()
 
     def get_run(self, session_id):
         return self.sessions.get(session_id)
@@ -230,6 +232,7 @@ class GameService(object):
             "characters", "character", "chars", "角色", "角色选择", "查看角色",
             "info", "说明", "查看说明", "buffinfo", "状态说明",
             "private", "私货",
+            "pvp", "对战", "演绎",
             "new",
             "yes", "y", "确认", "是",
             "no", "cancel", "取消", "否",
@@ -341,6 +344,9 @@ class GameService(object):
 
         if command in ("multi", "mp", "多人", "联机"):
             return self.multiplayer_service.handle_message(session_id, user_id, parts)
+
+        if command in ("pvp", "对战", "演绎"):
+            return self.pvp_service.handle_message(session_id, user_id, parts)
 
         if command == "new":
             character_id = self.resolve_character_id(parts)
@@ -1791,7 +1797,8 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.7.11",
+            "当前版本：v26.7.12",
+            "- 新增pvp模式框架",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",

@@ -916,6 +916,26 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+register_status_def(StatusDef(
+    key="living_soil_9",
+    name="息壤",
+    description="每个实例独立累计消耗岩层。每累计消耗 9 层岩层，获得 5 层岩层。",
+    category="buff",
+    display_mode="stack",
+    order=70,
+    decay_timing="none",
+    decay_amount=0,
+))
+register_status_def(StatusDef(
+    key="living_soil_6",
+    name="息壤+",
+    description="每个实例独立累计消耗岩层。每累计消耗 6 层岩层，获得 5 层岩层。",
+    category="buff",
+    display_mode="stack",
+    order=71,
+    decay_timing="none",
+    decay_amount=0,
+))
 
 register_status_def(StatusDef(
     key="life_link",

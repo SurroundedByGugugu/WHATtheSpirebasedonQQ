@@ -409,7 +409,38 @@ def create_solidification():
             ],
         }
     )
-
+def create_erosion_action():
+    return CardTemplate(
+        card_id="card.erosion_action",
+        name="侵蚀作用",
+        card_type="skill",
+        cost=0,
+        target="enemy",
+        description="给予 2 层虚弱。",
+        quantity="common",
+        owner_character_id="character.suzuri",
+        card_vars={
+            "weak": 2,
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "selected_enemy",
+                "status": "weak",
+                "amount": {
+                    "var": "weak",
+                },
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "侵蚀作用+",
+            "description": "给予 3 层虚弱。",
+            "card_vars": {
+                "weak": 3,
+            },
+        }
+    )
 
 # uncommon
 def create_eruption_action():
@@ -520,6 +551,57 @@ def create_fossil():
             },
         }
     )
+def create_conglomerate_deconstruction():
+    return CardTemplate(
+        card_id="card.conglomerate_deconstruction",
+        name="砾岩解构",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="消耗一半岩层，获得消耗量一半的隐蔽石砾。",
+        quantity="uncommon",
+        owner_character_id="character.suzuri",
+        effects=[
+            {
+                "op": "consume_rock_layer_to_context",
+                "mode": "ratio",
+                "ratio": 0.5,
+                "rounding": "ceil",
+                "context_key": "consumed_rock",
+            },
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "hidden_gravel",
+                "amount": {
+                    "context_var": "consumed_rock",
+                    "divisor": 2,
+                },
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "砾岩解构+",
+            "description": "消耗一半岩层，获得等同于消耗量的隐蔽石砾。",
+            "effects": [
+                {
+                    "op": "consume_rock_layer_to_context",
+                    "mode": "ratio",
+                    "ratio": 0.5,
+                    "rounding": "ceil",
+                    "context_key": "consumed_rock",
+                },
+                {
+                    "op": "gain_status",
+                    "target": "self",
+                    "status": "hidden_gravel",
+                    "amount": {
+                        "context_var": "consumed_rock",
+                    },
+                },
+            ],
+        }
+    )
 
 def create_rock_polishing():
     return CardTemplate(
@@ -574,7 +656,34 @@ def create_heavy_rock():
             "description": "费用减少 1。每次获得岩层时，额外获得 2 层岩层。",
         }
     )
-
+def create_living_soil():
+    return CardTemplate(
+        card_id="card.living_soil",
+        name="息壤",
+        card_type="power",
+        cost=2,
+        target="self",
+        description="每累计消耗 9 层岩层，获得 5 层岩层。每张【息壤】独立计数。",
+        quantity="uncommon",
+        owner_character_id="character.suzuri",
+        effects=[
+            {
+                "op": "gain_living_soil_counter",
+                "threshold": 9,
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "息壤+",
+            "description": "每累计消耗 6 层岩层，获得 5 层岩层。每张【息壤】独立计数。",
+            "effects": [
+                {
+                    "op": "gain_living_soil_counter",
+                    "threshold": 6,
+                },
+            ],
+        }
+    )
 
 #rare
 def create_sedimentation():

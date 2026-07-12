@@ -2676,6 +2676,19 @@ def handle_gain_rock_polishing_counter(game_state, card, effect, target_index, e
         source_name=card.name
     )
 
+@register_effect("gain_living_soil_counter")
+def handle_gain_living_soil_counter(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    threshold = int(effect.get("threshold", 9) or 9)
+
+    from game.suzuri_rock import add_living_soil_counter
+
+    return add_living_soil_counter(
+        game_state=game_state,
+        target=player,
+        threshold=threshold,
+        source_name=card.name
+    )
 
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):
     """
