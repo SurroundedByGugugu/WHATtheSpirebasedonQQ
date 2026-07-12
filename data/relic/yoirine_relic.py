@@ -270,3 +270,172 @@ class UnsealedAbyssRelic(RelicTemplate):
         ))
 
         return logs
+    
+class WhirlwallSparrowDownRelic(RelicTemplate):
+    def __init__(self):
+        super().__init__(
+            relic_id="relic.whirlwall_sparrow_down",
+            name="旋壁雀的绒羽",
+            description="拾起时，在牌组中添加一张额外拥有保留的【磐愿+】。",
+            story="重要的，不应该被忘记的人的羽毛。为什么会被丢在这里？……为什么会被“拿走”？",
+            quantity="uncommon",
+            owner_character_id="character.yoirine",
+            allow_duplicate=False
+        )
+
+    def on_obtained(self, run_state):
+        from data.card.AAAregistry import create_card
+        from data.card.upgrade_rules import upgrade_card
+        from game.constants import KEYWORD_RETAIN
+        from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics
+
+        card = create_card("card.rockbound_wish")
+        card = upgrade_card(card)
+
+        if KEYWORD_RETAIN not in getattr(card, "keywords", []):
+            card.keywords.append(KEYWORD_RETAIN)
+
+        logs = ["【{}】触发：获得一张拥有保留的【{}】。".format(
+            self.name,
+            card.name
+        )]
+
+        logs.extend(add_card_to_master_deck_with_relics(
+            run_state,
+            card,
+            source=self.name,
+            apply_gain_preview=False
+        ))
+
+        return logs
+    
+class AbyssalWhisperRelic(RelicTemplate):
+    def __init__(self):
+        super().__init__(
+            relic_id="relic.abyssal_whisper",
+            name="深渊的诱语",
+            description="阴 Zone 下，阴属性能力牌费用 -1，最低 -1。打出这类牌时失去 1 点生命。",
+            story="脑海中的低语。无法理解的引诱之声。",
+            quantity="rare",
+            owner_character_id="character.yoirine",
+            allow_duplicate=False
+        )
+
+    def on_event(self, event_name, context):
+        from game.constants import EVENT_CARD_PLAY_AFTER
+
+        if event_name != EVENT_CARD_PLAY_AFTER:
+            return []
+
+        game_state = context.game_state
+        player = getattr(game_state, "player", None)
+        card = getattr(context, "card", None)
+
+        if player is None or card is None:
+            return []
+
+        if getattr(card, "card_type", "") != "power":
+            return []
+
+        if str(getattr(card, "attack_element", "") or "").strip().lower() != "shade":
+            return []
+
+        zone = getattr(game_state, "active_zone", None)
+        if zone is None:
+            return []
+
+        try:
+            if zone.is_expired():
+                return []
+        except Exception:
+            pass
+
+        if str(getattr(zone, "element", "") or "").strip().lower() != "shade":
+            return []
+
+        logs = []
+        logs.append("【{}】触发：打出阴属性能力牌【{}】，失去 1 点生命。".format(
+            self.name,
+            card.name
+        ))
+
+        from game.damage import deal_damage
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=player,
+            target=player,
+            amount=1,
+            damage_kind="relic_hp_loss",
+            card=card,
+            is_reaction_damage=False,
+            ignore_block=True,
+            count_as_player_self_action_hp_loss=True
+        ))
+
+        return logs
+    
+class HomewardDeepLongingRelic(RelicTemplate):
+    def __init__(self):
+        super().__init__(
+            relic_id="relic.homeward_deep_longing",
+            name="“归乡深念”",
+            description="每回合第一次由你造成的攻击伤害增加已失去生命比例。",
+            story="某人温柔的声音。为什么如此重要的人的记忆会变得模糊？",
+            quantity="uncommon",
+            owner_character_id="character.yoirine",
+            allow_duplicate=False
+        )
+
+    def on_event(self, event_name, context):
+        from game.constants import EVENT_DAMAGE_BEFORE
+
+        if event_name != EVENT_DAMAGE_BEFORE:
+            return []
+
+        game_state = context.game_state
+        player = getattr(game_state, "player", None)
+
+        if player is None:
+            return []
+
+        if getattr(context, "source", None) is not player:
+            return []
+
+        target = getattr(context, "target", None)
+        if target is None or not hasattr(target, "enemy_id"):
+            return []
+
+        if context.extra.get("damage_kind", "") != "attack":
+            return []
+
+        current_turn = int(getattr(game_state, "turn_count", 0) or 0)
+        used_turn = int(getattr(game_state, "homeward_deep_longing_used_turn", -1) or -1)
+
+        if used_turn == current_turn:
+            return []
+
+        max_hp = int(getattr(player, "max_hp", 0) or 0)
+        hp = int(getattr(player, "hp", 0) or 0)
+
+        if max_hp <= 0:
+            return []
+
+        lost_hp = max(0, max_hp - hp)
+        if lost_hp <= 0:
+            game_state.homeward_deep_longing_used_turn = current_turn
+            return []
+
+        old_amount = int(context.extra.get("amount", 0) or 0)
+        multiplier = 1.0 + float(lost_hp) / float(max_hp)
+        new_amount = int(old_amount * multiplier)
+
+        context.extra["amount"] = new_amount
+        game_state.homeward_deep_longing_used_turn = current_turn
+
+        return ["【{}】触发：已失去生命 {}/{}，本次攻击伤害 {} -> {}。".format(
+            self.name,
+            lost_hp,
+            max_hp,
+            old_amount,
+            new_amount
+        )]

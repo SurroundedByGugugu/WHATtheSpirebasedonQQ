@@ -1634,10 +1634,10 @@ def advance_to_next_act_after_boss_if_needed(run_state, current_node):
 
     current_act = get_route_act_from_node(current_node)
     next_act = current_act + 1
-    #后续测试楼层开关
+    #后续测试楼层开关 二层 三层 
     route_generator_by_act = {
-        # 2: generate_act2_grid_route,
-        # 3: generate_act3_grid_route,
+        2: generate_act2_grid_route,
+        3: generate_act3_grid_route,
     }
 
     route_generator = route_generator_by_act.get(next_act)

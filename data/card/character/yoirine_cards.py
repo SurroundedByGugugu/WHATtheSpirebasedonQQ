@@ -263,7 +263,6 @@ def create_crystal_piercing():
             },
         }
     )
-
 def create_crystal_thorns():
     return CardTemplate(
         card_id="card.crystal_thorns",
@@ -271,12 +270,13 @@ def create_crystal_thorns():
         card_type="skill",
         cost=1,
         target="self",
-        description="获得 3 点格挡。获得等量临时荆棘。",
+        description="获得 6 点格挡。获得一半临时荆棘。",
         quantity="common",
         attack_element="crystal",
         owner_character_id="character.yoirine",
         card_vars={
-            "block": 3
+            "block": 6,
+            "thorns": 3
         },
         effects=[
             {
@@ -292,7 +292,7 @@ def create_crystal_thorns():
                 "target": "self",
                 "status": "temporary_thorns",
                 "amount": {
-                    "var": "block",
+                    "var": "thorns",
                     "modifier_profile": "block"
                 }
             }
@@ -300,9 +300,10 @@ def create_crystal_thorns():
         upgraded=False,
         upgrade_patch={
             "name": "辉晶之棘+",
-            "description": "获得 4 点格挡。获得等量临时荆棘。",
+            "description": "获得 8 点格挡。获得等量临时荆棘。",
             "card_vars": {
-                "block": 4
+                "block": 8,
+                "thorns": 8
             },
         }
     )
@@ -533,7 +534,7 @@ def create_crystal_dust_explosion():
         card_type="attack",
         cost=2,
         target="none",
-        description="只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 1 次 8 点伤害；极晶时，对全体敌人造成 2 次 12 点伤害。该伤害来源不视为自身。",
+        description="只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 1 次 8 点伤害；极晶时，对全体敌人造成 2 次 10 点伤害。该伤害来源不视为自身。",
         quantity="uncommon",
         attack_element="crystal",
         ignore_zone_replay=True,
@@ -550,13 +551,13 @@ def create_crystal_dust_explosion():
                 "normal_times": 1,
                 "normal_damage": 8,
                 "extreme_times": 2,
-                "extreme_damage": 12
+                "extreme_damage": 10
             }
         ],
         upgraded=False,
         upgrade_patch={
             "name": "晶尘爆炸+",
-            "description": "只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 2 次 12 点伤害；极晶时，对全体敌人造成 3 次 16 点伤害。无论【辉晶领域】在何处，将其升级并放回抽牌堆顶。该伤害来源不视为自身。",
+            "description": "只能在当前真实 Zone 为晶或极晶时打出。破坏当前晶/极晶 Zone：普通晶时，对全体敌人造成 2 次 10 点伤害；极晶时，对全体敌人造成 3 次 12 点伤害。无论【辉晶领域】在何处，将其升级并放回抽牌堆顶。该伤害来源不视为自身。",
             "patches": [
                 {
                     "path": ["effects", 0, "normal_times"],
@@ -585,7 +586,7 @@ def create_crystal_cocoon():
         card_type="skill",
         cost=1,
         target="self",
-        description="获得 3 点格挡。本回合结束时，在敌人攻击完后，若你有格挡，获得 1 点力量。",
+        description="获得 3 点格挡。本回合结束时，在敌人行动完后，若你有格挡，获得 1 点力量。",
         quantity="uncommon",
         attack_element="crystal",
         owner_character_id="character.yoirine",
@@ -614,7 +615,7 @@ def create_crystal_cocoon():
         upgraded=False,
         upgrade_patch={
             "name": "晶茧+",
-            "description": "获得 4 点格挡。本回合结束时，在敌人攻击完后，若你有格挡，获得 2 点力量。",
+            "description": "获得 4 点格挡。本回合结束时，在敌人行动完后，若你有格挡，获得 2 点力量。",
             "card_vars": {
                 "block": 4,
                 "cocoon": 2
@@ -789,7 +790,7 @@ def create_crystal_mist():
         card_id="card.crystal_mist",
         name="结晶薄雾",
         card_type="skill",
-        cost=1,
+        cost=0,
         target="self",
         description="下 1 张打出的牌视为在晶 Zone 下。无属性牌也会占用次数。真实场地 Zone 存在时不触发。",
         quantity="uncommon",
@@ -821,7 +822,7 @@ def create_abyss_mist():
         card_id="card.abyss_mist",
         name="深渊薄雾",
         card_type="skill",
-        cost=1,
+        cost=0,
         target="self",
         description="下 1 张打出的攻击牌视为在阴 Zone 下。真实场地 Zone 存在时不触发。",
         quantity="uncommon",
@@ -847,6 +848,35 @@ def create_abyss_mist():
                 {
                     "path": ["effects", 0, "status"],
                     "value": "abyss_mist_extreme"
+                }
+            ]
+        }
+    )
+def create_abyss_index():
+    return CardTemplate(
+        card_id="card.abyss_index",
+        name="深渊索引",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="消耗。选择抽牌堆中一张牌，添加战斗内附魔【索引·阴】。每次打出阴属性牌后，将带【索引·阴】的牌从抽牌堆、弃牌堆或消耗堆加入手牌。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "request_abyss_index_choice",
+                "enchantment": "index_shade"
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "深渊索引+",
+            "description": "消耗。选择抽牌堆中一张牌，添加战斗内附魔【索引·阴+】。每次打出阴属性牌后，将带【索引·阴+】的牌从抽牌堆、弃牌堆或消耗堆加入手牌；以正常抽牌方式从抽牌堆抽到时，额外获得 1 点费用。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "enchantment"],
+                    "value": "index_shade_plus"
                 }
             ]
         }
@@ -1011,34 +1041,105 @@ def create_rockbound_wish():
             ]
         }
     )
-def create_tailwind():
+def create_abyss_manifestation():
     return CardTemplate(
-        card_id="card.tailwind",
-        name="顺风",
-        card_type="power",
-        cost=3,
-        target="self",
-        description="有飞行状态时，受到的攻击伤害变为 30%。",
+        card_id="card.abyss_manifestation",
+        name="深渊具现",
+        card_type="skill",
+        cost=1,
+        target="none",
+        description="对深渊凝视层数最高的敌人造成一次等量无来源环境伤害。次优先级：当前 HP 最低；全部相等则按序取第一个存活敌人。",
         quantity="rare",
         owner_character_id="character.yoirine",
-        card_vars={
-            "tailwind": 1
-        },
         effects=[
             {
-                "op": "gain_status",
-                "target": "self",
-                "status": "tailwind",
-                "amount": {
-                    "var": "tailwind"
-                }
+                "op": "abyss_manifestation_damage",
+                "use_shade_zone_when_upgraded": False
             }
         ],
         upgraded=False,
         upgrade_patch={
-            "name": "顺风+",
-            "description": "费用减少 1。有飞行状态时，受到的攻击伤害变为 30%。",
-            "cost": 2
+            "name": "深渊具现+",
+            "description": "对深渊凝视层数最高的敌人造成一次等量无来源环境伤害。若当前为阴/极阴 Zone，该环境伤害被阴 Zone 修正，并触发自伤。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "use_shade_zone_when_upgraded"],
+                    "value": True
+                }
+            ]
+        }
+    )
+def create_shade_zone():
+    return CardTemplate(
+        card_id="card.shade_zone",
+        name="刻阴领域",
+        card_type="skill",
+        cost=2,
+        target="none",
+        description="场地效果变为阴。已有阴效果时，改为场地效果变为极·阴，持续3t。已在极·阴期间再次使用时，延长持续回合2t。",
+        quantity="rare",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "set_zone",
+                "element": "shade"
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "刻阴领域+",
+            "description": "费用减少1。场地效果变为阴。已有阴效果时，改为场地效果变为极·阴，持续3t。已在极·阴期间再次使用时，延长持续回合2t。",
+            "cost": 1
+        }
+    )
+def create_synchronization():
+    return CardTemplate(
+        card_id="card.synchronization",
+        name="同调",
+        card_type="skill",
+        cost=2,
+        target="self",
+        description="消耗。对自己造成 1 点伤害。选择消耗堆以外任意 1 张牌，添加共鸣和消耗。共鸣牌在晶/阴 Zone 下抽到时自动叠加 Zone 属性打出。",
+        quantity="rare",
+        owner_character_id="character.yoirine",
+        keywords=[KEYWORD_EXHAUST],
+        card_vars={
+            "self_damage": 1,
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "self",
+                "amount": {
+                    "base_var": "self_damage"
+                },
+                "damage_kind": "effect",
+                "ignore_block": True,
+            },
+            {
+                "op": "request_synchronization_choice",
+                "add_exhaust": True,
+            },
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "同调+",
+            "description": "消耗。对自己造成 1 点伤害。选择消耗堆以外任意 1 张牌，添加共鸣。共鸣牌在晶/阴 Zone 下抽到时自动叠加 Zone 属性打出。",
+            "effects": [
+                {
+                    "op": "deal_damage",
+                    "target": "self",
+                    "amount": {
+                        "base_var": "self_damage"
+                    },
+                    "damage_kind": "effect",
+                    "ignore_block": True,
+                },
+                {
+                    "op": "request_synchronization_choice",
+                    "add_exhaust": False,
+                },
+            ],
         }
     )
 
@@ -1073,78 +1174,58 @@ def create_abyssal_form():
             "description": "阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         }
     )
-def create_shade_zone():
+def create_tailwind():
     return CardTemplate(
-        card_id="card.shade_zone",
-        name="刻阴领域",
-        card_type="skill",
-        cost=2,
-        target="none",
-        description="场地效果变为阴。已有阴效果时，改为场地效果变为极·阴，持续3t。已在极·阴期间再次使用时，延长持续回合2t。",
+        card_id="card.tailwind",
+        name="顺风",
+        card_type="power",
+        cost=3,
+        target="self",
+        description="有飞行状态时，受到的攻击伤害变为 30%。",
         quantity="rare",
         owner_character_id="character.yoirine",
+        card_vars={
+            "tailwind": 1
+        },
         effects=[
             {
-                "op": "set_zone",
-                "element": "shade"
+                "op": "gain_status",
+                "target": "self",
+                "status": "tailwind",
+                "amount": {
+                    "var": "tailwind"
+                }
             }
         ],
         upgraded=False,
         upgrade_patch={
-            "name": "刻阴领域+",
-            "description": "费用减少1。场地效果变为阴。已有阴效果时，改为场地效果变为极·阴，持续3t。已在极·阴期间再次使用时，延长持续回合2t。",
-            "cost": 1
+            "name": "顺风+",
+            "description": "费用减少 1。有飞行状态时，受到的攻击伤害变为 30%。",
+            "cost": 2
         }
     )
-def create_synchronization():
+def create_insatiable_abyss():
     return CardTemplate(
-        card_id="card.synchronization",
-        name="同调",
-        card_type="skill",
+        card_id="card.insatiable_abyss",
+        name="无厌之渊",
+        card_type="power",
         cost=2,
         target="self",
-        description="消耗。对自己造成 1 点伤害。选择消耗堆以外任意 1 张牌，添加共鸣和消耗。共鸣牌在晶/阴 Zone 下抽到时自动叠加 Zone 属性打出并消耗。",
+        description="对敌人造成阴属性伤害并清除深渊凝视后，若敌人没有死亡，再赋予清除层数一半的深渊凝视。该比例在打出时确定。",
         quantity="rare",
+        attack_element="shade",
         owner_character_id="character.yoirine",
-        keywords=[KEYWORD_EXHAUST],
-        card_vars={
-            "self_damage": 1,
-        },
         effects=[
             {
-                "op": "deal_damage",
-                "target": "self",
-                "amount": {
-                    "base_var": "self_damage"
-                },
-                "damage_kind": "effect",
-                "ignore_block": True,
-            },
-            {
-                "op": "request_synchronization_choice",
-                "add_exhaust": True,
-            },
+                "op": "gain_insatiable_abyss",
+                "base_percent": 50,
+                "upgraded_percent": 80
+            }
         ],
         upgraded=False,
         upgrade_patch={
-            "name": "同调+",
-            "description": "消耗。对自己造成 1 点伤害。选择消耗堆以外任意 1 张牌，添加共鸣。共鸣牌在晶/阴 Zone 下抽到时自动叠加 Zone 属性打出并消耗。",
-            "effects": [
-                {
-                    "op": "deal_damage",
-                    "target": "self",
-                    "amount": {
-                        "base_var": "self_damage"
-                    },
-                    "damage_kind": "effect",
-                    "ignore_block": True,
-                },
-                {
-                    "op": "request_synchronization_choice",
-                    "add_exhaust": False,
-                },
-            ],
+            "name": "无厌之渊+",
+            "description": "对敌人造成阴属性伤害并清除深渊凝视后，若敌人没有死亡，再赋予清除层数 80% 的深渊凝视。该比例在打出时确定。"
         }
     )
-
 

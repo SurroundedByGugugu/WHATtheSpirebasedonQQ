@@ -896,7 +896,16 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
-
+register_status_def(StatusDef(
+    key="insatiable_abyss",
+    name="无厌之渊",
+    description="对敌人造成阴属性攻击伤害并清除深渊凝视后，若敌人没有死亡，重新赋予一定比例的深渊凝视。层数表示百分比。",
+    category="buff",
+    display_mode="stack",
+    order=79,
+    decay_timing="none",
+    decay_amount=0,
+))
 register_status_def(StatusDef(
     key="quartz_ritual",
     name="石英祭仪",

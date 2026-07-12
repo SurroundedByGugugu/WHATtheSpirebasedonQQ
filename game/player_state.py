@@ -149,6 +149,19 @@ class PlayerState:
 
             self.hand.append(card)
             logs.append("抽到【{}】。".format(card.name))
+            try:
+                from data.card.enchantment_rules import get_card_enchantment_stacks
+
+                index_plus = get_card_enchantment_stacks(card, "index_shade_plus")
+                if index_plus > 0:
+                    self.cost += index_plus
+                    logs.append("【索引·阴+】触发：抽到【{}】，获得 {} 点费用。当前费用：{}。".format(
+                        card.name,
+                        index_plus,
+                        self.cost
+                    ))
+            except Exception:
+                pass
             if getattr(card, "card_id", "") == "card.status.void":
                 old_cost = int(getattr(self, "cost", 0))
                 self.cost = max(0, old_cost - 1)

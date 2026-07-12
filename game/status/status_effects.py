@@ -74,6 +74,7 @@ STATUS_EVENT_PRIORITY = {
     "tailwind": 10,
     "flinch": 10,
     "stun": 10,
+    "insatiable_abyss": 10,
     "no_draw": 9,
 }
 
@@ -2319,6 +2320,63 @@ def handle_crystal_cocoon(event_name, context, owner, value):
 
     return logs
 
+def handle_insatiable_abyss(event_name, context, owner, value):
+    logs = []
+
+    from game.constants import EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK
+
+    if event_name != EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK:
+        return logs
+
+    game_state = context.game_state
+    player = getattr(game_state, "player", None)
+
+    if owner is not player:
+        return logs
+
+    if owner is None or not owner.is_alive():
+        return logs
+
+    target = getattr(context, "target", None)
+    if target is None or not hasattr(target, "enemy_id"):
+        return logs
+
+    if not target.is_alive():
+        return logs
+
+    cleared = int(context.extra.get("cleared_abyss_gaze", 0) or 0)
+    if cleared <= 0:
+        return logs
+
+    percent = int(value)
+    if percent <= 0:
+        return logs
+
+    reapply = int(cleared * percent / 100)
+    if reapply <= 0:
+        logs.append("【无厌之渊】触发，但 {} 层深渊凝视按 {}% 返还后为 0。".format(
+            cleared,
+            percent
+        ))
+        return logs
+
+    from game.relic_logic.combat_relic_utils import apply_status_with_player_relics
+
+    logs.append("【无厌之渊】触发：{} 未死亡，返还 {}% 的深渊凝视。".format(
+        target.name,
+        percent
+    ))
+
+    logs.extend(apply_status_with_player_relics(
+        game_state=game_state,
+        source=player,
+        target=target,
+        status_key="abyss_gaze",
+        amount=reapply
+    ))
+
+    return logs
+
 def handle_reminiscence(event_name, context, owner, value):
     logs = []
 
@@ -2706,6 +2764,7 @@ STATUS_EVENT_HANDLERS = {
     "sharp_hide": handle_sharp_hide,
     "vigor": handle_vigor,
     "crystal_cocoon": handle_crystal_cocoon,
+    "insatiable_abyss": handle_insatiable_abyss,
     "reminiscence": handle_reminiscence,
     "magnetism": handle_magnetism,
     "mayhem": handle_mayhem,

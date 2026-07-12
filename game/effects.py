@@ -565,7 +565,12 @@ def play_card_from_effect_and_exhaust(
     logs = []
 
     from data.card.keyword_rules import can_play_card
-    from game.engine import validate_card_target, move_card_to_exhaust_pile, move_played_card_to_destination
+    from game.engine import (
+        validate_card_target,
+        move_card_to_exhaust_pile,
+        move_played_card_to_destination,
+        resolve_abyss_index_after_shade_card_play,
+    )
     from game.x_value import is_x_cost_card, calculate_card_x_value
     from game.zone.zone_utils import (
         is_card_first_play_this_battle,
@@ -687,6 +692,7 @@ def play_card_from_effect_and_exhaust(
         card=played_card
     )
     logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
+    logs.extend(resolve_abyss_index_after_shade_card_play(game_state, played_card))
 
     logs.extend(move_card_to_exhaust_pile(
         game_state=game_state,
@@ -1330,6 +1336,147 @@ def handle_abyss_mire_damage_by_gaze(game_state, card, effect, target_index, eff
         ))
 
     return logs
+
+@register_effect("gain_insatiable_abyss")
+def handle_gain_insatiable_abyss(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    base_percent = int(effect.get("base_percent", 50) or 50)
+    upgraded_percent = int(effect.get("upgraded_percent", base_percent) or base_percent)
+
+    percent = upgraded_percent if getattr(card, "upgraded", False) else base_percent
+
+    zone = getattr(game_state, "active_zone", None)
+    zone_element = ""
+    is_extreme = False
+
+    if zone is not None:
+        try:
+            if not zone.is_expired():
+                zone_element = str(getattr(zone, "element", "") or "").strip().lower()
+                is_extreme = bool(getattr(zone, "is_extreme", False))
+        except Exception:
+            zone_element = str(getattr(zone, "element", "") or "").strip().lower()
+            is_extreme = bool(getattr(zone, "is_extreme", False))
+
+    if zone_element == "shade":
+        if getattr(card, "upgraded", False):
+            if is_extreme:
+                percent = 200
+            else:
+                percent = 120
+        else:
+            if is_extreme:
+                percent = 100
+            else:
+                percent = 75
+
+    current = player.gain_status("insatiable_abyss", percent)
+
+    logs.append("【{}】生效：无厌之渊返还比例为 {}%。当前无厌之渊：{}%。".format(
+        card.name,
+        percent,
+        current
+    ))
+
+    return logs
+
+def _select_abyss_manifestation_target(game_state):
+    candidates = [
+        enemy
+        for enemy in getattr(game_state, "enemies", []) or []
+        if enemy.is_alive()
+    ]
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda enemy: (
+        -int(get_status_value(enemy, "abyss_gaze")),
+        int(getattr(enemy, "hp", 0)),
+        getattr(enemy, "_battle_order", 0)
+    ))
+
+    target = candidates[0]
+
+    if int(get_status_value(target, "abyss_gaze")) <= 0:
+        return None
+
+    return target
+
+
+@register_effect("abyss_manifestation_damage")
+def handle_abyss_manifestation_damage(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    target = _select_abyss_manifestation_target(game_state)
+
+    if target is None:
+        return ["【{}】没有找到带有深渊凝视的敌人。".format(card.name)]
+
+    gaze = int(get_status_value(target, "abyss_gaze"))
+    damage = gaze
+
+    use_shade_zone_when_upgraded = bool(effect.get("use_shade_zone_when_upgraded", False))
+    zone_element = ""
+
+    if use_shade_zone_when_upgraded and getattr(card, "upgraded", False):
+        zone = getattr(game_state, "active_zone", None)
+        if zone is not None:
+            try:
+                if not zone.is_expired():
+                    zone_element = str(getattr(zone, "element", "") or "").strip().lower()
+            except Exception:
+                zone_element = str(getattr(zone, "element", "") or "").strip().lower()
+
+        if zone_element == "shade":
+            from game.zone.zone_utils import apply_zone_amount_modifier
+            old_damage = damage
+            damage = apply_zone_amount_modifier(damage, game_state, "shade")
+            logs.append("【{}】受到阴 Zone 修正：{} -> {}。".format(
+                card.name,
+                old_damage,
+                damage
+            ))
+
+            from game.zone.zone_utils import apply_zone_source_hp_loss_if_needed
+            apply_zone_source_hp_loss_if_needed(
+                game_state=game_state,
+                source=player,
+                zone_element="shade",
+                logs=logs,
+                label=card.name,
+                card=card,
+                count_as_player_self_action_hp_loss=True
+            )
+
+            if game_state.battle_over or not player.is_alive():
+                return logs
+
+    logs.append("【{}】锁定深渊凝视最高的敌人：{}，造成 {} 点无来源环境伤害。".format(
+        card.name,
+        target.name,
+        damage
+    ))
+
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=None,
+        target=target,
+        amount=damage,
+        damage_kind="environment",
+        card=card,
+        is_reaction_damage=True,
+        ignore_block=False,
+        attack_type="",
+        attack_element="",
+        zone_element=""
+    ))
+
+    return logs
+
 
 def _find_and_move_upgraded_crystal_zone_to_draw_top(game_state, logs, source_name):
     """

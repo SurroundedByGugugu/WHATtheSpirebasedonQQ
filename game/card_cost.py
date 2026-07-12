@@ -64,6 +64,58 @@ def get_card_current_cost(game_state, card):
         if "min_cost" in rule:
             min_cost = int(rule.get("min_cost", 0))
 
+    if game_state is not None:
+        player = getattr(game_state, "player", None)
+        zone = getattr(game_state, "active_zone", None)
+
+        has_abyssal_whisper = any(
+            getattr(relic, "relic_id", "") == "relic.abyssal_whisper"
+            for relic in getattr(player, "relics", []) or []
+        )
+
+        zone_is_shade = False
+        if zone is not None:
+            try:
+                zone_is_shade = (
+                    not zone.is_expired()
+                    and str(getattr(zone, "element", "") or "").strip().lower() == "shade"
+                )
+            except Exception:
+                zone_is_shade = str(getattr(zone, "element", "") or "").strip().lower() == "shade"
+
+        if (
+            has_abyssal_whisper
+            and zone_is_shade
+            and getattr(card, "card_type", "") == "power"
+            and str(getattr(card, "attack_element", "") or "").strip().lower() == "shade"
+        ):
+            min_cost = min(min_cost, -1)
+    if game_state is not None:
+        player = getattr(game_state, "player", None)
+        zone = getattr(game_state, "active_zone", None)
+
+        has_abyssal_whisper = any(
+            getattr(relic, "relic_id", "") == "relic.abyssal_whisper"
+            for relic in getattr(player, "relics", []) or []
+        )
+
+        zone_is_shade = False
+        if zone is not None:
+            try:
+                zone_is_shade = (
+                    not zone.is_expired()
+                    and str(getattr(zone, "element", "") or "").strip().lower() == "shade"
+                )
+            except Exception:
+                zone_is_shade = str(getattr(zone, "element", "") or "").strip().lower() == "shade"
+
+        if (
+            has_abyssal_whisper
+            and zone_is_shade
+            and getattr(card, "card_type", "") == "power"
+            and str(getattr(card, "attack_element", "") or "").strip().lower() == "shade"
+        ):
+            current_cost -= 1
     if current_cost < min_cost:
         current_cost = min_cost
 

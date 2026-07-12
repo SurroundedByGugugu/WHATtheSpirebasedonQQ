@@ -13,9 +13,8 @@
 
 
 ENCHANTMENT_DISPLAY_NAMES = {
-    # 后续在这里注册附魔名称：
-    # "sharp": "锋利",
-    # "steady": "沉稳",
+    "index_shade": "索引·阴",
+    "index_shade_plus": "索引·阴+",
 }
 
 

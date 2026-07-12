@@ -2,8 +2,11 @@
 
 from game.battle_context import BattleContext
 from game.event_bus import dispatch_event
-from game.constants import EVENT_DAMAGE_AFTER
-
+from game.constants import (
+    EVENT_DAMAGE_BEFORE,
+    EVENT_DAMAGE_AFTER,
+    EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK,
+)
 
 def take_damage_with_wind_block_effect(target, amount, multiplier):
     """
@@ -185,6 +188,30 @@ def deal_damage(
                     old_amount,
                     amount
                 ))
+    before_context = BattleContext(
+        game_state=game_state,
+        player=game_state.player,
+        source=source,
+        target=target,
+        card=card,
+        extra={
+            "amount": amount,
+            "damage_kind": damage_kind,
+            "is_reaction_damage": is_reaction_damage,
+            "ignore_block": ignore_block,
+            "attack_type": attack_type,
+            "attack_element": attack_element,
+            "zone_element": zone_element,
+        }
+    )
+
+    logs.extend(dispatch_event(
+        game_state,
+        EVENT_DAMAGE_BEFORE,
+        before_context
+    ))
+
+    amount = int(before_context.extra.get("amount", amount))
     if amount < 0:
         amount = 0
 
@@ -359,6 +386,30 @@ def deal_damage(
             logs.append("{} 被阴属性攻击命中，{} 层深渊凝视被清空。".format(
                 target.name,
                 old_gaze
+            ))
+
+            clear_context = BattleContext(
+                game_state=game_state,
+                player=game_state.player,
+                source=source,
+                target=target,
+                card=card,
+                extra={
+                    "cleared_abyss_gaze": old_gaze,
+                    "real_damage": real_damage,
+                    "damage_kind": damage_kind,
+                    "attack_type": attack_type,
+                    "attack_element": attack_element,
+                    "zone_element": zone_element,
+                    "target_was_alive": was_alive,
+                    "target_is_dead_after": (was_alive and not target.is_alive()),
+                }
+            )
+
+            logs.extend(dispatch_event(
+                game_state,
+                EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK,
+                clear_context
             ))
     if was_alive and not target.is_alive() and not context.extra.get("suppress_death_message", False):
         if hasattr(target, "enemy_id"):

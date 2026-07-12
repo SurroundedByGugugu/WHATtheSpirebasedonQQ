@@ -17,6 +17,8 @@ EVENT_CARD_EXHAUST = "card_exhaust"
 EVENT_DAMAGE_BEFORE = "damage_before"
 EVENT_DAMAGE_AFTER = "damage_after"
 
+EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK = "abyss_gaze_cleared_by_shade_attack"
+
 EVENT_GAIN_BLOCK_BEFORE = "gain_block_before"
 EVENT_GAIN_BLOCK_AFTER = "gain_block_after"
 
@@ -25,6 +27,7 @@ EVENT_DRAW_CARD_AFTER = "draw_card_after"
 
 EVENT_ENEMY_DEATH = "enemy_death"
 EVENT_PLAYER_DEATH = "player_death"
+
 
 
 # 药水

@@ -207,9 +207,12 @@ from data.card.character.silent_huntress_cards import (
 
 
 from data.card.character.yoirine_cards import (
+    create_abyss_index,
+    create_abyss_manifestation,
     create_crystal_piercing,
     create_crystal_zone,
     create_defendYoirine,
+    create_insatiable_abyss,
     create_shade_zone,
     create_spreading_wing,
     create_crystal_cocoon,
@@ -503,7 +506,9 @@ CARD_REGISTRY = {
     "card.precipitate":create_precipitate,
     "card.shade_zone":create_shade_zone,
     "card.synchronization": create_synchronization,
-    
+    "card.abyss_index": create_abyss_index,
+    "card.insatiable_abyss": create_insatiable_abyss,
+    "card.abyss_manifestation": create_abyss_manifestation,
     #suzuri
     "card.defend_suzuri":create_defendSuzuri,
     "card.strike_suzuri":create_strikeSuzuri,

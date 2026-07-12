@@ -182,6 +182,9 @@ CARD_REWARD_POOL = [
     "card.precipitate",
     "card.shade_zone",
     "card.synchronization",
+    "card.abyss_index",
+    "card.insatiable_abyss",
+    "card.abyss_manifestation",
     
     # Suzuri
     "card.anatexis",
@@ -338,6 +341,8 @@ UNCOMMON_RELIC_POOL = [
     "relic.ink_bottle",
     "relic.strike_dummy",
     "relic.sundial",
+    "relic.whirlwall_sparrow_down",
+    "relic.homeward_deep_longing",
 ]
 
 RARE_RELIC_POOL = [
@@ -376,6 +381,7 @@ RARE_RELIC_POOL = [
     "relic.torii",
     "relic.tough_bandages",
     "relic.unceasing_top",
+    "relic.abyssal_whisper",
 ]
 
 EVENT_RELIC_POOL = [

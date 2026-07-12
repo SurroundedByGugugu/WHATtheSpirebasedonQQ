@@ -44,6 +44,9 @@ PRIVATE_CARD_IDS = [
     "card.lightless_prayer",    
     "card.abyss_mire",
     "card.divine_bird",
+    "card.abyss_index",
+    "card.insatiable_abyss",
+    "card.abyss_manifestation",
 
     "card.mirage_shadows",
     "card.deva_form",
@@ -67,6 +70,19 @@ PRIVATE_RELIC_IDS = [
     "relic.placeholder_stone",
     "relic.ether_medium",
     "relic.unsealed_abyss",
+    "relic.whirlwall_sparrow_down",
+    "relic.abyssal_whisper",
+    "relic.homeward_deep_longing",
+    "relic.matte_false_eye",
+    "relic.flower_in_abyss",
+    
+    "relic.piercing_lance",
+    "relic.nostalgic_crystal",
+    "relic.stalactite",
+    "relic.hometown_clear_stone",
+    "relic.resonant_azure_sky_stone",
+
+    "relic.cross_earring",
 
 ]
 PRIVATE_EVENT_IDS = []

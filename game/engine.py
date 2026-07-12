@@ -487,6 +487,100 @@ def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
             logs.append("【死灵诅咒】无法逃脱，立刻回到你的手牌。")
     return logs
 
+def card_has_abyss_index_enchantment(card):
+    try:
+        from data.card.enchantment_rules import has_card_enchantment
+
+        return (
+            has_card_enchantment(card, "index_shade")
+            or has_card_enchantment(card, "index_shade_plus")
+        )
+    except Exception:
+        return False
+
+
+def is_shade_type_card_for_abyss_index(card):
+    """
+    索引·阴的触发条件：打出任意阴属性牌。
+
+    当前按卡牌本体 attack_element 判断。
+    深渊镀层会直接修改 card.attack_element，所以也能触发。
+    薄雾/真实 Zone 只改变环境，不改变牌本体属性，因此不触发索引。
+    """
+    return str(getattr(card, "attack_element", "") or "").strip().lower() == "shade"
+
+
+def resolve_abyss_index_after_shade_card_play(game_state, played_card):
+    """
+    打出任意阴属性牌后，将牌堆中带【索引·阴】/【索引·阴+】的牌加入手牌。
+
+    被索引牌可以来自：
+    - 消耗堆
+    - 弃牌堆
+    - 抽牌堆
+
+    不扫描手牌，避免重复加入。
+    不扫描“已打出的能力牌”，因为能力牌打出后不在任何牌堆中。
+    """
+    logs = []
+    player = game_state.player
+
+    if player is None:
+        return logs
+
+    if not is_shade_type_card_for_abyss_index(played_card):
+        return logs
+
+    pile_specs = [
+        ("exhaust_pile", "消耗堆"),
+        ("discard_pile", "弃牌堆"),
+        ("draw_pile", "抽牌堆"),
+    ]
+
+    indexed_cards = []
+
+    for pile_attr, pile_name in pile_specs:
+        pile = getattr(player, pile_attr, None)
+        if pile is None:
+            continue
+
+        for pile_card in list(pile):
+            if card_has_abyss_index_enchantment(pile_card):
+                indexed_cards.append((pile_attr, pile_name, pile, pile_card))
+
+    if not indexed_cards:
+        return logs
+
+    logs.append("【索引·阴】触发：打出了阴属性牌【{}】。".format(
+        played_card.name
+    ))
+
+    moved_count = 0
+
+    for pile_attr, pile_name, pile, indexed_card in indexed_cards:
+        if indexed_card not in pile:
+            continue
+
+        if player.is_hand_full():
+            logs.append("手牌已满，【{}】仍留在{}中。".format(
+                indexed_card.name,
+                pile_name
+            ))
+            continue
+
+        pile.remove(indexed_card)
+        player.hand.append(indexed_card)
+        moved_count += 1
+
+        logs.append("【{}】从{}回到手牌。".format(
+            indexed_card.name,
+            pile_name
+        ))
+
+    if moved_count <= 0:
+        logs.append("没有索引牌成功回到手牌。")
+
+    return logs
 
 def move_played_card_to_destination(game_state, card):
     logs = []
@@ -605,6 +699,7 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
         )
         logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
         logs.extend(resolve_pain_cards_after_card_play(game_state, card))
+        logs.extend(resolve_abyss_index_after_shade_card_play(game_state, card))
 
         logs.extend(move_played_card_to_destination(game_state, card))
         return logs
@@ -2144,6 +2239,7 @@ def play_card(game_state, hand_index, target_index=None):
     )
     logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
     logs.extend(resolve_pain_cards_after_card_play(game_state, card))
+    logs.extend(resolve_abyss_index_after_shade_card_play(game_state, card))
 
     logs.extend(move_played_card_to_destination(game_state, card))
 

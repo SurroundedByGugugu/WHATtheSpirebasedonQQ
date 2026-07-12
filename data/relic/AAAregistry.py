@@ -2,11 +2,14 @@
 
 from data.relic.lumine_relic import CrossEarringRelic
 from data.relic.yoirine_relic import (
-    FlowerInAbyssRelic, 
-    MatteFalseEyeRelic, 
-    SaturatedFissureRelic, 
-    UnsealedAbyssRelic
-    )
+    FlowerInAbyssRelic,
+    MatteFalseEyeRelic,
+    SaturatedFissureRelic,
+    UnsealedAbyssRelic,
+    WhirlwallSparrowDownRelic,
+    AbyssalWhisperRelic,
+    HomewardDeepLongingRelic,
+)
 from data.relic.suzuri_relic import (
     NostalgicCrystalRelic,
     PiercingLanceRelic,
@@ -256,7 +259,10 @@ RELIC_REGISTRY = {
     "relic.flower_in_abyss": FlowerInAbyssRelic,
     "relic.saturated_fissure": SaturatedFissureRelic,
     "relic.unsealed_abyss": UnsealedAbyssRelic,
-
+    "relic.whirlwall_sparrow_down": WhirlwallSparrowDownRelic,
+    "relic.abyssal_whisper": AbyssalWhisperRelic,
+    "relic.homeward_deep_longing": HomewardDeepLongingRelic,
+    
     "relic.piercing_lance": PiercingLanceRelic,
     "relic.nostalgic_crystal": NostalgicCrystalRelic,
     "relic.stalactite": StalactiteRelic,

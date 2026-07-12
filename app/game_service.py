@@ -1293,7 +1293,7 @@ class GameService(object):
             lines.append("[{}] {} ({})".format(
                 item["index"],
                 item["name"],
-                item["character_id"]
+                # item["character_id"]
             ))
 
         lines.append("")
@@ -1791,9 +1791,7 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.7.10",
-            "- 打防私有化",
-            "- 画饼多人模式",
+            "当前版本：v26.7.11",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",
