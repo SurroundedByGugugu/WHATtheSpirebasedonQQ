@@ -4,6 +4,8 @@ import random
 from game.constants import (
     EVENT_CARD_PLAY_AFTER,
     EVENT_DAMAGE_AFTER,
+    EVENT_DAMAGE_BEFORE,
+    EVENT_ENEMY_DEATH,
     EVENT_CARD_EXHAUST,
     EVENT_DRAW_CARD_AFTER,
     EVENT_GAIN_BLOCK_AFTER,
@@ -15,6 +17,7 @@ from game.constants import (
 from game.modifiers import get_status_value, apply_block_modifiers
 from game.status.status_defs import get_status_name
 from game.block import gain_block_without_modifiers
+from game.pending_choice import PendingChoice, set_pending_choice
 
 STATUS_EVENT_PRIORITY = {
     "thorns": 50,
@@ -76,6 +79,20 @@ STATUS_EVENT_PRIORITY = {
     "stun": 10,
     "insatiable_abyss": 10,
     "no_draw": 9,
+    "phantasmal_killer": 10,
+    "phantasmal_killer_next": 10,
+    "corpse_explosion": 24,
+    "wraith_form": 10,
+    "tools_of_the_trade": 10,
+    "envenom": 24,
+    "after_image": 24,
+    "a_thousand_cuts": 24,
+    "next_turn_draw": 10,
+    "choked": 11,
+    "well_laid_plans": 10,
+    "noxious_fumes": 10,
+    "infinite_blades": 10,
+    "accuracy": 12,
 }
 
 def get_status_event_priority(status_key):
@@ -2721,6 +2738,284 @@ def handle_quartz_ritual(event_name, context, owner, value):
 
     return logs
 
+
+
+# =========================
+# 静默猎手状态处理
+# =========================
+def _add_card_to_hand_or_discard_for_status(game_state, owner, card_id, source_name, count=1, upgrade=False):
+    logs=[]
+    from data.card.AAAregistry import create_card
+    from data.card.upgrade_rules import upgrade_card
+    for _ in range(int(count)):
+        new_card=create_card(card_id)
+        if upgrade:
+            new_card=upgrade_card(new_card)
+        setattr(new_card,"temporary",True)
+        setattr(new_card,"created_in_battle",True)
+        if owner.is_hand_full():
+            owner.discard_pile.append(new_card)
+            logs.append("手牌已满，【{}】进入弃牌堆。".format(new_card.name))
+        else:
+            owner.hand.append(new_card)
+            logs.append("{} 将【{}】加入手牌。".format(source_name,new_card.name))
+    return logs
+
+
+def handle_accuracy(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_DAMAGE_BEFORE:
+        return logs
+    if owner is not context.game_state.player:
+        return logs
+    card=context.card
+    if getattr(card,"card_id","") != "card.shiv":
+        return logs
+    if context.source is not owner:
+        return logs
+    if context.extra.get("damage_kind") != "attack":
+        return logs
+    amount=int(value)
+    if amount<=0:
+        return logs
+    old=int(context.extra.get("amount",0))
+    context.extra["amount"]=old+amount
+    logs.append("精准使小刀伤害 {} -> {}。".format(old, old+amount))
+    return logs
+
+
+def handle_infinite_blades(event_name, context, owner, value):
+    if event_name != EVENT_TURN_START or owner is not context.game_state.player:
+        return []
+    return _add_card_to_hand_or_discard_for_status(context.game_state, owner, "card.shiv", "无限刀刃", int(value))
+
+
+def handle_noxious_fumes(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_TURN_START or owner is not context.game_state.player:
+        return logs
+    amount=int(value)
+    if amount<=0:
+        return logs
+    from game.status.status_gain import format_status_gain_log
+    for enemy in context.game_state.enemies:
+        if not enemy.is_alive():
+            continue
+        result=enemy.gain_status_with_result("poison", amount)
+        logs.append(format_status_gain_log(enemy,"poison",amount,result))
+    return logs
+
+
+def handle_well_laid_plans(event_name, context, owner, value):
+    logs = []
+    if event_name != EVENT_PLAYER_TURN_END or owner is not context.game_state.player:
+        return logs
+
+    game_state = context.game_state
+    count = int(value)
+    if count <= 0:
+        return logs
+
+    hand = list(getattr(owner, "hand", []) or [])
+    if not hand:
+        logs.append("计划妥当触发，但当前没有手牌可保留。")
+        return logs
+
+    lines = [
+        "=== 计划妥当：选择至多 {} 张手牌在本回合结束时保留 ===".format(count),
+        "编号使用当前手牌编号。"
+    ]
+    for index, hand_card in enumerate(hand):
+        lines.append("[{}] {}".format(index, hand_card.summary_text()))
+    lines.append("")
+    lines.append("用法：/card retain 0 或 /card retain 0,1；不保留则 /card retain skip。")
+
+    set_pending_choice(game_state, PendingChoice(
+        kind="well_laid_plans",
+        source="计划妥当",
+        prompt="\n".join(lines),
+        command_hint="retain 等效 retain_hand，选择保留，保留。",
+        block_message="当前需要先处理计划妥当的保留选择。用法：/card retain 0 或 /card retain skip。",
+        options=hand,
+        payload={"max_count": count},
+    ))
+
+    logs.append("计划妥当触发，需要选择保留手牌。")
+    logs.append("\n".join(lines))
+    return logs
+
+
+def handle_choked(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_CARD_PLAY_AFTER:
+        return logs
+    if owner is context.game_state.player:
+        return logs
+    if context.player is not context.game_state.player:
+        return logs
+    if not owner.is_alive():
+        return logs
+    if getattr(context.card,"card_id","") == "card.choke":
+        return logs
+    amount=int(value)
+    if amount<=0:
+        return logs
+    from game.damage import deal_damage
+    logs.append("{} 的勒脖触发，失去 {} 点生命。".format(owner.name, amount))
+    logs.extend(deal_damage(context.game_state, context.game_state.player, owner, amount, damage_kind="hp_loss", card=context.card, ignore_block=True))
+    return logs
+
+
+def handle_next_turn_draw(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_TURN_START or owner is not context.game_state.player:
+        return logs
+    amount=int(value)
+    if amount<=0:
+        return logs
+    if hasattr(owner,"statuses"):
+        owner.statuses.remove("next_turn_draw")
+    logs.append("{} 的下回合抽牌触发，额外抽 {} 张牌。".format(owner.name, amount))
+    logs.extend(draw_cards_from_status(context, owner, amount, "next_turn_draw"))
+    return logs
+
+
+def handle_a_thousand_cuts(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_CARD_PLAY_AFTER or owner is not context.game_state.player:
+        return logs
+    amount=int(value)
+    if amount<=0:
+        return logs
+    from game.damage import deal_damage
+    for enemy in list(context.game_state.enemies):
+        if not enemy.is_alive():
+            continue
+        logs.append("凌迟对 {} 造成 {} 点伤害。".format(enemy.name, amount))
+        logs.extend(deal_damage(context.game_state, owner, enemy, amount, damage_kind="effect", card=context.card, ignore_block=False))
+    return logs
+
+
+def handle_after_image(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_CARD_PLAY_AFTER or owner is not context.game_state.player:
+        return logs
+    amount=int(value)
+    if amount<=0:
+        return logs
+    logs.extend(gain_block_without_modifiers(context.game_state, owner, owner, amount, block_source="after_image", card=context.card, message="余像触发，获得 {} 点格挡。当前格挡：{}。".format(amount, owner.block+amount)))
+    return logs
+
+
+def handle_envenom(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_DAMAGE_AFTER or owner is not context.game_state.player:
+        return logs
+    if context.source is not owner:
+        return logs
+    if context.extra.get("damage_kind") != "attack":
+        return logs
+    if int(context.extra.get("real_damage",0) or 0) <= 0:
+        return logs
+    target=context.target
+    if target is None or not hasattr(target,"enemy_id") or not target.is_alive():
+        return logs
+    amount=int(value)
+    from game.status.status_gain import format_status_gain_log
+    result=target.gain_status_with_result("poison", amount)
+    logs.append(format_status_gain_log(target,"poison",amount,result))
+    return logs
+
+
+def handle_tools_of_the_trade(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_TURN_START or owner is not context.game_state.player:
+        return logs
+    logs.extend(draw_cards_from_status(context, owner, int(value), "tools_of_the_trade"))
+    if len(getattr(owner,"hand",[]) or []) <= 0:
+        return logs
+    # 使用旧式丢弃 pending，若只有 1 张会自动丢弃。
+    context.game_state.pending_discard_selection = True
+    context.game_state.pending_discard_source = "必备工具"
+    context.game_state.pending_discard_min_count = 1
+    context.game_state.pending_discard_max_count = 1
+    logs.append("必备工具：请选择 1 张手牌丢弃：/card drop 0。")
+    return logs
+
+
+def handle_wraith_form(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_PLAYER_TURN_END or owner is not context.game_state.player:
+        return logs
+    amount=int(value)
+    if amount<=0:
+        return logs
+    current=owner.gain_status("dexterity", -amount)
+    logs.append("幽魂形态：失去 {} 点敏捷。当前敏捷：{}。".format(amount,current))
+    return logs
+
+
+def handle_corpse_explosion(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_ENEMY_DEATH:
+        return logs
+    if context.target is not owner:
+        return logs
+    amount=int(getattr(owner,"max_hp",0) or 0)
+    if amount<=0:
+        return logs
+    from game.damage import deal_damage
+    logs.append("{} 的尸爆术触发，对所有敌人造成 {} 点伤害。".format(owner.name, amount))
+    for enemy in list(context.game_state.enemies):
+        if not enemy.is_alive():
+            continue
+        logs.extend(deal_damage(context.game_state, owner, enemy, amount, damage_kind="effect", card=context.card, ignore_block=False))
+    return logs
+
+
+def handle_phantasmal_killer_next(event_name, context, owner, value):
+    logs=[]
+    if event_name != EVENT_TURN_START or owner is not context.game_state.player:
+        return logs
+    amount=int(value)
+    if amount<=0:
+        return logs
+    owner.statuses.remove("phantasmal_killer_next")
+    owner.statuses.add("phantasmal_killer", amount)
+    logs.append("幻影杀手生效：本回合攻击伤害翻倍。")
+    return logs
+
+
+def handle_phantasmal_killer(event_name, context, owner, value):
+    logs=[]
+    if event_name == EVENT_DAMAGE_BEFORE and owner is context.game_state.player:
+        if context.source is owner and context.extra.get("damage_kind") == "attack":
+            old=int(context.extra.get("amount",0) or 0)
+            context.extra["amount"]=old*2
+            logs.append("幻影杀手使攻击伤害 {} -> {}。".format(old, old*2))
+    return logs
+
+
+def resolve_night_terror_next_turn(game_state, player):
+    logs=[]
+    queue=list(getattr(game_state,"night_terror_next_turn_cards",[]) or [])
+    if not queue:
+        return logs
+    import copy
+    setattr(game_state,"night_terror_next_turn_cards",[])
+    for source_card in queue:
+        for _ in range(3):
+            copied=copy.deepcopy(source_card)
+            setattr(copied,"temporary",True)
+            setattr(copied,"created_in_battle",True)
+            if player.is_hand_full():
+                player.discard_pile.append(copied)
+                logs.append("手牌已满，夜魇复制品【{}】进入弃牌堆。".format(copied.name))
+            else:
+                player.hand.append(copied)
+                logs.append("夜魇将复制品【{}】加入手牌。".format(copied.name))
+    return logs
+
 STATUS_EVENT_HANDLERS = {
     "thorns": handle_thorns,
     "temporary_thorns": handle_temporary_thorns,
@@ -2783,4 +3078,18 @@ STATUS_EVENT_HANDLERS = {
     "next_turn_block": handle_next_turn_block,
     "temporary_strength_loss": handle_temporary_strength_loss,
     "quartz_ritual": handle_quartz_ritual,
+    "phantasmal_killer": handle_phantasmal_killer,
+    "phantasmal_killer_next": handle_phantasmal_killer_next,
+    "corpse_explosion": handle_corpse_explosion,
+    "wraith_form": handle_wraith_form,
+    "tools_of_the_trade": handle_tools_of_the_trade,
+    "envenom": handle_envenom,
+    "after_image": handle_after_image,
+    "a_thousand_cuts": handle_a_thousand_cuts,
+    "next_turn_draw": handle_next_turn_draw,
+    "choked": handle_choked,
+    "well_laid_plans": handle_well_laid_plans,
+    "noxious_fumes": handle_noxious_fumes,
+    "infinite_blades": handle_infinite_blades,
+    "accuracy": handle_accuracy,
 }

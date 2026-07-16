@@ -76,7 +76,7 @@ def should_exhaust_at_turn_end(card):
 
 def should_retain_at_turn_end(card):
     # 保留 回合结束时是否保留在手牌。
-    return card.has_keyword(KEYWORD_RETAIN)
+    return card.has_keyword(KEYWORD_RETAIN) or bool(getattr(card, "temporary_retain_once", False))
 
 
 def should_play_when_discarded(card):
@@ -212,6 +212,13 @@ def check_card_play_conditions(game_state, card, play_reason="normal"):
                     current_element or "无"
                 )
             continue
+
+        if op == "draw_pile_empty":
+            draw_pile = getattr(player, "draw_pile", []) or []
+            if len(draw_pile) != 0:
+                return False, "【{}】不能被打出：抽牌堆中还有 {} 张牌。".format(card.name, len(draw_pile))
+            continue
+
         if op == "active_zone_in":
             required_elements = condition.get("elements", [])
             required_elements = [
@@ -299,7 +306,7 @@ def can_play_card(game_state, card, play_reason="normal"):
     if allowed_override_message is not None:
         return True, allowed_override_message
 
-    if card.has_keyword("unplayable"):
+    if card.has_keyword("unplayable") and play_reason != "discard_trigger":
         return False, "【{}】不能被打出。".format(card.name)
 
     return True, ""

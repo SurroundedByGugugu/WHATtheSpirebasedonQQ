@@ -28,6 +28,11 @@ class GameState:
     # 旧式 pending_* 字段仍保留，后续逐步迁移到 pending_choice。
     pending_discard_selection: bool = False
     pending_discard_source: str = ""
+    pending_discard_min_count: int = 0
+    pending_discard_max_count: Any = None
+    pending_discard_source_card: Any = None
+    pending_discard_target_index: int = 0
+    pending_discard_after_effects: List[Any] = field(default_factory=list)
     pending_discard_to_draw_selection: bool = False
     pending_discard_to_draw_source: str = ""
     pending_discard_to_draw_options: List[Any] = field(default_factory=list)

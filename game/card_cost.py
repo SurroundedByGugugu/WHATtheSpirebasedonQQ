@@ -43,6 +43,16 @@ def get_card_current_cost(game_state, card):
                 amount_per_loss = int(rule.get("amount_per_loss", 1))
                 current_cost -= count * amount_per_loss
 
+            elif op == "increase_by_player_life_loss_count":
+                count = int(getattr(game_state, "player_life_loss_count_this_battle", 0))
+                amount_per_loss = int(rule.get("amount_per_loss", 1))
+                current_cost += count * amount_per_loss
+
+            elif op == "reduce_by_player_discarded_this_turn":
+                count = int(getattr(game_state, "player_discarded_cards_this_turn", 0))
+                amount_per_discard = int(rule.get("amount_per_discard", 1))
+                current_cost -= count * amount_per_discard
+
             elif op == "reduce_if_active_zone":
                 from game.zone.zone_utils import normalize_element
 

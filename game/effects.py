@@ -13,6 +13,7 @@ from game.zone.zone_utils import (
     record_player_card_played_this_turn
 )
 from game.block import gain_block_without_modifiers
+from game.pending_choice import PendingChoice, set_pending_choice
 
 
 EFFECT_HANDLERS = {}
@@ -227,7 +228,10 @@ def resolve_amount(
 
     x_var_name = amount_spec.get("x_var")
     if x_var_name:
-        value += int(effect_context.get(x_var_name, 0))
+        x_value = int(effect_context.get(x_var_name, 0) or 0)
+        x_multiplier = int(amount_spec.get("multiplier", 1) or 1)
+        x_add = int(amount_spec.get("add", 0) or 0)
+        value += x_value * x_multiplier + x_add
 
     context_var_name = amount_spec.get("context_var")
     if context_var_name:
@@ -5148,9 +5152,9 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
     if op == "request_discard_any":
         player = game_state.player
         available_count = len(getattr(player, "hand", []) or [])
-        min_count = int(effect.get("min_count", 0) or 0)
+        min_count = int(resolve_amount(game_state, card, effect.get("min_count", 0), source=player, target=player, effect_context=effect_context) or 0)
         max_count_raw = effect.get("max_count", None)
-        max_count = None if max_count_raw is None else int(max_count_raw)
+        max_count = None if max_count_raw is None else int(resolve_amount(game_state, card, max_count_raw, source=player, target=player, effect_context=effect_context))
 
         if available_count <= 0:
             return logs
@@ -5181,12 +5185,24 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     trigger_clever=True
                 ))
 
+            for after_effect in list(effect.get("after_effects", []) or []):
+                logs.extend(apply_card_effect(
+                    game_state=game_state,
+                    card=card,
+                    effect=after_effect,
+                    target_index=target_index,
+                    effect_context=effect_context
+                ))
+
             return logs
 
         game_state.pending_discard_selection = True
         game_state.pending_discard_source = card.name
         game_state.pending_discard_min_count = min_count
         game_state.pending_discard_max_count = max_count
+        game_state.pending_discard_source_card = card
+        game_state.pending_discard_target_index = int(target_index)
+        game_state.pending_discard_after_effects = list(effect.get("after_effects", []) or [])
 
         if min_count == 1 and max_count == 1:
             logs.append("请选择 1 张手牌丢弃：/card drop 0。")
@@ -5595,3 +5611,310 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         card=card
     ))
     return logs       
+
+
+# =========================
+# 静默猎手扩展效果
+# =========================
+
+def _discard_cards_direct(game_state, indexed_cards, logs, reason="主动丢弃", trigger_clever=True):
+    from game.engine import resolve_discarded_card
+    player = game_state.player
+    for index, discard_card in indexed_cards:
+        if discard_card in player.hand:
+            player.hand.remove(discard_card)
+        logs.append("选择丢弃手牌 [{}] 【{}】。".format(index, discard_card.name))
+        logs.extend(resolve_discarded_card(game_state, discard_card, reason=reason, trigger_clever=trigger_clever))
+
+
+@register_effect("discard_random_hand_cards")
+def handle_discard_random_hand_cards(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    player=game_state.player
+    amount=resolve_amount(game_state, card, effect.get("amount",1), source=player, target=player, effect_context=effect_context)
+    amount=int(amount)
+    if amount<=0 or not player.hand:
+        return logs
+    hand=list(enumerate(player.hand))
+    chosen=random.sample(hand, min(amount, len(hand)))
+    _discard_cards_direct(game_state, chosen, logs, reason="主动丢弃", trigger_clever=True)
+    return logs
+
+
+@register_effect("discard_all_hand_then_draw_same")
+def handle_discard_all_hand_then_draw_same(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    player=game_state.player
+    indexed=list(enumerate(list(player.hand)))
+    count=len(indexed)
+    if count<=0:
+        logs.append("手牌为空，没有丢弃。")
+        return logs
+    _discard_cards_direct(game_state, indexed, logs, reason="主动丢弃", trigger_clever=True)
+    logs.append("【{}】抽取与丢弃数量相同的牌：{} 张。".format(card.name, count))
+    logs.extend(draw_cards_with_no_draw_check(game_state, count, draw_source="calculated_gamble"))
+    return logs
+
+
+@register_effect("discard_all_non_attack_hand_cards")
+def handle_discard_all_non_attack_hand_cards(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    player=game_state.player
+    indexed=[(i,c) for i,c in enumerate(list(player.hand)) if getattr(c,"card_type","") != "attack"]
+    if not indexed:
+        logs.append("没有非攻击牌可丢弃。")
+        return logs
+    _discard_cards_direct(game_state, indexed, logs, reason="主动丢弃", trigger_clever=True)
+    return logs
+
+
+@register_effect("discard_all_hand_add_shivs")
+def handle_discard_all_hand_add_shivs(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    player=game_state.player
+    indexed=list(enumerate(list(player.hand)))
+    count=len(indexed)
+    if count<=0:
+        logs.append("手牌为空，没有丢弃，也没有增加小刀。")
+        return logs
+    _discard_cards_direct(game_state, indexed, logs, reason="主动丢弃", trigger_clever=True)
+    from data.card.AAAregistry import create_card
+    from data.card.upgrade_rules import upgrade_card
+    for _ in range(count):
+        shiv=create_card("card.shiv")
+        if bool(effect.get("upgrade_shiv", False)):
+            shiv=upgrade_card(shiv)
+        setattr(shiv,"temporary",True)
+        setattr(shiv,"created_in_battle",True)
+        add_card_to_hand_or_discard(player, shiv, logs, card.name)
+    return logs
+
+
+@register_effect("gain_status_all_enemies")
+def handle_gain_status_all_enemies(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    status_key=effect.get("status","")
+    from game.status.status_gain import format_status_gain_log
+    for enemy in get_all_alive_enemies(game_state):
+        amount=resolve_amount(game_state, card, effect.get("amount"), source=game_state.player, target=enemy, effect_context=effect_context)
+        result=enemy.gain_status_with_result(status_key, int(amount))
+        logs.append(format_status_gain_log(enemy, status_key, int(amount), result))
+    return logs
+
+
+@register_effect("gain_status_random_enemies")
+def handle_gain_status_random_enemies(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    enemies=get_all_alive_enemies(game_state)
+    if not enemies:
+        return ["没有敌人可以获得状态。"]
+    times=resolve_effect_times(game_state, card, effect, effect_context)
+    status_key=effect.get("status","")
+    from game.status.status_gain import format_status_gain_log
+    for i in range(max(0,int(times))):
+        enemies=get_all_alive_enemies(game_state)
+        if not enemies:
+            break
+        enemy=random.choice(enemies)
+        amount=resolve_amount(game_state, card, effect.get("amount"), source=game_state.player, target=enemy, effect_context=effect_context)
+        result=enemy.gain_status_with_result(status_key, int(amount))
+        logs.append("【{}】第 {}/{} 次命中 {}。".format(card.name, i+1, times, enemy.name))
+        logs.append(format_status_gain_log(enemy, status_key, int(amount), result))
+    return logs
+
+
+@register_effect("multiply_status")
+def handle_multiply_status(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    target=get_effect_target_entity(game_state, effect.get("target","selected_enemy"), target_index)
+    if target is None:
+        return ["目标无效。"]
+    status_key=effect.get("status","")
+    current=get_status_value(target, status_key)
+    multiplier=resolve_amount(game_state, card, effect.get("multiplier",2), source=game_state.player, target=target, effect_context=effect_context)
+    new_value=int(current)*int(multiplier)
+    if new_value<0:
+        new_value=0
+    if hasattr(target,"statuses"):
+        target.statuses.set(status_key,new_value)
+    logs.append("【{}】使 {} 的{}层数 {} -> {}。".format(card.name, target.name, get_status_name(status_key), current, new_value))
+    return logs
+
+
+@register_effect("deal_damage_times_by_attack_played_this_turn")
+def handle_deal_damage_times_by_attack_played_this_turn(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    counts=getattr(game_state,"player_card_type_played_counts_this_turn",{}) or {}
+    times=int(counts.get("attack",0) or 0) + 1
+    if times<=0:
+        logs.append("本回合没有打出过攻击牌，【{}】没有造成伤害。".format(card.name))
+        return logs
+    child={"op":"deal_damage","target":effect.get("target","selected_enemy"),"amount":effect.get("amount"),"times":times}
+    logs.append("【{}】按本回合攻击牌数结算 {} 次。".format(card.name,times))
+    logs.extend(apply_card_effect(game_state, card, child, target_index, effect_context))
+    return logs
+
+
+@register_effect("deal_damage_times_by_hand_type")
+def handle_deal_damage_times_by_hand_type(game_state, card, effect, target_index, effect_context):
+    ctype=effect.get("card_type","skill")
+    times=sum(1 for c in getattr(game_state.player,"hand",[]) if getattr(c,"card_type","")==ctype)
+    logs=[]
+    if times<=0:
+        logs.append("手牌中没有{}牌，【{}】没有造成伤害。".format(ctype, card.name))
+        return logs
+    child={"op":"deal_damage","target":effect.get("target","selected_enemy"),"amount":effect.get("amount"),"times":times}
+    logs.append("【{}】按手牌中{}牌数量结算 {} 次。".format(card.name,ctype,times))
+    logs.extend(apply_card_effect(game_state, card, child, target_index, effect_context))
+    return logs
+
+
+@register_effect("draw_one_if_skill_gain_block")
+def handle_draw_one_if_skill_gain_block(game_state, card, effect, target_index, effect_context):
+    logs=[]
+    player=game_state.player
+    before=list(player.hand)
+    logs.extend(draw_cards_with_no_draw_check(game_state,1,draw_source="escape_plan"))
+    drawn=None
+    for c in player.hand:
+        if c not in before:
+            drawn=c
+            break
+    if drawn is None:
+        return logs
+    if getattr(drawn,"card_type","") != "skill":
+        logs.append("抽到的【{}】不是技能牌，未获得格挡。".format(drawn.name))
+        return logs
+    block=resolve_amount(game_state, card, effect.get("amount"), source=player, target=player, block_source="played_card", effect_context=effect_context)
+    logs.extend(gain_block_without_modifiers(game_state, player, player, int(block), block_source="played_card", card=card, message="【{}】抽到技能牌，获得 {} 点格挡。当前格挡：{}。".format(card.name, int(block), player.block+int(block))))
+    return logs
+
+
+@register_effect("draw_until_hand_size")
+def handle_draw_until_hand_size(game_state, card, effect, target_index, effect_context):
+    target_size=resolve_amount(game_state, card, effect.get("amount"), source=game_state.player, target=game_state.player, effect_context=effect_context)
+    target_size=int(target_size)
+    count=max(0, target_size-len(getattr(game_state.player,"hand",[]) or []))
+    if count<=0:
+        return ["手牌数量已经达到 {}。".format(target_size)]
+    return draw_cards_with_no_draw_check(game_state,count,draw_source="expertise")
+
+
+@register_effect("add_random_skill_to_hand_temp_cost_zero")
+def handle_add_random_skill_to_hand_temp_cost_zero(game_state, card, effect, target_index, effect_context):
+    owner_character_id=effect.get("owner_character_id",getattr(card,"owner_character_id",""))
+    exclude=set(effect.get("exclude_card_ids",[]))
+    from data.card.AAAregistry import CARD_REGISTRY, create_card
+    from data.content_gate import is_content_enabled
+    candidates=[]
+    for cid in CARD_REGISTRY.keys():
+        if cid in exclude or not is_content_enabled("card",cid):
+            continue
+        try:
+            c=create_card(cid)
+        except Exception:
+            continue
+        if getattr(c,"card_type","")!="skill":
+            continue
+        if getattr(c,"quantity","") in ("starting","status","curse","test"):
+            continue
+        if getattr(c,"owner_character_id","") != owner_character_id:
+            continue
+        if getattr(c,"cost",None)=="X" or getattr(c,"cost",None)=="-":
+            continue
+        candidates.append(cid)
+    if not candidates:
+        return ["没有可生成的随机技能牌。"]
+    new_card=create_card(random.choice(candidates))
+    setattr(new_card,"temporary",True)
+    setattr(new_card,"created_in_battle",True)
+    setattr(new_card,"temporary_cost_override",0)
+    add_card_to_hand_or_discard(game_state.player,new_card,logs:=[],card.name)
+    if logs:
+        logs[-1]=logs[-1]+"本回合其费用变为 0。"
+    return logs
+
+
+@register_effect("set_all_hand_cost_zero_this_turn")
+def handle_set_all_hand_cost_zero_this_turn(game_state, card, effect, target_index, effect_context):
+    count=0
+    for hand_card in getattr(game_state.player,"hand",[]) or []:
+        if getattr(hand_card,"card_type","") in ("status","curse"):
+            continue
+        if getattr(hand_card,"cost",None) in ("X","-"):
+            continue
+        setattr(hand_card,"temporary_cost_override",0)
+        count+=1
+    return ["【{}】使 {} 张手牌本回合耗能变为 0。".format(card.name,count)]
+
+
+@register_effect("request_hand_to_draw_top_temp_cost_zero")
+def handle_request_hand_to_draw_top_temp_cost_zero(game_state, card, effect, target_index, effect_context):
+    player=game_state.player
+    options=list(player.hand)
+    if not options:
+        return ["手牌为空，没有可以放到抽牌堆顶的牌。"]
+    from game.pending_choice import PendingChoice, set_pending_choice
+    set_pending_choice(game_state, PendingChoice(kind="hand_to_draw_top", source=card.name, prompt="请选择 1 张手牌放到抽牌堆顶，并使其耗能变为 0：/card handtop 0。", command_hint="handtop 等效 hand_top，warcry，置顶手牌，手牌置顶。", block_message="当前需要先处理手牌置顶选择。用法：/card handtop 0。", options=options, payload={"set_cost_zero": True, "destination":"top"}))
+    logs=["请选择 1 张手牌放到抽牌堆顶，并使其耗能变为 0：/card handtop 0。","可选牌："]
+    for i,c in enumerate(options):
+        logs.append("[{}] {}".format(i,c.summary_text()))
+    return logs
+
+
+@register_effect("decrease_self_card_var")
+def handle_decrease_self_card_var(game_state, card, effect, target_index, effect_context):
+    var=effect.get("var","")
+    if not var:
+        return []
+    amount=resolve_amount(game_state,card,effect.get("amount",1),source=game_state.player,target=game_state.player,effect_context=effect_context)
+    min_value=int(effect.get("min_value",0))
+    old=int(card.card_vars.get(var,0))
+    new=max(min_value,old-int(amount))
+    card.card_vars[var]=new
+    return ["【{}】的基础{}降低：{} -> {}。".format(card.name,var,old,new)]
+
+
+@register_effect("gain_random_potion")
+def handle_gain_random_potion(game_state, card, effect, target_index, effect_context):
+    try:
+        from game.reward import roll_potion_id_by_rarity
+        from data.potion.AAAregistry import create_potion
+        from game.relic_logic.run_relic_utils import try_gain_potion_with_relics
+        potion_id=roll_potion_id_by_rarity(random, run_state=getattr(game_state,"run_state",None), include_event=False)
+        if potion_id is None:
+            return ["没有可获得的随机药水。"]
+        potion=create_potion(potion_id)
+        return try_gain_potion_with_relics(game_state.player, potion, source=card.name)
+    except Exception as exc:
+        return ["获得随机药水失败：{}".format(exc)]
+
+
+@register_effect("request_night_terror_card")
+def handle_request_night_terror_card(game_state, card, effect, target_index, effect_context):
+    player = game_state.player
+    hand = list(getattr(player, "hand", []) or [])
+
+    if not hand:
+        return ["手牌为空，夜魇没有选择目标。"]
+
+    lines = [
+        "=== {}：选择 1 张手牌，下回合加入 3 张复制品 ===".format(card.name),
+        "编号使用当前手牌编号。"
+    ]
+    for index, hand_card in enumerate(hand):
+        lines.append("[{}] {}".format(index, hand_card.summary_text()))
+    lines.append("")
+    lines.append("用法：/card nightmare 0。")
+
+    set_pending_choice(game_state, PendingChoice(
+        kind="night_terror",
+        source=card.name,
+        prompt="\n".join(lines),
+        command_hint="nightmare 等效 night_terror，night，夜魇。",
+        block_message="当前需要先处理夜魇选择。用法：/card nightmare 0。",
+        options=hand,
+        payload={},
+    ))
+
+    return ["{}".format("\n".join(lines))]

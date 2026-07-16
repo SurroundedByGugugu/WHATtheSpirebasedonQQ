@@ -1046,3 +1046,21 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+# 静默猎手能力与延迟效果
+register_status_def(StatusDef(key="accuracy", name="精准", description="小刀造成的伤害增加。", category="buff", display_mode="stack", order=82, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="infinite_blades", name="无限刀刃", description="玩家回合开始时，增加小刀到手牌。", category="buff", display_mode="stack", order=83, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="noxious_fumes", name="毒雾", description="玩家回合开始时，给予所有敌人中毒。", category="buff", display_mode="stack", order=84, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="well_laid_plans", name="计划妥当", description="玩家回合结束时选择保留最多若干张牌。", category="buff", display_mode="stack", order=85, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="choked", name="勒脖", description="本回合玩家每打出一张牌时失去生命。", category="debuff", display_mode="stack", order=86, decay_timing="turn_end", decay_amount=999))
+register_status_def(StatusDef(key="next_turn_draw", name="下回合抽牌", description="下个玩家回合开始时额外抽牌，然后移除此状态。", category="buff", display_mode="stack", order=87, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="a_thousand_cuts", name="凌迟", description="每打出一张牌，对所有敌人造成效果伤害。", category="buff", display_mode="stack", order=88, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="after_image", name="余像", description="每打出一张牌，获得格挡。", category="buff", display_mode="stack", order=89, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="envenom", name="涂毒", description="攻击造成未被格挡伤害时给予中毒。", category="buff", display_mode="stack", order=90, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="tools_of_the_trade", name="必备工具", description="玩家回合开始时抽牌并丢弃。", category="buff", display_mode="stack", order=91, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="wraith_form", name="幽魂形态", description="玩家回合结束时失去敏捷。", category="buff", display_mode="stack", order=92, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="corpse_explosion", name="尸爆术", description="死亡时对所有敌人造成等同于最大生命值的伤害。", category="debuff", display_mode="stack", order=93, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="phantasmal_killer_next", name="幻影杀手预备", description="下个玩家回合获得攻击伤害翻倍。", category="buff", display_mode="stack", order=94, decay_timing="none", decay_amount=0))
+register_status_def(StatusDef(key="phantasmal_killer", name="幻影杀手", description="本回合攻击伤害翻倍。", category="buff", display_mode="stack", order=94, decay_timing="turn_end", decay_amount=999))
+
+register_status_def(StatusDef(key="blur", name="残影", description="下一回合开始时格挡不会消失。", category="buff", display_mode="stack", order=86, decay_timing="none", decay_amount=0))

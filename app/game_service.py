@@ -23,6 +23,10 @@ from game.engine import (
     choose_pending_element_plating,
     choose_pending_retain_hand_cards,
     format_pending_retain_hand_selection,
+    choose_pending_well_laid_plans_cards,
+    format_pending_well_laid_plans_selection,
+    choose_pending_night_terror_card,
+    format_pending_night_terror_selection,
     choose_pending_fossil_exhaust_hand_cards,
     choose_pending_radiant_reflection_cards,
     choose_pending_synchronization_card,
@@ -281,6 +285,7 @@ class GameService(object):
             "duplicate_hand", "dual_wield", "复制手牌", "双持",
             "exhume", "发掘", "选择发掘",
             "retain", "retain_hand", "选择保留", "保留",
+            "nightmare", "night_terror", "night", "夜魇",
             "fossil", "化石",
             "potion_pick", "potion_card", "药水选牌", "选择药水牌",
             "elixir", "万灵", "万灵药水",
@@ -882,11 +887,27 @@ class GameService(object):
             game_state = run_state.current_battle
             if game_state is None:
                 return "当前不在战斗中。"
+            if pending_choice_is(game_state, "well_laid_plans"):
+                reply = self.handle_well_laid_plans(game_state, parts)
+                return self.append_run_progress_after_battle(session_id, run_state, reply)
             if not pending_choice_is(game_state, "retain_hand"):
                 return "当前没有需要处理的保留选择。"
             reply = self.handle_retain_hand(game_state, parts)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if pending_choice_is(game_state, "well_laid_plans"):
+            return get_pending_player_choice_hint(game_state)
         if pending_choice_is(game_state, "retain_hand"):
+            return get_pending_player_choice_hint(game_state)
+
+        if command in ("nightmare", "night_terror", "night", "夜魇"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not pending_choice_is(game_state, "night_terror"):
+                return "当前没有需要处理的夜魇选择。"
+            reply = self.handle_night_terror(game_state, parts)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+        if pending_choice_is(game_state, "night_terror"):
             return get_pending_player_choice_hint(game_state)
         
         if command in ("fossil", "化石"):
@@ -1664,6 +1685,49 @@ class GameService(object):
     
 
 
+    def handle_well_laid_plans(self, game_state, parts):
+        """
+        /card retain 0
+        /card retain 0,1
+        /card retain skip
+        计划妥当专用：选择后会继续执行回合结束流程。
+        """
+        if not pending_choice_is(game_state, "well_laid_plans"):
+            return "当前没有需要处理的计划妥当选择。"
+
+        if len(parts) < 3:
+            return format_pending_well_laid_plans_selection(game_state)
+
+        raw = " ".join(parts[2:]).strip().lower()
+
+        if raw in ("skip", "none", "no", "不选", "跳过"):
+            return choose_pending_well_laid_plans_cards(game_state, [], skip=True)
+
+        choice_indices = self.parse_index_list(parts[2])
+
+        if choice_indices is None:
+            return "手牌编号必须是数字。多个编号用英文逗号或中文逗号分隔，例如 /card retain 0,1。"
+
+        return choose_pending_well_laid_plans_cards(game_state, choice_indices, skip=False)
+
+    def handle_night_terror(self, game_state, parts):
+        """
+        /card nightmare 0
+        """
+        if not pending_choice_is(game_state, "night_terror"):
+            return "当前没有需要处理的夜魇选择。"
+
+        if len(parts) < 3:
+            return format_pending_night_terror_selection(game_state)
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "手牌编号必须是数字。"
+
+        return choose_pending_night_terror_card(game_state, choice_index)
+
+
     def handle_fossil(self, game_state, parts):
         """
         /card fossil 0,1,2
@@ -1797,8 +1861,8 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.7.12",
-            "- 新增pvp模式框架",
+            "当前版本：v26.7.16",
+            "- 补全猎人的卡牌内容",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",

@@ -44,11 +44,13 @@ from game.zone.zone_utils import (
     make_empty_player_card_type_played_counts
 )
 from game.pending_choice import (
+    PendingChoice,
     clear_pending_choice,
     format_pending_choice_hint,
     get_pending_choice,
     has_pending_choice,
     pending_choice_is,
+    set_pending_choice,
 )
 
 
@@ -399,6 +401,10 @@ def has_pending_player_choice(game_state):
 def get_pending_player_choice_hint(game_state):
     if pending_choice_is(game_state, "retain_hand"):
         return format_pending_retain_hand_selection(game_state)
+    if pending_choice_is(game_state, "well_laid_plans"):
+        return format_pending_well_laid_plans_selection(game_state)
+    if pending_choice_is(game_state, "night_terror"):
+        return format_pending_night_terror_selection(game_state)
 
     pending_choice_hint = format_pending_choice_hint(game_state)
     if pending_choice_hint:
@@ -848,6 +854,11 @@ def end_player_turn_hand_cleanup(game_state):
 
         if should_retain_at_turn_end(card):
             retained_cards.append(card)
+            if bool(getattr(card, "temporary_retain_once", False)):
+                try:
+                    delattr(card, "temporary_retain_once")
+                except Exception:
+                    setattr(card, "temporary_retain_once", False)
             logs.append("【{}】因保留留在手牌。".format(card.name))
             continue
 
@@ -1144,10 +1155,7 @@ def choose_pending_hand_to_draw_top(game_state, choice_index):
 
     player.hand.remove(chosen_card)
     if payload.get("set_cost_zero", False):
-        try:
-            chosen_card.cost = 0
-        except Exception:
-            setattr(chosen_card, "temporary_cost_override", 0)
+        setattr(chosen_card, "temporary_cost_override", 0)
 
     destination = payload.get("destination", "top")
     if destination == "bottom":
@@ -1458,6 +1466,162 @@ def choose_pending_retain_hand_cards(game_state, choice_indices=None, skip=False
         logs.append("【{}】未选择可添加保留的手牌。".format(source))
 
     return "\n".join(logs)
+
+
+def clear_pending_well_laid_plans_selection(game_state):
+    clear_pending_choice(game_state, "well_laid_plans")
+
+
+def format_pending_well_laid_plans_selection(game_state):
+    if not pending_choice_is(game_state, "well_laid_plans"):
+        return "当前没有需要处理的计划妥当选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    source = getattr(pending_choice, "source", "计划妥当")
+    payload = getattr(pending_choice, "payload", {}) or {}
+    max_count = int(payload.get("max_count", 1) or 1)
+    hand = list(getattr(game_state.player, "hand", []) or [])
+
+    lines = [
+        "=== {}：选择至多 {} 张手牌在本回合结束时保留 ===".format(source, max_count),
+        "编号使用当前手牌编号。"
+    ]
+
+    if not hand:
+        lines.append("当前没有手牌可保留。")
+    else:
+        for index, hand_card in enumerate(hand):
+            lines.append("[{}] {}".format(index, hand_card.summary_text()))
+
+    lines.append("")
+    lines.append("用法：/card retain 0 或 /card retain 0,1；不保留则 /card retain skip。")
+    return "\n".join(lines)
+
+
+def choose_pending_well_laid_plans_cards(game_state, choice_indices=None, skip=False):
+    if not pending_choice_is(game_state, "well_laid_plans"):
+        return "当前没有需要处理的计划妥当选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    source = getattr(pending_choice, "source", "计划妥当")
+    payload = getattr(pending_choice, "payload", {}) or {}
+    max_count = int(payload.get("max_count", 1) or 1)
+
+    logs = []
+
+    if skip:
+        clear_pending_well_laid_plans_selection(game_state)
+        logs.append("【{}】未选择保留的手牌。".format(source))
+        return continue_end_turn_after_player_turn_end(game_state, logs)
+
+    if choice_indices is None:
+        choice_indices = []
+
+    unique_indices = []
+    seen = set()
+    for index in choice_indices:
+        if index in seen:
+            continue
+        seen.add(index)
+        unique_indices.append(index)
+
+    if not unique_indices:
+        clear_pending_well_laid_plans_selection(game_state)
+        logs.append("【{}】未选择保留的手牌。".format(source))
+        return continue_end_turn_after_player_turn_end(game_state, logs)
+
+    if len(unique_indices) > max_count:
+        return "最多只能选择 {} 张手牌。".format(max_count)
+
+    player = game_state.player
+    hand = list(getattr(player, "hand", []) or [])
+
+    for index in unique_indices:
+        if index < 0 or index >= len(hand):
+            return "手牌编号无效：{}。".format(index)
+
+    chosen_cards = []
+    for index in unique_indices:
+        chosen_card = hand[index]
+        if chosen_card not in player.hand:
+            clear_pending_well_laid_plans_selection(game_state)
+            return "所选牌已经不在手牌中，选择已取消。"
+        setattr(chosen_card, "temporary_retain_once", True)
+        chosen_cards.append(chosen_card)
+
+    clear_pending_well_laid_plans_selection(game_state)
+
+    if chosen_cards:
+        logs.append("【{}】选择保留：{}。".format(
+            source,
+            "、".join("【{}】".format(card.name) for card in chosen_cards)
+        ))
+    else:
+        logs.append("【{}】未选择保留的手牌。".format(source))
+
+    return continue_end_turn_after_player_turn_end(game_state, logs)
+
+
+def clear_pending_night_terror_selection(game_state):
+    clear_pending_choice(game_state, "night_terror")
+
+
+def format_pending_night_terror_selection(game_state):
+    if not pending_choice_is(game_state, "night_terror"):
+        return "当前没有需要处理的夜魇选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    source = getattr(pending_choice, "source", "夜魇")
+    hand = list(getattr(game_state.player, "hand", []) or [])
+
+    lines = [
+        "=== {}：选择 1 张手牌，下回合加入 3 张复制品 ===".format(source),
+        "编号使用当前手牌编号。"
+    ]
+
+    if not hand:
+        lines.append("当前没有手牌可选择。")
+    else:
+        for index, hand_card in enumerate(hand):
+            lines.append("[{}] {}".format(index, hand_card.summary_text()))
+
+    lines.append("")
+    lines.append("用法：/card nightmare 0。")
+    return "\n".join(lines)
+
+
+def choose_pending_night_terror_card(game_state, choice_index):
+    if not pending_choice_is(game_state, "night_terror"):
+        return "当前没有需要处理的夜魇选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    source = getattr(pending_choice, "source", "夜魇")
+    player = game_state.player
+    hand = list(getattr(player, "hand", []) or [])
+
+    if not hand:
+        clear_pending_night_terror_selection(game_state)
+        return "手牌为空，夜魇没有选择目标。"
+
+    if choice_index < 0 or choice_index >= len(hand):
+        return "手牌编号无效：{}。".format(choice_index)
+
+    chosen = hand[choice_index]
+    if chosen not in player.hand:
+        clear_pending_night_terror_selection(game_state)
+        return "所选牌已经不在手牌中，选择已取消。"
+
+    queued_card = copy.deepcopy(chosen)
+    queue = list(getattr(game_state, "night_terror_next_turn_cards", []) or [])
+    queue.append(queued_card)
+    setattr(game_state, "night_terror_next_turn_cards", queue)
+
+    clear_pending_night_terror_selection(game_state)
+
+    return "【{}】选择了【{}】；下回合开始时将加入 3 张复制品。".format(
+        source,
+        chosen.name
+    )
     
 
 def clear_pending_fossil_exhaust_hand_selection(game_state):
@@ -1746,6 +1910,9 @@ def discard_selected_hand_cards(game_state, hand_indices):
             game_state.pending_discard_source = ""
             game_state.pending_discard_min_count = 0
             game_state.pending_discard_max_count = None
+            game_state.pending_discard_source_card = None
+            game_state.pending_discard_target_index = 0
+            game_state.pending_discard_after_effects = []
 
             if source == "gambling_chip":
                 return "【赌博筹码】未选择丢弃手牌。"
@@ -1797,8 +1964,24 @@ def discard_selected_hand_cards(game_state, hand_indices):
     if game_state.pending_discard_selection:
         game_state.pending_discard_selection = False
         game_state.pending_discard_source = ""
+        after_effects = list(getattr(game_state, "pending_discard_after_effects", []) or [])
+        source_card = getattr(game_state, "pending_discard_source_card", None)
+        after_target_index = int(getattr(game_state, "pending_discard_target_index", 0) or 0)
         game_state.pending_discard_min_count = 0
         game_state.pending_discard_max_count = None
+        game_state.pending_discard_source_card = None
+        game_state.pending_discard_target_index = 0
+        game_state.pending_discard_after_effects = []
+        if after_effects and source_card is not None:
+            from game.effects import apply_card_effect
+            for after_effect in after_effects:
+                logs.extend(apply_card_effect(
+                    game_state=game_state,
+                    card=source_card,
+                    effect=after_effect,
+                    target_index=after_target_index,
+                    effect_context={}
+                ))
 
     result = check_battle_result(game_state)
     if result:
@@ -4057,45 +4240,17 @@ def format_enemy_current_status(game_state):
         ))
     return "\n".join(lines)
     
-def end_turn(game_state):
+def continue_end_turn_after_player_turn_end(game_state, logs=None):
     """
-    结束玩家回合，敌人行动，然后进入下一回合。
-    """
-    logs = []
+    从“玩家回合结束状态结算”之后继续完整回合流程。
 
-    if game_state.battle_over:
-        return "战斗已经结束。"
+    用于【计划妥当】这类在玩家回合结束时插入手牌选择的效果：
+    /card end 先进入选择；玩家选择后，从这里继续清手牌、敌人行动、进入下一回合。
+    """
+    if logs is None:
+        logs = []
 
     player = game_state.player
-
-    logs.append("玩家回合结束。")
-    clear_pending_choice(game_state)
-    game_state.pending_discard_selection = False
-    game_state.pending_discard_source = ""
-    clear_pending_discard_to_draw_top(game_state)
-    clear_pending_exhaust_hand_selection(game_state)
-    clear_pending_hand_to_draw_top_selection(game_state)
-    clear_pending_upgrade_hand_selection(game_state)
-    clear_pending_exhume_selection(game_state)
-    clear_pending_potion_card_selection(game_state)
-    clear_pending_elixir_selection(game_state)
-
-    player_turn_end_context = BattleContext(
-        game_state=game_state,
-        player=player,
-        source=player
-    )
-
-    player_turn_end_logs = dispatch_event(
-        game_state,
-        EVENT_PLAYER_TURN_END,
-        player_turn_end_context
-    )
-
-    if player_turn_end_logs:
-        logs.append("")
-        logs.append("玩家回合结束状态结算：")
-        logs.extend(player_turn_end_logs)
 
     result = check_battle_result(game_state)
     if result:
@@ -4180,6 +4335,11 @@ def end_turn(game_state):
     )
     turn_start_logs = dispatch_event(game_state, EVENT_TURN_START, context)
     logs.extend(turn_start_logs)
+    try:
+        from game.status.status_effects import resolve_night_terror_next_turn
+        logs.extend(resolve_night_terror_next_turn(game_state, player))
+    except Exception:
+        pass
     result = check_battle_result(game_state)
     if result:
         logs.append(result)
@@ -4206,6 +4366,53 @@ def end_turn(game_state):
 
     return "\n".join(logs)
 
+
+def end_turn(game_state):
+    """
+    结束玩家回合，敌人行动，然后进入下一回合。
+    """
+    logs = []
+
+    if game_state.battle_over:
+        return "战斗已经结束。"
+
+    player = game_state.player
+
+    logs.append("玩家回合结束。")
+    clear_pending_choice(game_state)
+    game_state.pending_discard_selection = False
+    game_state.pending_discard_source = ""
+    clear_pending_discard_to_draw_top(game_state)
+    clear_pending_exhaust_hand_selection(game_state)
+    clear_pending_hand_to_draw_top_selection(game_state)
+    clear_pending_upgrade_hand_selection(game_state)
+    clear_pending_exhume_selection(game_state)
+    clear_pending_potion_card_selection(game_state)
+    clear_pending_elixir_selection(game_state)
+
+    player_turn_end_context = BattleContext(
+        game_state=game_state,
+        player=player,
+        source=player
+    )
+
+    player_turn_end_logs = dispatch_event(
+        game_state,
+        EVENT_PLAYER_TURN_END,
+        player_turn_end_context
+    )
+
+    if player_turn_end_logs:
+        logs.append("")
+        logs.append("玩家回合结束状态结算：")
+        logs.extend(player_turn_end_logs)
+
+    # 【计划妥当】等效果可能在玩家回合结束时插入选择。
+    # 必须等选择完成后再清理手牌，否则被选中的牌会被回合结束丢弃。
+    if pending_choice_is(game_state, "well_laid_plans"):
+        return "\n".join(logs)
+
+    return continue_end_turn_after_player_turn_end(game_state, logs)
 
 def validate_card_target(game_state, card, target_index):
     """

@@ -6,6 +6,7 @@ from game.constants import (
     EVENT_DAMAGE_BEFORE,
     EVENT_DAMAGE_AFTER,
     EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK,
+    EVENT_ENEMY_DEATH,
 )
 
 def take_damage_with_wind_block_effect(target, amount, multiplier):
@@ -409,8 +410,20 @@ def deal_damage(
             logs.extend(dispatch_event(
                 game_state,
                 EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK,
+    EVENT_ENEMY_DEATH,
                 clear_context
             ))
+    if was_alive and not target.is_alive() and hasattr(target, "enemy_id"):
+        death_context = BattleContext(
+            game_state=game_state,
+            player=game_state.player,
+            source=source,
+            target=target,
+            card=card,
+            extra={"damage_kind": damage_kind, "real_damage": real_damage}
+        )
+        logs.extend(dispatch_event(game_state, EVENT_ENEMY_DEATH, death_context))
+
     if was_alive and not target.is_alive() and not context.extra.get("suppress_death_message", False):
         if hasattr(target, "enemy_id"):
             if getattr(target, "enemy_id", "") == "enemy.bear":

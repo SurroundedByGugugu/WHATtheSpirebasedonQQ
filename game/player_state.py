@@ -71,6 +71,14 @@ class PlayerState:
             ))
             return logs
 
+        if get_status_value(self, "blur") > 0:
+            self.statuses.add("blur", -1)
+            logs.append("{} 的残影生效，回合开始时保留 {} 点格挡。".format(
+                self.name,
+                old_block
+            ))
+            return logs
+
         block_loss = old_block
 
         for relic in getattr(self, "relics", []):
