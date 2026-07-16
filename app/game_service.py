@@ -1317,7 +1317,7 @@ class GameService(object):
         lines.append("=== 可选角色 ===")
 
         for item in CHARACTER_CHOICES:
-            lines.append("[{}] {} ({})".format(
+            lines.append("[{}] {} ".format(
                 item["index"],
                 item["name"],
                 # item["character_id"]
