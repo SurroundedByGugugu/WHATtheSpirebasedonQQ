@@ -298,6 +298,38 @@ class PatternEnemy(Enemy):
                 "message": intent.message,
             }
         
+        if intent.kind == "block_all_allies":
+            return {
+                "op": "enemy_block_all_allies",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "block": int(intent.value),
+                "attack_type": intent.attack_type,
+                "attack_element": intent.attack_element,
+                "message": intent.message,
+            }
+
+        if intent.kind == "attack_gain_block_equal_output":
+            return {
+                "op": "enemy_attack_gain_block_equal_output",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "damage": int(intent.value),
+                "target": intent.target,
+                "attack_type": intent.attack_type,
+                "attack_element": intent.attack_element,
+                "message": intent.message,
+            }
+
+        if intent.kind == "heart_buff":
+            return {
+                "op": "enemy_heart_buff",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "buff_index": max(1, int(intent.count)),
+                "message": intent.message,
+            }
+                
         return {
             "op": "enemy_unknown_action",
             "source_enemy_id": self.enemy_id,

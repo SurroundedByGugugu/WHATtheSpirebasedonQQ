@@ -45,7 +45,6 @@ STATUS_EVENT_PRIORITY = {
     "confusion": 14,
     "hex": 14,
     "entangled": 13,
-    "quartz_ritual": 12,
     "pain_stab": 12,
     "rage": 12,
     "anger": 12,
@@ -171,7 +170,7 @@ def handle_constricted(event_name, context, owner, value):
 
     return logs
 
-def deal_status_damage_all_enemies(context, owner, amount, status_key):
+def deal_effect_damage_all_enemies(context, owner, amount, status_key):
     """
     能力 / 状态造成的全体伤害。
 
@@ -903,7 +902,7 @@ def handle_combust(event_name, context, owner, value):
     if not owner.is_alive():
         return logs
 
-    logs.extend(deal_status_damage_all_enemies(
+    logs.extend(deal_effect_damage_all_enemies(
         context=context,
         owner=owner,
         amount=damage,
@@ -1091,7 +1090,7 @@ def handle_fire_breathing(event_name, context, owner, value):
         drawn_card.name
     ))
 
-    logs.extend(deal_status_damage_all_enemies(
+    logs.extend(deal_effect_damage_all_enemies(
         context=context,
         owner=owner,
         amount=damage,
@@ -1140,7 +1139,7 @@ def handle_fire_breathing_history(event_name, context, owner, value):
             attack_count
         ))
 
-        logs.extend(deal_status_damage_all_enemies(
+        logs.extend(deal_effect_damage_all_enemies(
             context=context,
             owner=owner,
             amount=total_damage,
@@ -2544,7 +2543,7 @@ def handle_mayhem(event_name, context, owner, value):
     return logs
 
 
-def deal_status_damage_all_enemies(game_state, owner, amount, source_name, logs):
+def append_status_damage_all_enemies( game_state, owner, amount, source_name, logs ):
     from game.damage import deal_damage
     for enemy in list(getattr(game_state, "enemies", []) or []):
         if not enemy.is_alive():
@@ -2572,7 +2571,7 @@ def handle_omega(event_name, context, owner, value):
     amount = int(value)
     if amount <= 0:
         return logs
-    deal_status_damage_all_enemies(context.game_state, owner, amount, "欧米伽", logs)
+    append_status_damage_all_enemies(context.game_state, owner, amount, "欧米伽", logs)
     return logs
 
 
@@ -2589,7 +2588,7 @@ def handle_panache(event_name, context, owner, value):
     total = sum(int(v) for v in counts.values())
     if total <= 0 or total % 5 != 0:
         return logs
-    deal_status_damage_all_enemies(context.game_state, owner, amount, "神气制胜", logs)
+    append_status_damage_all_enemies(context.game_state, owner, amount, "神气制胜", logs)
     return logs
 
 
@@ -2610,7 +2609,7 @@ def handle_the_bomb(event_name, context, owner, value):
         return logs
     if hasattr(owner, "statuses"):
         owner.statuses.remove("the_bomb")
-    deal_status_damage_all_enemies(context.game_state, owner, amount, "炸弹", logs)
+    append_status_damage_all_enemies(context.game_state, owner, amount, "炸弹", logs)
     return logs
 
 def handle_slow(event_name, context, owner, value):
@@ -2710,31 +2709,6 @@ def handle_time_warp(event_name, context, owner, value):
 
     logs.append("{} 的时间扭曲触发：强制结束你的回合。".format(owner.name))
     logs.append(format_status_gain_log(owner, "strength", 2, result))
-
-    return logs
-
-def handle_quartz_ritual(event_name, context, owner, value):
-    logs = []
-
-    if event_name != EVENT_TURN_START:
-        return logs
-
-    if owner is None or not owner.is_alive():
-        return logs
-
-    amount = int(value)
-    if amount <= 0:
-        return logs
-
-    owner.max_cost += amount
-    owner.cost += amount
-
-    logs.append("{} 的石英祭仪触发，本场战斗费用上限增加 {}。当前费用：{}/{}。".format(
-        owner.name,
-        amount,
-        owner.cost,
-        owner.max_cost
-    ))
 
     return logs
 
@@ -3077,7 +3051,6 @@ STATUS_EVENT_HANDLERS = {
     "next_turn_energy": handle_next_turn_energy,
     "next_turn_block": handle_next_turn_block,
     "temporary_strength_loss": handle_temporary_strength_loss,
-    "quartz_ritual": handle_quartz_ritual,
     "phantasmal_killer": handle_phantasmal_killer,
     "phantasmal_killer_next": handle_phantasmal_killer_next,
     "corpse_explosion": handle_corpse_explosion,

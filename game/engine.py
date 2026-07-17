@@ -1774,6 +1774,107 @@ def choose_pending_radiant_reflection_cards(game_state, choice_indices):
 
     return "\n".join(logs)
 
+def clear_pending_abyss_index_selection(game_state):
+    clear_pending_choice(game_state, "abyss_index")
+
+
+def choose_pending_abyss_index_card(
+        game_state,
+        choice_index
+    ):
+    if not pending_choice_is(game_state, "abyss_index"):
+        return "当前没有需要处理的深渊索引选择。"
+
+    pending_choice = get_pending_choice(game_state)
+    options = list(
+        getattr(pending_choice, "options", [])
+        or []
+    )
+    source = getattr(
+        pending_choice,
+        "source",
+        "深渊索引"
+    )
+    payload = (
+        getattr(pending_choice, "payload", {})
+        or {}
+    )
+
+    if not options:
+        clear_pending_abyss_index_selection(game_state)
+        return "抽牌堆中没有可选择的牌。"
+
+    if choice_index < 0 or choice_index >= len(options):
+        return "选择编号无效：{}。".format(
+            choice_index
+        )
+
+    chosen_card = options[choice_index]
+    draw_pile = getattr(
+        game_state.player,
+        "draw_pile",
+        []
+    )
+
+    # 使用身份判断，避免两张内容相同的牌因 dataclass
+    # 相等比较而被误认为同一对象。
+    if not any(
+        pile_card is chosen_card
+        for pile_card in draw_pile
+    ):
+        clear_pending_abyss_index_selection(game_state)
+        return (
+            "所选牌已经不在抽牌堆中，"
+            "选择已取消。"
+        )
+
+    enchantment_id = str(
+        payload.get(
+            "enchantment",
+            "index_shade"
+        )
+        or "index_shade"
+    ).strip().lower()
+
+    from data.card.enchantment_rules import (
+        add_card_enchantment,
+        get_card_enchantment_stacks,
+        get_enchantment_display_name,
+    )
+
+    added = add_card_enchantment(
+        chosen_card,
+        enchantment_id,
+        stacks=1
+    )
+
+    if added <= 0:
+        clear_pending_abyss_index_selection(game_state)
+        return "【{}】未能为【{}】添加附魔。".format(
+            source,
+            chosen_card.name
+        )
+
+    enchantment_name = get_enchantment_display_name(
+        enchantment_id
+    )
+    current_stacks = get_card_enchantment_stacks(
+        chosen_card,
+        enchantment_id
+    )
+
+    clear_pending_abyss_index_selection(game_state)
+
+    return (
+        "【{}】为抽牌堆中的【{}】"
+        "添加附魔【{}】。当前层数：{}。"
+    ).format(
+        source,
+        chosen_card.name,
+        enchantment_name,
+        current_stacks
+    )
+
 def clear_pending_synchronization_selection(game_state):
     clear_pending_choice(game_state, "synchronization")
 
@@ -2335,7 +2436,17 @@ def play_card(game_state, hand_index, target_index=None):
     target_error = validate_card_target(game_state, card, target_index)
     if target_error:
         return target_error
+    if (
+        getattr(card, "card_type", "") == "attack"
+        and getattr(card, "target", "") == "enemy"
+    ):
+        from game.spire_orientation import set_spire_facing_enemy
 
+        logs.extend(set_spire_facing_enemy(
+            game_state=game_state,
+            target_enemy=game_state.enemies[target_index],
+            source_text="打出【{}】".format(card.name)
+        ))
     if is_x_cost:
         spent_cost = player.cost
         player.cost = 0
@@ -2955,7 +3066,14 @@ def use_potion(game_state, potion_index, target_index=None):
     player.potions.pop(potion_index)
 
     logs.append("{} 使用了【{}】。".format(player.name, potion.name))
+    if getattr(potion, "target", "") == "enemy":
+        from game.spire_orientation import set_spire_facing_enemy
 
+        logs.extend(set_spire_facing_enemy(
+            game_state=game_state,
+            target_enemy=game_state.enemies[target_index],
+            source_text="使用【{}】".format(potion.name)
+        ))
     def dispatch_potion_after():
         context = BattleContext(
             game_state=game_state,
@@ -3278,6 +3396,37 @@ def get_enemy_action_target(game_state, enemy, target_key):
 
     return game_state.player
 
+def calculate_enemy_action_attack_damage(
+        game_state,
+        enemy,
+        base_damage,
+        target,
+        attack_type="",
+        attack_element="",
+        zone_element=""
+    ):
+    damage = apply_modifier_profile(
+        value=int(base_damage),
+        modifier_profile="attack_damage",
+        game_state=game_state,
+        source=enemy,
+        target=target,
+        card=None,
+        damage_source=DAMAGE_SOURCE_ENEMY_ACTION,
+        attack_type=attack_type,
+        attack_element=attack_element,
+        zone_element=zone_element
+    )
+
+    from game.zone.zone_utils import apply_zone_amount_modifier
+
+    damage = apply_zone_amount_modifier(
+        damage,
+        game_state,
+        zone_element
+    )
+
+    return max(0, int(damage))
 
 def process_enemy_action_payload(game_state, enemy, action, logs):
     op = action.get("op")
@@ -3366,9 +3515,72 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                     pass
             else:
                 setattr(game_state, "_current_flying_action_key", old_flying_action_key)
-
         return
+    
+    if op == "enemy_attack_gain_block_equal_output":
+        target_key = action.get("target", "player")
 
+        target = get_enemy_action_target(
+            game_state,
+            enemy,
+            target_key
+        )
+
+        if target is None or not target.is_alive():
+            logs.append("{}的攻击目标无效。".format(enemy.name))
+            return
+
+        attack_type = action.get("attack_type", "")
+        attack_element = action.get("attack_element", "")
+
+        damage_output = calculate_enemy_action_attack_damage(
+            game_state=game_state,
+            enemy=enemy,
+            base_damage=int(action.get("damage", 0)),
+            target=target,
+            attack_type=attack_type,
+            attack_element=attack_element,
+            zone_element=zone_element
+        )
+
+        child_action = {
+            "op": "enemy_attack",
+            "source_enemy_id": enemy.enemy_id,
+            "source_enemy_name": enemy.name,
+            "damage": int(action.get("damage", 0)),
+            "target": target_key,
+            "attack_type": attack_type,
+            "attack_element": attack_element,
+            "message": "",
+            "_zone_replay_applied": True,
+        }
+
+        process_enemy_action_payload(
+            game_state,
+            enemy,
+            child_action,
+            logs
+        )
+
+        if enemy.is_alive():
+            logs.extend(gain_block_without_modifiers(
+                game_state=game_state,
+                source=enemy,
+                target=enemy,
+                amount=damage_output,
+                block_source=BLOCK_SOURCE_ENEMY_ACTION,
+                card=None,
+                message=(
+                    "{}获得等同于伤害输出的 {} 点格挡。"
+                    "当前格挡：{}。"
+                ).format(
+                    enemy.name,
+                    damage_output,
+                    enemy.block + damage_output
+                )
+            ))
+        return
+    
     if op == "enemy_attack":
         target_key = action.get("target", "player")
         target = get_enemy_action_target(game_state, enemy, target_key)
@@ -3378,28 +3590,24 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         if not target.is_alive():
             logs.append("{} 的攻击目标已经死亡。".format(enemy.name))
             return
-        damage = int(action.get("damage", 0))
         attack_type = action.get("attack_type", "")
         attack_element = action.get("attack_element", "")
-        damage = apply_modifier_profile(
-            value=damage,
-            modifier_profile="attack_damage",
+
+        damage = calculate_enemy_action_attack_damage(
             game_state=game_state,
-            source=enemy,
+            enemy=enemy,
+            base_damage=int(action.get("damage", 0)),
             target=target,
-            card=None,
-            damage_source=DAMAGE_SOURCE_ENEMY_ACTION,
             attack_type=attack_type,
             attack_element=attack_element,
             zone_element=zone_element
         )
+
         from game.zone.zone_utils import (
-            apply_zone_amount_modifier,
             apply_zone_source_hp_loss_if_needed,
             get_zone_burn_amount,
             add_status_to_target,
         )
-        damage = apply_zone_amount_modifier(damage, game_state, zone_element)
         old_target_hp = int(getattr(target, "hp", 0))
         logs.extend(deal_damage(
             game_state=game_state,
@@ -3790,7 +3998,69 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             label="阴 Zone"
         )
         return
+    
+    if op == "enemy_block_all_allies":
+        base_block = int(action.get("block", 0))
 
+        if base_block <= 0:
+            logs.append("敌人全员格挡数值无效。")
+            return
+
+        block = apply_modifier_profile(
+            value=base_block,
+            modifier_profile="block",
+            game_state=game_state,
+            source=enemy,
+            target=enemy,
+            card=None,
+            block_source=BLOCK_SOURCE_ENEMY_ACTION,
+            zone_element=zone_element
+        )
+
+        from game.zone.zone_utils import (
+            apply_zone_amount_modifier,
+            apply_earth_zone_temp_thorns,
+            apply_zone_source_hp_loss_if_needed,
+        )
+
+        block = apply_zone_amount_modifier(
+            block,
+            game_state,
+            zone_element
+        )
+
+        block = max(0, int(block))
+
+        for target in getattr(game_state, "enemies", []) or []:
+            if not target.is_alive():
+                continue
+
+            logs.extend(gain_block_without_modifiers(
+                game_state=game_state,
+                source=enemy,
+                target=target,
+                amount=block,
+                block_source=BLOCK_SOURCE_ENEMY_ACTION,
+                card=None
+            ))
+
+            apply_earth_zone_temp_thorns(
+                game_state=game_state,
+                target=target,
+                zone_element=zone_element,
+                block_amount=block,
+                logs=logs
+            )
+
+        apply_zone_source_hp_loss_if_needed(
+            game_state=game_state,
+            source=enemy,
+            zone_element=zone_element,
+            logs=logs,
+            label="阴 Zone"
+        )
+        return
+    
     if op == "enemy_block_mystic_or_self":
         block = int(action.get("block", 0))
         if block <= 0:
@@ -4159,6 +4429,62 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             label="阴 Zone"
         )
         return
+
+    if op == "enemy_heart_buff":
+        buff_index = max(
+            1,
+            int(action.get("buff_index", 1))
+        )
+
+        strength = enemy.get_status_value("strength")
+
+        if strength < 0:
+            removed = abs(strength)
+            enemy.statuses.remove("strength")
+
+            logs.append(
+                "{}移除了 {} 点负力量。当前力量：0。".format(
+                    enemy.name,
+                    removed
+                )
+            )
+
+        from game.status.status_gain import (
+            format_status_gain_log
+        )
+
+        def gain_self_status(status_key, amount):
+            result = enemy.gain_status_with_result(
+                status_key,
+                amount
+            )
+
+            logs.append(format_status_gain_log(
+                enemy,
+                status_key,
+                amount,
+                result
+            ))
+
+        gain_self_status("strength", 2)
+
+        if buff_index == 1:
+            gain_self_status("artifact", 2)
+
+        elif buff_index == 2:
+            gain_self_status("beat_of_death", 1)
+
+        elif buff_index == 3:
+            gain_self_status("pain_stab", 1)
+
+        elif buff_index == 4:
+            gain_self_status("strength", 10)
+
+        else:
+            gain_self_status("strength", 50)
+
+        return
+
     logs.append("敌人行动未处理：{}".format(op))
 
 

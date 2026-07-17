@@ -409,12 +409,85 @@ def handle_debug_console(run_state, parts):
         return handle_add_cost(run_state, args)
     if command == "addgold":
         return handle_add_gold(run_state, args)
+    if command == "go":
+        return handle_go_floor(run_state, args)
     if command == "testroom":
         return handle_test_room(run_state, args)
     if command in ("clearenemies", "clearenemy", "clearmonsters", "clear怪", "清怪", "清空怪物"):
         return handle_clear_enemies(run_state, args)
 
     return "未知 ctrl 指令：{}。".format(command)
+
+
+def handle_go_floor(run_state, args):
+    usage = "用法：/ctrl go x floor，其中 x 可为 1、2、3、4。"
+    if len(args) != 2 or str(args[1]).strip().lower() != "floor":
+        return usage
+
+    try:
+        act = int(args[0])
+    except (TypeError, ValueError):
+        return usage
+
+    if act not in (1, 2, 3, 4):
+        return "层数必须是 1、2、3、4 之一。"
+
+    from data.route.route_templates import (
+        generate_act1_grid_route,
+        generate_act2_grid_route,
+        generate_act3_grid_route,
+        generate_act4_linear_route,
+    )
+    from game.constants import DEBUG_SEED
+    from game.route import build_route
+    from game.run_engine import enter_current_node, prepare_visible_boss_for_route
+
+    route_generator_by_act = {
+        1: generate_act1_grid_route,
+        2: generate_act2_grid_route,
+        3: generate_act3_grid_route,
+        4: generate_act4_linear_route,
+    }
+
+    sync_run_hp_from_battle(run_state)
+    run_state.current_battle = None
+    run_state.current_battle_node_type = ""
+    run_state.pending_reward = None
+    run_state.pending_stolen_gold_rewards = []
+    run_state.pending_post_battle_effects = []
+    run_state.pending_bottle_selections = []
+    run_state.pending_astrolabe_selections = []
+    run_state.pending_empty_cage_selections = []
+    run_state.pending_orrery_selection = False
+    run_state.pending_orrery_groups = []
+    run_state.pending_orrery_index = 0
+    run_state.pending_dollys_mirror_selection = False
+    run_state.pending_reward_injections = []
+    run_state.clear_pending_nodes()
+    run_state.node_entry_snapshot = None
+    run_state.run_over = False
+    run_state.victory = False
+
+    run_seed_value = getattr(run_state, "run_seed", None)
+    run_seed = DEBUG_SEED if run_seed_value is None else int(run_seed_value)
+    route_seed = run_seed if act == 1 else run_seed + act * 100000
+    route_template = route_generator_by_act[act](seed=route_seed)
+    run_state.route_nodes = build_route(route_template)
+    run_state.completed_node_ids = [
+        node_id
+        for node_id in (getattr(run_state, "completed_node_ids", []) or [])
+        if not str(node_id).startswith("act{}.".format(act))
+    ]
+    run_state.current_node_id = "act{}.floor00".format(act)
+    run_state.boss_encounter_id = ""
+    run_state.boss_name = ""
+
+    prepare_visible_boss_for_route(run_state, seed=run_seed, act=act)
+    entry_text = enter_current_node(run_state, seed=run_seed)
+    return "\n\n".join([
+        "ctrl：已跳转到第 {} 层。".format(act),
+        entry_text,
+    ])
 
 
 def handle_test_room(run_state, args):
@@ -955,6 +1028,7 @@ def debug_console_help():
         "/ctrl addmaxhp 99",
         "/ctrl addcost 3",
         "/ctrl addgold 99",
+        "/ctrl go 4 floor",
         "/ctrl testroom battle",
         "/ctrl testroom event",
         "/ctrl clearenemies",

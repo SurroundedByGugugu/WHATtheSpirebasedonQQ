@@ -1108,13 +1108,11 @@ def create_synchronization():
         },
         effects=[
             {
-                "op": "deal_damage",
+                "op": "lose_hp",
                 "target": "self",
-                "amount": {
+                "amount":{
                     "base_var": "self_damage"
-                },
-                "damage_kind": "effect",
-                "ignore_block": True,
+                    },
             },
             {
                 "op": "request_synchronization_choice",
@@ -1127,13 +1125,11 @@ def create_synchronization():
             "description": "消耗。对自己造成 1 点伤害。选择消耗堆以外任意 1 张牌，添加共鸣。共鸣牌在晶/阴 Zone 下抽到时自动叠加 Zone 属性打出。",
             "effects": [
                 {
-                    "op": "deal_damage",
-                    "target": "self",
-                    "amount": {
-                        "base_var": "self_damage"
+                "op": "lose_hp",
+                "target": "self",
+                "amount":{
+                    "base_var": "self_damage"
                     },
-                    "damage_kind": "effect",
-                    "ignore_block": True,
                 },
                 {
                     "op": "request_synchronization_choice",

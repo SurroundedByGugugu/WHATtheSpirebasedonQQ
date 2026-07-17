@@ -3153,7 +3153,7 @@ def create_fire_strike():
     )
 def create_fire_zone():
     return CardTemplate(
-        card_id="card.crystal_zone",
+        card_id="card.fire_zone",
         name="烈火领域",
         card_type="skill",
         cost=2,

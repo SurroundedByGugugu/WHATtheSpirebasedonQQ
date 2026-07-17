@@ -1656,6 +1656,79 @@ def handle_crystal_dust_explosion(game_state, card, effect, target_index, effect
 
     return logs
 
+@register_effect("request_abyss_index_choice")
+def handle_request_abyss_index_choice(
+        game_state,
+        card,
+        effect,
+        target_index,
+        effect_context
+    ):
+    player = game_state.player
+    options = list(getattr(player, "draw_pile", []) or [])
+
+    if not options:
+        return [
+            "【{}】触发，但抽牌堆中没有可选择的牌。".format(
+                card.name
+            )
+        ]
+
+    enchantment_id = str(
+        effect.get("enchantment", "index_shade")
+        or "index_shade"
+    ).strip().lower()
+
+    from data.card.enchantment_rules import (
+        get_enchantment_display_name
+    )
+
+    enchantment_name = get_enchantment_display_name(
+        enchantment_id
+    )
+
+    set_pending_choice(game_state, PendingChoice(
+        kind="abyss_index",
+        source=card.name,
+        prompt=(
+            "=== {}：选择抽牌堆中 1 张牌"
+            "添加附魔【{}】 ==="
+        ).format(
+            card.name,
+            enchantment_name
+        ),
+        command_hint="用法：/card abyss_index 0。",
+        block_message=(
+            "当前需要先处理深渊索引选择。"
+            "用法：/card abyss_index 0。"
+        ),
+        options=options,
+        payload={
+            "enchantment": enchantment_id,
+        }
+    ))
+
+    logs = [
+        (
+            "=== {}：选择抽牌堆中 1 张牌"
+            "添加附魔【{}】 ==="
+        ).format(
+            card.name,
+            enchantment_name
+        )
+    ]
+
+    for index, target_card in enumerate(options):
+        logs.append("[{}] {}".format(
+            index,
+            target_card.summary_text()
+        ))
+
+    logs.append("")
+    logs.append("用法：/card abyss_index 0。")
+
+    return logs
+
 @register_effect("request_synchronization_choice")
 def handle_request_synchronization_choice(game_state, card, effect, target_index, effect_context):
     player = game_state.player
@@ -2694,6 +2767,49 @@ def handle_gain_living_soil_counter(game_state, card, effect, target_index, effe
         source_name=card.name
     )
 
+def trigger_beat_of_death_after_card_resolution(
+        game_state,
+        card
+    ):
+    logs = []
+    if game_state is None:
+        return logs
+    # apply_card_effects 同时被药水复用。
+    # 药水没有 card_id，不触发死亡律动。
+    if not getattr(card, "card_id", ""):
+        return logs
+    player = getattr(game_state, "player", None)
+    if player is None or not player.is_alive():
+        return logs
+    for enemy in getattr(game_state, "enemies", []) or []:
+        if not enemy.is_alive():
+            continue
+        amount = get_status_value(
+            enemy,
+            "beat_of_death"
+        )
+        if amount <= 0:
+            continue
+        logs.append(
+            "{}的死亡律动触发，造成 {} 点伤害。".format(
+                enemy.name,
+                amount
+            )
+        )
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=enemy,
+            target=player,
+            amount=amount,
+            damage_kind="effect",
+            card=card,
+            is_reaction_damage=True,
+            ignore_block=False
+        ))
+        if not player.is_alive():
+            break
+    return logs
+
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):
     """
     执行单个卡牌效果。
@@ -3620,17 +3736,26 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 ))
                 if (
                     status_applied
-                    and status_key == "berserk"
+                    and status_key in ("berserk", "quartz_ritual")
                     and target_entity is game_state.player
                     and int(amount) > 0
                 ):
                     target_entity.max_cost += int(amount)
-                    logs.append("{} 的狂暴生效，本场战斗费用上限增加 {}。当前费用：{}/{}。".format(
-                        target_entity.name,
-                        int(amount),
-                        target_entity.cost,
-                        target_entity.max_cost
-                    ))
+
+                    source_name = {
+                        "berserk": "狂暴",
+                        "quartz_ritual": "石英祭仪",
+                    }[status_key]
+
+                    logs.append(
+                        "{} 的{}生效，本场战斗费用上限增加 {}。当前费用：{}/{}。".format(
+                            target_entity.name,
+                            source_name,
+                            int(amount),
+                            target_entity.cost,
+                            target_entity.max_cost
+                        )
+                    )
             else:
                 current = target_entity.gain_status(status_key, amount)
                 status_name = get_status_name(status_key)
@@ -5598,6 +5723,14 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
                 break
         from game.status.status_effects import flush_pending_malleable_triggers
         logs.extend(flush_pending_malleable_triggers(game_state))
+        logs.extend(
+            trigger_beat_of_death_after_card_resolution(
+                game_state=game_state,
+                card=card
+            )
+        )
+        if not game_state.player.is_alive():
+            break
     from game.status.status_effects import (
         resolve_pending_curl_up_after_card,
         resolve_pending_flying_after_card,

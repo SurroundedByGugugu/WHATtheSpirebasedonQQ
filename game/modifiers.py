@@ -89,8 +89,15 @@ def get_attack_status_multiplier(source, target, damage_source):
 
     if get_status_value(source, "burn") > 0:
         multiplier *= 0.5
+
     if get_status_value(source, "abyss_gaze") > 0:
         multiplier *= 0.9
+
+    if (
+        damage_source == DAMAGE_SOURCE_ENEMY_ACTION
+        and get_status_value(source, "back_attack") > 0
+    ):
+        multiplier *= 1.5
 
     if get_status_value(target, "vulnerable") > 0:
         if damage_source == DAMAGE_SOURCE_PLAYED_CARD:
@@ -103,12 +110,13 @@ def get_attack_status_multiplier(source, target, damage_source):
                 multiplier *= 1.25
             else:
                 multiplier *= VULNERABLE_ENEMY_ATTACK_DAMAGE_MULT
-        # 飞行：只影响 attack_damage 乘区；荆棘/中毒/效果伤害不会进入这里。
+
     if get_status_value(target, "flying") > 0:
         if get_status_value(target, "tailwind") > 0:
             multiplier *= 0.3
         else:
             multiplier *= 0.5
+
     return multiplier
 
 
@@ -196,8 +204,12 @@ def apply_attack_damage_modifiers(
     # 深渊凝视：每层使受到的阴属性攻击伤害 +1%。
     # attack_element 是卡牌/行动自身属性；zone_element 是实际吃到的 Zone 属性。
     # 两者任一为 shade，就视为阴属性攻击。
-    effective_attack_element = str(attack_element or zone_element or "").strip().lower()
-    if effective_attack_element == "shade":
+    is_shade_attack = (
+        str(attack_element or "").strip().lower() == "shade"
+        or str(zone_element or "").strip().lower() == "shade"
+    )
+
+    if is_shade_attack:
         abyss_gaze = get_status_value(target, "abyss_gaze")
         if abyss_gaze > 0:
             value = int(value * (1.0 + 0.01 * abyss_gaze))

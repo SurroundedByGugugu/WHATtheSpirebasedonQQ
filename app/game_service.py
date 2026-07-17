@@ -30,6 +30,7 @@ from game.engine import (
     choose_pending_fossil_exhaust_hand_cards,
     choose_pending_radiant_reflection_cards,
     choose_pending_synchronization_card,
+    choose_pending_abyss_index_card,
     choose_pending_exhume_card,
     choose_pending_potion_card,
     choose_pending_elixir_cards,
@@ -296,6 +297,7 @@ class GameService(object):
             "exhaust", "exhaustpile", "exhaust_pile", "消耗牌堆", "消耗堆", "查看消耗牌堆", "查看消耗堆",
             "reflect", "reflection", "映照", "辉晶映照",
             "sync", "synchronize", "同调",
+            "abyss_index", "abyssindex", "index_shade","深渊索引", "索引",
             "play",
             "end",
         }
@@ -943,6 +945,17 @@ class GameService(object):
         if pending_choice_is(game_state, "synchronization"):
             return get_pending_player_choice_hint(game_state)
         
+        if command in ("abyss_index","abyssindex","index_shade","深渊索引","索引"):
+            game_state = run_state.current_battle
+            if game_state is None:
+                return "当前不在战斗中。"
+            if not pending_choice_is(game_state,"abyss_index"):
+                return "当前没有需要处理的深渊索引选择。"
+            reply = self.handle_abyss_index(game_state,parts)
+            return self.append_run_progress_after_battle(session_id,run_state,reply)
+        if pending_choice_is(game_state, "abyss_index"):
+            return get_pending_player_choice_hint(game_state)
+
         if command in ("potion_pick", "potion_card", "药水选牌", "选择药水牌"):
             game_state = run_state.current_battle
             if game_state is None:
@@ -1170,24 +1183,7 @@ class GameService(object):
         lines.append("属性：{}（{}）".format(get_element_display_name(element), element))
         lines.append("效果：{}".format(get_zone_ability_text(element, is_extreme=is_extreme)))
         return "\n".join(lines)
-
-    def get_run_relics(self, run_state):
-        relics = getattr(run_state, "relics", [])
-        if not relics:
-            return "当前没有遗物。"
-        lines = []
-        lines.append("=== 当前遗物 ===")
-
-        for index, relic in enumerate(relics):
-            lines.append("[{}] {}：{}".format(
-                index,
-                format_relic_display_name(relic),
-                relic.description
-            ))
-        lines.append("")
-        lines.append("使用 /card relic_story 0 查看对应遗物故事。")
-        return "\n".join(lines)
-    
+  
     def get_run_relics(self, run_state):
         relics = getattr(run_state, "relics", [])
         if not relics:
@@ -1787,6 +1783,35 @@ class GameService(object):
 
         return choose_pending_synchronization_card(game_state, choice_index)
     
+    def handle_abyss_index(
+            self,
+            game_state,
+            parts
+        ):
+        """
+        /card abyss_index 0
+        """
+        if not pending_choice_is(
+            game_state,
+            "abyss_index"
+        ):
+            return "当前没有需要处理的深渊索引选择。"
+
+        if len(parts) < 3:
+            return get_pending_player_choice_hint(
+                game_state
+            )
+
+        try:
+            choice_index = int(parts[2])
+        except ValueError:
+            return "编号必须是数字。"
+
+        return choose_pending_abyss_index_card(
+            game_state,
+            choice_index
+        )
+
     def handle_potion_pick(self, game_state, parts):
         """
         /card potion_pick 0
@@ -1861,8 +1886,9 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.7.16",
-            "- 补全猎人的卡牌内容",
+            "当前版本：v26.7.17",
+            "- 新增四层矛盾和心脏大人",
+            "- 暂时没有正常上四楼的方法，有需要请使用控制台ctrl go 4 floor",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",

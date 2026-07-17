@@ -621,19 +621,6 @@ def format_quantity(quantity):
     }
     return names.get(quantity, quantity)
 
-def _sample_or_choices(rng, pool, count):
-    if not pool:
-        return []
-
-    if count <= len(pool):
-        return rng.sample(pool, count)
-
-    return [
-        rng.choice(pool)
-        for _ in range(count)
-    ]
-
-
 def format_shop(run_state):
     shop_state = run_state.pending_shop
 

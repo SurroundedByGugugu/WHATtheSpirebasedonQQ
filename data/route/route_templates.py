@@ -212,6 +212,7 @@ NODE_NAME_BY_TYPE = {
     "treasure": "宝箱",
     "boss": "一层 Boss",
     "boss_empty": "Boss（未实现）",
+    "act4_entry": "四层入口",
 }
 
 
@@ -616,3 +617,72 @@ def generate_act3_grid_route(seed=None):
 
     enforce_act1_route_guarantees(route, rng)
     return route
+
+def generate_act4_linear_route(seed=None):
+    """
+    四层直线路线。
+
+    当前只提供路线数据。
+    暂时不接入三层 Boss 后的自动上楼流程。
+    """
+
+    return [
+        {
+            "node_id": "act4.floor00",
+            "node_type": "act4_entry",
+            "name": "四层入口",
+            "floor": 0,
+            "col": 0,
+            "next_node_ids": [
+                "act4.floor01.col0"
+            ],
+        },
+
+        {
+            "node_id": "act4.floor01.col0",
+            "node_type": "rest",
+            "name": "火堆",
+            "floor": 1,
+            "col": 0,
+            "next_node_ids": [
+                "act4.floor02.col0"
+            ],
+        },
+
+        {
+            "node_id": "act4.floor02.col0",
+            "node_type": "shop",
+            "name": "商店",
+            "floor": 2,
+            "col": 0,
+            "next_node_ids": [
+                "act4.floor03.col0"
+            ],
+        },
+
+        {
+            "node_id": "act4.floor03.col0",
+            "node_type": "elite",
+            "name": "精英：高塔之盾与高塔之矛",
+            "encounter_id": (
+                "encounter.elite.spire_shield_spear"
+            ),
+            "floor": 3,
+            "col": 0,
+            "next_node_ids": [
+                "act4.floor04.col0"
+            ],
+        },
+
+        {
+            "node_id": "act4.floor04.col0",
+            "node_type": "boss",
+            "name": "Boss：腐化之心",
+            "encounter_id": (
+                "encounter.boss.corrupt_heart"
+            ),
+            "floor": 4,
+            "col": 0,
+            "next_node_ids": [],
+        },
+    ]

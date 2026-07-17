@@ -214,7 +214,36 @@ class EnemyIntent:
             if self.message:
                 return self.message
             return "蓄力"
-        
+        if self.kind == "block_all_allies":
+            return "给予所有敌人 {} 点格挡".format(
+                int(self.value)
+            )
+
+        if self.kind == "attack_gain_block_equal_output":
+            return (
+                "造成 {} 点伤害，获得等同于本次伤害输出的格挡"
+            ).format(int(self.value))
+
+        if self.kind == "heart_buff":
+            buff_index = max(1, int(self.count))
+
+            parts = [
+                "移除负力量",
+                "获得 2 点力量",
+            ]
+
+            if buff_index == 1:
+                parts.append("获得 2 层人工制品")
+            elif buff_index == 2:
+                parts.append("获得 1 层死亡律动")
+            elif buff_index == 3:
+                parts.append("获得 1 层疼痛戳刺")
+            elif buff_index == 4:
+                parts.append("额外获得 10 点力量")
+            else:
+                parts.append("额外获得 50 点力量")
+
+            return "；".join(parts)
         return "未知意图"
     
 @dataclass

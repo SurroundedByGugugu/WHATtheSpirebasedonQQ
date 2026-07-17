@@ -85,6 +85,87 @@ def _get_status_value(entity, key):
     except Exception:
         return 0
 
+def _get_invincible_remaining(target):
+    if target is None:
+        return None
+    if not hasattr(target, "_invincible_remaining"):
+        return None
+    return max(
+        0,
+        int(getattr(target, "_invincible_remaining", 0) or 0)
+    )
+
+
+def _limit_unblocked_damage_by_invincible(
+        target,
+        final_damage,
+        logs
+    ):
+    remaining = _get_invincible_remaining(target)
+    if remaining is None:
+        return int(final_damage)
+    final_damage = max(0, int(final_damage))
+    if final_damage <= remaining:
+        return final_damage
+    logs.append(
+        "{}的坚不可摧使本次生命损失 {} -> {}。".format(
+            target.name,
+            final_damage,
+            remaining
+        )
+    )
+    return remaining
+
+
+def _limit_wind_zone_damage_by_invincible(
+        target,
+        amount,
+        wind_block_multiplier
+    ):
+    remaining = _get_invincible_remaining(target)
+    if remaining is None:
+        return int(amount)
+    amount = max(0, int(amount))
+    block = max(0, int(getattr(target, "block", 0)))
+
+    if wind_block_multiplier > 1.0:
+        block_absorption = min(
+            amount,
+            int(block / float(wind_block_multiplier))
+        )
+    else:
+        block_absorption = min(amount, block)
+    return min(
+        amount,
+        block_absorption + remaining
+    )
+
+
+def _consume_invincible_remaining(
+        target,
+        real_damage
+    ):
+    logs = []
+    remaining = _get_invincible_remaining(target)
+    if remaining is None:
+        return logs
+    real_damage = max(0, int(real_damage))
+
+    if real_damage <= 0:
+        return logs
+    new_remaining = max(0, remaining - real_damage)
+    target._invincible_remaining = new_remaining
+    statuses = getattr(target, "statuses", None)
+    if statuses is not None:
+        statuses.set("invincible", new_remaining)
+    logs.append(
+        "{}的坚不可摧减少 {}，本回合剩余 {}。".format(
+            target.name,
+            real_damage,
+            new_remaining
+        )
+    )
+    return logs
 
 def _apply_unblocked_damage_relics_and_statuses(game_state, source, target, raw_unblocked, damage_kind, card, logs):
     final_damage = int(raw_unblocked)
@@ -134,7 +215,11 @@ def _apply_unblocked_damage_relics_and_statuses(game_state, source, target, raw_
             target.statuses.add("buffer", -1)
             logs.append("{} 的缓冲阻止了本次生命值损伤。剩余缓冲：{}。".format(target.name, _get_status_value(target, "buffer")))
             final_damage = 0
-
+    final_damage = _limit_unblocked_damage_by_invincible(
+        target=target,
+        final_damage=final_damage,
+        logs=logs
+    )
     return final_damage
 
 def deal_damage(
@@ -170,7 +255,23 @@ def deal_damage(
     logs = []
 
     amount = int(amount)
-    
+    if (
+        game_state is not None
+        and damage_kind == "attack"
+        and source is getattr(game_state, "player", None)
+        and hasattr(target, "enemy_id")
+        and getattr(card, "card_type", "") == "attack"
+        and getattr(card, "target", "") == "random_enemy"
+    ):
+        from game.spire_orientation import set_spire_facing_enemy
+
+        logs.extend(set_spire_facing_enemy(
+            game_state=game_state,
+            target_enemy=target,
+            source_text="【{}】命中".format(
+                getattr(card, "name", "随机攻击")
+            )
+        ))    
     if (
         game_state is not None
         and source is getattr(game_state, "player", None)
@@ -267,7 +368,12 @@ def deal_damage(
                 zone_element=zone_element
             )
         if wind_block_multiplier > 1.0:
-            # 风 Zone 的格挡倍率仍沿用旧函数；这里保留原行为，不在风格挡路径额外套发条靴。
+            amount = _limit_wind_zone_damage_by_invincible(
+                target=target,
+                amount=amount,
+                wind_block_multiplier=wind_block_multiplier
+            )
+
             logs.append(take_damage_with_wind_block_effect(
                 target=target,
                 amount=amount,
@@ -310,7 +416,10 @@ def deal_damage(
 
     if blocked < 0:
         blocked = 0
-
+    logs.extend(_consume_invincible_remaining(
+        target=target,
+        real_damage=real_damage
+    ))
     if (
         damage_kind == "attack"
         and source is getattr(game_state, "player", None)
@@ -380,8 +489,11 @@ def deal_damage(
         and hasattr(target, "enemy_id")
         and int(_get_status_value(target, "abyss_gaze")) > 0
     ):
-        effective_attack_element = str(attack_element or zone_element or "").strip().lower()
-        if effective_attack_element == "shade":
+        is_shade_attack = (
+            str(attack_element or "").strip().lower() == "shade"
+            or str(zone_element or "").strip().lower() == "shade"
+        )
+        if is_shade_attack:
             old_gaze = int(_get_status_value(target, "abyss_gaze"))
             target.statuses.remove("abyss_gaze")
             logs.append("{} 被阴属性攻击命中，{} 层深渊凝视被清空。".format(
@@ -410,9 +522,8 @@ def deal_damage(
             logs.extend(dispatch_event(
                 game_state,
                 EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK,
-    EVENT_ENEMY_DEATH,
                 clear_context
-            ))
+                ))
     if was_alive and not target.is_alive() and hasattr(target, "enemy_id"):
         death_context = BattleContext(
             game_state=game_state,
@@ -423,7 +534,15 @@ def deal_damage(
             extra={"damage_kind": damage_kind, "real_damage": real_damage}
         )
         logs.extend(dispatch_event(game_state, EVENT_ENEMY_DEATH, death_context))
+        from game.spire_orientation import (
+            normalize_spire_orientation_after_enemy_death
+        )
 
+        logs.extend(
+            normalize_spire_orientation_after_enemy_death(
+                game_state
+            )
+        )
     if was_alive and not target.is_alive() and not context.extra.get("suppress_death_message", False):
         if hasattr(target, "enemy_id"):
             if getattr(target, "enemy_id", "") == "enemy.bear":

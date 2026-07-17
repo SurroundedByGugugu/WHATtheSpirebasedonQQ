@@ -93,6 +93,7 @@ from data.card.character.test_character_cards import (
 
 from data.card.character.armored_warrior_cards import(
     create_defendAW,
+    create_flex,
     create_hard_blow,
     create_clothesline,
     create_heavy_blade,
@@ -428,6 +429,7 @@ CARD_REGISTRY = {
     "card.clothesline": create_clothesline,
     "card.heavy_blade": create_heavy_blade,
     "card.anger": create_anger,
+    "card.flex":create_flex,
     "card.double_strike": create_double_strike,
     "card.sword_boomerang": create_sword_boomerang,
     "card.thunderclap": create_thunderclap,

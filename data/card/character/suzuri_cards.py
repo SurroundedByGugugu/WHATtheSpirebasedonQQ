@@ -725,8 +725,7 @@ def create_quartz_ritual():
         card_type="power",
         cost=3,
         target="self",
-        description="每回合开始时，本场战斗费用上限增加 1。地属性攻击牌伤害增加 0.5 倍。",
-        quantity="rare",
+        description="本场战斗费用上限增加 1。地属性攻击牌伤害增加 0.5 倍。",        quantity="rare",
         attack_element="earth",
         owner_character_id="character.suzuri",
         effects=[
@@ -741,7 +740,7 @@ def create_quartz_ritual():
         upgrade_patch={
             "name": "石英祭仪+",
             "cost": 2,
-            "description": "费用减少 1。每回合开始时，本场战斗费用上限增加 1。地属性攻击牌伤害增加 0.5 倍。",
+            "description": "费用减少 1。本场战斗费用上限增加 1。地属性攻击牌伤害增加 0.5 倍。",
         }
     )
 

@@ -452,6 +452,12 @@ def enter_current_node(run_state, seed=DEBUG_SEED):
         result = enter_ancient_node(run_state, node, seed=seed)
     elif node.node_type == "treasure":
         result = enter_treasure_node(run_state, node, seed=seed)
+    elif node.node_type == "act4_entry":
+        run_state.mark_current_node_completed()
+        result = "进入路线节点：{} ({})\n\n使用 /card next 0 前往火堆。".format(
+            node.name,
+            node.node_type
+        )
     elif node.node_type == "boss_empty":
         run_state.mark_current_node_completed()
         run_state.run_over = True
@@ -898,7 +904,9 @@ def pick_replacement_encounter_id(run_state, effective_node_type, rng):
 
 def get_encounter_pool_suffix_for_node(node):
     act = get_route_act_from_node(node)
-    if act >= 3:
+    if act >= 4:
+        return "1_4"
+    if act == 3:
         return "1_3"
     if act == 2:
         return "1_2"

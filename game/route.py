@@ -149,6 +149,7 @@ def node_type_display_text(node, run_state=None):
         "rest": "火堆",
         "treasure": "宝箱",
         "boss_empty": "Boss（未实现）",
+        "act4_entry": "四层入口",
     }
     return mapping.get(node_type, node_type)
 
@@ -229,8 +230,8 @@ def format_grid_route_text(run_state):
     max_floor = get_max_floor(run_state.route_nodes, act=current_act)
 
     if current_floor == 0:
-        lines.append("地图进度：第 0 / {} 层".format(max_floor))
-        lines.append("当前位置：先古之民")
+        lines.append("地图进度：第 0 / {} 层".format( max_floor))
+        lines.append("当前位置：{}".format(getattr(current_node,"name","入口")))
     else:
         lines.append("地图进度：第 {} / {} 层".format(current_floor, max_floor))
         lines.append("当前位置：列 {}，{}".format(

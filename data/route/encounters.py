@@ -166,6 +166,11 @@ ENCOUNTER_TABLE = {
     "encounter.boss.donu_deca": {"enemy_ids": ["enemy.donu", "enemy.deca"]},
     "encounter.boss.awakened_one": {"enemy_ids": ["enemy.cultist", "enemy.awakened_one", "enemy.cultist"]},
     "encounter.boss.time_eater": {"enemy_ids": ["enemy.time_eater"]},
+
+    # _1_4 elite
+    "encounter.elite.spire_shield_spear": {"enemy_ids": ["enemy.spire_shield","enemy.spire_spear",]},
+    # _1_4 boss
+    "encounter.boss.corrupt_heart": {"enemy_ids": ["enemy.corrupt_heart",]},
 }
 
 
@@ -270,7 +275,13 @@ BOSS_ENCOUNTER_POOL_1_3 = [
     ("encounter.boss.time_eater", 4),
 ]
 #=================================================
+ELITE_ENCOUNTER_POOL_1_4 = [
+    ("encounter.elite.spire_shield_spear",1),
+]
 
+BOSS_ENCOUNTER_POOL_1_4 = [
+    ("encounter.boss.corrupt_heart",1),
+]
 
 
 ENCOUNTER_DISPLAY_NAMES = {
@@ -287,6 +298,9 @@ ENCOUNTER_DISPLAY_NAMES = {
     "encounter.boss.donu_deca": "甜圈与八体",
     "encounter.boss.awakened_one": "觉醒者",
     "encounter.boss.time_eater": "时间吞噬者",
+
+    "encounter.elite.spire_shield_spear": "高塔之盾与高塔之矛",
+    "encounter.boss.corrupt_heart": "腐化之心",
 }
 
 
@@ -308,11 +322,13 @@ ENCOUNTER_POOL_BY_NODE_TYPE_AND_SUFFIX = {
         "1_1": ELITE_ENCOUNTER_POOL_1_1,
         "1_2": ELITE_ENCOUNTER_POOL_1_2,
         "1_3": ELITE_ENCOUNTER_POOL_1_3,
+        "1_4": ELITE_ENCOUNTER_POOL_1_4,
     },
     "boss": {
         "1_1": BOSS_ENCOUNTER_POOL_1_1,
         "1_2": BOSS_ENCOUNTER_POOL_1_2,
         "1_3": BOSS_ENCOUNTER_POOL_1_3,
+        "1_4": BOSS_ENCOUNTER_POOL_1_4,
     },
 }
 

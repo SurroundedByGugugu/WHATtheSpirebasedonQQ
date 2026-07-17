@@ -83,6 +83,12 @@ from data.enemy.enemy_origin_1_3 import (
     create_time_eater,
 )
 
+from data.enemy.enemy_origin_1_4 import (
+    create_corrupt_heart, 
+    create_spire_shield, 
+    create_spire_spear
+)
+
 ENEMY_REGISTRY = {
     "enemy.test_dummy": TestDummyEnemy,
     "enemy.chaos_fragment":ChaosFragmentEnemy,
@@ -169,6 +175,13 @@ ENEMY_REGISTRY = {
     "enemy.donu": create_donu,
     "enemy.awakened_one": create_awakened_one,
     "enemy.time_eater": create_time_eater,
+
+    # _1_4 elite
+    "enemy.spire_shield": create_spire_shield,
+    "enemy.spire_spear": create_spire_spear,
+
+    # _1_4 boss
+    "enemy.corrupt_heart": create_corrupt_heart,
 }
 
 

@@ -64,6 +64,7 @@ CARD_REWARD_POOL = [
     "card.headbutt",
     "card.body_slam",
     "card.clash",
+    "card.flex",
     "card.havoc",
     "card.shrug_it_off",
     "card.true_grit",
