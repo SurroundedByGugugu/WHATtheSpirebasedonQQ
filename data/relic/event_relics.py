@@ -278,3 +278,50 @@ class MutagenicStrengthRelic(RelicTemplate):
         s = player.gain_status("strength", 3)
         f = player.gain_status("flex", 3)
         return ["【{}】触发：获得 3 点力量与 3 层活动肌肉。当前力量：{}，活动肌肉：{}。".format(self.name, s, f)]
+
+
+class NeowsLamentRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.neows_lament",
+            name="涅奥的悲恸",
+            description="接下来 3 场战斗中的敌人将只有 1 点生命。",
+            story="涅奥留下的一缕悲恸。",
+            quantity="event",
+            owner_character_id="",
+            allow_duplicate=False,
+        )
+        self.remaining_battles = 3
+
+    def on_event(self, event_name, context):
+        from game.constants import EVENT_BATTLE_START
+
+        if event_name != EVENT_BATTLE_START:
+            return []
+
+        remaining = int(getattr(self, "remaining_battles", 0) or 0)
+        if remaining <= 0:
+            return []
+
+        affected = []
+        for enemy in getattr(context.game_state, "enemies", []) or []:
+            if not enemy.is_alive():
+                continue
+            enemy.max_hp = 1
+            enemy.hp = 1
+            affected.append(getattr(enemy, "name", "敌人"))
+
+        self.remaining_battles = remaining - 1
+
+        if not affected:
+            return ["【{}】消耗 1 次，但当前没有存活敌人。剩余战斗：{}。".format(
+                self.name,
+                self.remaining_battles,
+            )]
+
+        return ["【{}】触发：{} 的生命值变为 1。剩余战斗：{}。".format(
+            self.name,
+            "、".join(affected),
+            self.remaining_battles,
+        )]

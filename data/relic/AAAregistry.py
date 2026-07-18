@@ -69,7 +69,8 @@ from data.relic.rare_relics import (
 from data.relic.event_relics import (
     GoldenIdolRelic, OddMushroomRelic, SsserpentHeadRelic, WarpedTongsRelic, SpiritPoopRelic, 
     RedMaskRelic, BloodyIdolRelic, EnchiridionRelic, NecronomiconRelic, NilrysCodexRelic, NlothsGiftRelic, 
-    MarkOfTheBloomRelic, NlothsMaskRelic, FaceOfClericRelic, CultistMaskRelic, GremlinMaskRelic, MutagenicStrengthRelic)
+    MarkOfTheBloomRelic, NlothsMaskRelic, FaceOfClericRelic, CultistMaskRelic, GremlinMaskRelic, MutagenicStrengthRelic,
+    NeowsLamentRelic)
 
 from data.relic.boss_relics import (
     AstrolabeRelic, XanthosisRelic, BlackStarRelic, WhiteStarRelic, CallingBellRelic, CursedKeyRelic, MarkOfPainRelic, 
@@ -214,6 +215,7 @@ RELIC_REGISTRY = {
     "relic.cultist_mask": CultistMaskRelic,
     "relic.gremlin_mask": GremlinMaskRelic,
     "relic.mutagenic_strength": MutagenicStrengthRelic,
+    "relic.neows_lament": NeowsLamentRelic,
     "relic.twisted_funnel": TwistedFunnelRelic,
     "relic.membership_card": MembershipCardRelic,
     "relic.dragon_fruit": DragonFruitRelic,

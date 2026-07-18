@@ -1886,9 +1886,10 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.7.17",
+            "当前版本：v26.7.18",
             "- 新增四层矛盾和心脏大人",
             "- 暂时没有正常上四楼的方法，有需要请使用控制台ctrl go 4 floor",
+            "- 更新更多的开局随机选项",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",

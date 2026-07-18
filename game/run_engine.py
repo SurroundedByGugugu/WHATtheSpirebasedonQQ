@@ -1913,6 +1913,14 @@ def handle_ancient_option(run_state, choice_index, seed=DEBUG_SEED):
         seed=make_node_seed(run_state, node, seed, offset=700)
     )
     if done:
+        if run_state.pending_reward is not None:
+            # 与事件/捕梦网保持一致：奖励处理完成后再统一完成当前节点。
+            run_state.pending_ancient = None
+            return "\n".join([
+                text,
+                "",
+                run_state.pending_reward.reward_text()
+            ])
         return "\n".join([
             text,
             "",

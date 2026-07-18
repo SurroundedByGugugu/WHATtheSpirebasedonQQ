@@ -276,9 +276,16 @@ class TinyHouseRelic(RelicTemplate):
 
     def on_obtained(self, run_state):
         from data.potion.AAAregistry import create_potion
-        from game.relic_logic.run_relic_utils import gain_gold_with_relics, increase_max_hp, add_card_to_master_deck_with_relics, try_gain_potion_with_relics
-        from game.reward import roll_card_rewards, get_card_reward_upgrade_chance, roll_potion_id_by_rarity
         from data.card.upgrade_rules import has_upgrade, upgrade_card
+        from game.node.node_rest import get_upgradable_cards
+        from game.relic_logic.bottle_utils import copy_bottled_flags
+        from game.relic_logic.run_relic_utils import (
+            add_card_to_master_deck_with_relics,
+            gain_gold_with_relics,
+            increase_max_hp,
+            try_gain_potion_with_relics,
+        )
+        from game.reward import roll_card_rewards, roll_potion_id_by_rarity
 
         rng = random.Random(int(getattr(run_state, "run_seed", 0) or 0) + 22881)
         logs = ["【{}】触发。".format(self.name)]
@@ -286,14 +293,44 @@ class TinyHouseRelic(RelicTemplate):
         potion_id = roll_potion_id_by_rarity(
             rng=rng,
             run_state=run_state,
-            include_event=False
+            include_event=False,
         )
-
         if potion_id:
             potion = create_potion(potion_id)
             logs.extend(try_gain_potion_with_relics(run_state, potion, source=self.name))
         else:
             logs.append("没有可获得的药水。")
+
+        logs.extend(gain_gold_with_relics(run_state, 50, source=self.name))
+        logs.extend(increase_max_hp(run_state, 5, source_name=self.name))
+
+        cards = roll_card_rewards(
+            count=1,
+            rng=rng,
+            upgrade_chance=0.0,
+            run_state=run_state,
+        )
+        if cards:
+            logs.extend(add_card_to_master_deck_with_relics(
+                run_state,
+                cards[0],
+                source=self.name,
+                apply_gain_preview=False,
+            ))
+        else:
+            logs.append("当前没有可获得的卡牌。")
+
+        upgradable = get_upgradable_cards(run_state)
+        if upgradable:
+            deck_index, card = rng.choice(upgradable)
+            upgraded = upgrade_card(card)
+            upgraded = copy_bottled_flags(card, upgraded)
+            run_state.master_deck[deck_index] = upgraded
+            logs.append("随机升级：【{}】 -> 【{}】。".format(card.name, upgraded.name))
+        else:
+            logs.append("当前没有可以升级的牌。")
+
+        return logs
 
 
 class VelvetChokerRelic(_EnergyBossRelic):
