@@ -261,6 +261,12 @@ class PatternEnemy(Enemy):
                 "source_enemy_name": self.name,
                 "card_id": intent.card_id,
                 "count": intent.count,
+                "shuffle_draw_pile": bool(
+                    getattr(intent, "shuffle_draw_pile", False)
+                ),
+                "shuffle_batch_size": int(
+                    getattr(intent, "shuffle_batch_size", 0) or 0
+                ),
                 "message": intent.message,
             }
         if intent.kind == "steal_gold":
@@ -295,6 +301,8 @@ class PatternEnemy(Enemy):
                 "source_enemy_name": self.name,
                 "block": intent.value,
                 "damage": intent.count,
+                "attack_type": intent.attack_type,
+                "attack_element": intent.attack_element,
                 "message": intent.message,
             }
         

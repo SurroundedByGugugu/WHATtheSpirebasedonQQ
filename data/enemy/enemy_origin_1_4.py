@@ -209,7 +209,9 @@ CORRUPT_HEART_A = EnemyIntent(
         EnemyIntent(
             kind="add_card_to_draw",
             card_id="card.status.void",
-            count=1
+            count=1,
+            shuffle_draw_pile=True,
+            shuffle_batch_size=5
         ),
     ],
 )
@@ -286,10 +288,16 @@ class CorruptHeartEnemy(PatternEnemy):
     def get_current_intent(self):
         intent = PatternEnemy.get_current_intent(self)
 
-        if intent is not CORRUPT_HEART_D_PLACEHOLDER:
+        # 节点快照和 SL 会 deepcopy 敌人及其意图循环。
+        # deepcopy 后意图对象不再与模块级占位对象保持对象同一性，
+        # 因此这里根据意图类型判断，不能使用 is 判断。
+        if getattr(intent, "kind", "") != "heart_buff":
             return intent
 
-        buff_index = self._heart_buff_count + 1
+        buff_index = max(
+            1,
+            int(getattr(self, "_heart_buff_count", 0) or 0) + 1
+        )
 
         dynamic_intent = EnemyIntent(
             kind="heart_buff",
@@ -298,15 +306,29 @@ class CorruptHeartEnemy(PatternEnemy):
         dynamic_intent._action_key = "d"
 
         self._locked_intent = dynamic_intent
-
         return self._locked_intent
+
 
     def advance_intent(self):
         if (
             getattr(self._locked_intent, "kind", "")
             == "heart_buff"
         ):
-            self._heart_buff_count += 1
+            executed_buff_index = int(
+                getattr(self._locked_intent, "count", 0) or 0
+            )
+
+            if executed_buff_index <= 0:
+                executed_buff_index = (
+                    int(getattr(self, "_heart_buff_count", 0) or 0)
+                    + 1
+                )
+
+            # 记录实际执行的强化档位，避免计数与动态意图再次脱节。
+            self._heart_buff_count = max(
+                int(getattr(self, "_heart_buff_count", 0) or 0),
+                executed_buff_index
+            )
 
         PatternEnemy.advance_intent(self)
 

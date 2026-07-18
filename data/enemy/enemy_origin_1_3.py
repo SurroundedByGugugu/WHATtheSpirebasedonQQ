@@ -25,11 +25,13 @@ ORB_WALKER_A = EnemyIntent(
         EnemyIntent(kind="add_card_to_discard", card_id="card.status.burn_i", count=1),
     ],
 )
+ORB_WALKER_A._action_key = "a"
 ORB_WALKER_B = EnemyIntent(
     kind="attack",
     value=15,
     attack_type="blunt",
 )
+ORB_WALKER_B._action_key = "b"
 class OrbWalkerEnemy(PatternEnemy):
     def __init__(self, max_hp=None):
         PatternEnemy.__init__(
@@ -46,20 +48,42 @@ class OrbWalkerEnemy(PatternEnemy):
         self.gain_status("ritual", 3)
 
     def _resolve_intent_slot(self, slot):
-        choices = [ORB_WALKER_A, ORB_WALKER_B]
-        history = list(getattr(self, "_orb_intent_history", []) or [])
+        intent_by_key = {
+            "a": ORB_WALKER_A,
+            "b": ORB_WALKER_B,
+        }
 
-        if len(history) >= 2 and history[-1] is history[-2]:
-            chosen = ORB_WALKER_B if history[-1] is ORB_WALKER_A else ORB_WALKER_A
+        raw_history = list(
+            getattr(self, "_orb_intent_history", []) or []
+        )
+
+        # 兼容旧存档中保存意图对象的情况。
+        history = []
+        for item in raw_history:
+            if isinstance(item, str):
+                key = item
+            else:
+                key = getattr(item, "_action_key", "")
+
+            if key in intent_by_key:
+                history.append(key)
+
+        if (
+            len(history) >= 2
+            and history[-1] == history[-2]
+        ):
+            chosen_key = (
+                "b"
+                if history[-1] == "a"
+                else "a"
+            )
         else:
-            chosen = random.choice(choices)
+            chosen_key = random.choice(["a", "b"])
 
-        history.append(chosen)
-        if len(history) > 2:
-            history = history[-2:]
+        history.append(chosen_key)
+        self._orb_intent_history = history[-2:]
 
-        self._orb_intent_history = history
-        return chosen
+        return intent_by_key[chosen_key]
 
     def advance_intent(self):
         self._locked_intent = None
@@ -1064,7 +1088,7 @@ class DecaEnemy(PatternEnemy):
         self.gain_status("artifact", 2)
 
     def _intent_to_action(self, intent):
-        if intent is DECA_A:
+        if getattr(intent, "_action_key", "") == "a":
             return {
                 "op": "enemy_all_gain_block",
                 "source_enemy_id": self.enemy_id,
@@ -1072,6 +1096,7 @@ class DecaEnemy(PatternEnemy):
                 "block": 16,
                 "message": intent.message,
             }
+
         return super(DecaEnemy, self)._intent_to_action(intent)
 def create_deca():
     return DecaEnemy()
@@ -1328,8 +1353,13 @@ class TimeEaterEnemy(PatternEnemy):
         return self._locked_intent
 
     def _intent_to_action(self, intent):
-        if intent is TIME_EATER_D:
-            return {"op": "enemy_time_eater_heal", "source_enemy_id": self.enemy_id, "source_enemy_name": self.name, "message": intent.message}
+        if getattr(intent, "_action_key", "") == "d":
+            return {
+                "op": "enemy_time_eater_heal",
+                "source_enemy_id": self.enemy_id,
+                "source_enemy_name": self.name,
+                "message": intent.message,
+            }
         return super(TimeEaterEnemy, self)._intent_to_action(intent)
 
     def advance_intent(self):

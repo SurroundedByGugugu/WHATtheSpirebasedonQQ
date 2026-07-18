@@ -30,6 +30,13 @@ class EnemyIntent:
     actions: List[Any] = field(default_factory=list)
     heal_unblocked: bool = False
 
+    # 将卡牌加入抽牌堆后是否立即洗牌。
+    shuffle_draw_pile: bool = False
+
+    # 本次洗牌前最后加入抽牌堆的卡牌数量。
+    # 用于腐化之心的五张状态牌防聚集处理。
+    shuffle_batch_size: int = 0
+
     def to_text(self):
         if self.kind == "multi":
             parts = []
@@ -141,11 +148,16 @@ class EnemyIntent:
             else:
                 pile_name = "弃牌堆"
 
-            return "向你的{}加入 {} 张【{}】".format(
+            text = "向你的{}加入 {} 张【{}】".format(
                 pile_name,
                 int(self.count),
                 card_name
             )
+
+            if self.kind == "add_card_to_draw" and self.shuffle_draw_pile:
+                text += "，然后洗牌"
+
+            return text
         if self.kind == "add_curse_to_master_deck":
             card_name_map = {
                 "card.curse.parasite": "寄生",

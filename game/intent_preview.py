@@ -78,14 +78,59 @@ def preview_enemy_block(game_state, enemy, base_block):
         block_source=BLOCK_SOURCE_ENEMY_ACTION
     )
 
+def _format_attack_text(
+        prefix,
+        value,
+        base_value,
+        repeat=1,
+        value_suffix=""
+    ):
+    value = int(value)
+    base_value = int(base_value)
+    repeat = max(1, int(repeat))
+
+    if repeat > 1:
+        text = "{} {} ×{}".format(
+            prefix,
+            value,
+            repeat
+        )
+
+        if value_suffix:
+            text += " {}".format(value_suffix)
+
+        if value != base_value:
+            text += "（基础 {} ×{}）".format(
+                base_value,
+                repeat
+            )
+
+        return text
+
+    text = "{} {}".format(prefix, value)
+
+    if value_suffix:
+        text += " {}".format(value_suffix)
+
+    if value != base_value:
+        text += "（基础 {}）".format(base_value)
+
+    return text
 
 def _format_one_intent_text(game_state, enemy, intent):
     if intent.kind == "multi":
         parts = []
+
         for child in getattr(intent, "actions", []):
-            text = _format_one_intent_text(game_state, enemy, child)
+            text = _format_one_intent_text(
+                game_state,
+                enemy,
+                child
+            )
+
             if text:
                 parts.append(text)
+
         return "；".join(parts)
 
     if intent.kind == "attack":
@@ -98,22 +143,66 @@ def _format_one_intent_text(game_state, enemy, intent):
             attack_element=getattr(intent, "attack_element", "")
         )
 
-        repeat = int(getattr(intent, "repeat", 1))
+        # 没有发生数值修正时沿用 EnemyIntent.to_text()，
+        # 保留攻击属性、攻击类型和吸血说明。
+        if value == int(intent.value):
+            return intent.to_text()
 
-        if repeat > 1:
-            if value != intent.value:
-                return "攻击 {} ×{}（基础 {} ×{}）".format(
-                    value,
-                    repeat,
-                    intent.value,
-                    repeat
-                )
-            return "攻击 {} ×{}".format(value, repeat)
+        text = _format_attack_text(
+            prefix="攻击",
+            value=value,
+            base_value=intent.value,
+            repeat=getattr(intent, "repeat", 1)
+        )
 
-        if value != intent.value:
-            return "攻击 {}（基础 {}）".format(value, intent.value)
+        if getattr(intent, "heal_unblocked", False):
+            text += "，回复未被格挡伤害等量生命"
 
-        return intent.to_text()
+        return text
+
+    if intent.kind == "attack_gain_block_equal_output":
+        value = preview_enemy_attack_damage(
+            game_state=game_state,
+            enemy=enemy,
+            base_damage=intent.value,
+            target_key=getattr(intent, "target", "player"),
+            attack_type=getattr(intent, "attack_type", ""),
+            attack_element=getattr(intent, "attack_element", "")
+        )
+
+        damage_text = _format_attack_text(
+            prefix="造成",
+            value=value,
+            base_value=intent.value,
+            repeat=getattr(intent, "repeat", 1),
+            value_suffix="点伤害"
+        )
+
+        return "{}，获得等同于本次伤害输出的格挡".format(
+            damage_text
+        )
+
+    if intent.kind == "smart_ally_block_or_attack":
+        value = preview_enemy_attack_damage(
+            game_state=game_state,
+            enemy=enemy,
+            base_damage=intent.count,
+            target_key="player",
+            attack_type=getattr(intent, "attack_type", ""),
+            attack_element=getattr(intent, "attack_element", "")
+        )
+
+        attack_text = _format_attack_text(
+            prefix="攻击",
+            value=value,
+            base_value=intent.count,
+            repeat=1
+        )
+
+        return "给予随机队友 {} 点格挡；若无队友则{}".format(
+            int(intent.value),
+            attack_text
+        )
 
     if intent.kind == "block":
         value = preview_enemy_block(
@@ -121,8 +210,13 @@ def _format_one_intent_text(game_state, enemy, intent):
             enemy=enemy,
             base_block=intent.value
         )
-        if value != intent.value:
-            return "获得 {} 点格挡（基础 {}）".format(value, intent.value)
+
+        if value != int(intent.value):
+            return "获得 {} 点格挡（基础 {}）".format(
+                value,
+                intent.value
+            )
+
         return intent.to_text()
 
     return intent.to_text()

@@ -1199,10 +1199,7 @@ class LagavulinEnemy(PatternEnemy):
             self._lag_sleep_turns_done += 1
             self._locked_intent = None
             return
-        if self._locked_intent is LAGAVULIN_B and self._lag_awake_index == 0:
-            self._lag_awake_index = 1
-        else:
-            self._lag_awake_index = (self._lag_awake_index + 1) % len(self._lag_awake_cycle)
+        self._lag_awake_index = (self._lag_awake_index + 1) % len(self._lag_awake_cycle)
         self._locked_intent = None
 
     def on_event(self, event_name, context):
@@ -1379,6 +1376,7 @@ GUARDIAN_D = EnemyIntent(kind="attack", value=5, repeat=4)
 GUARDIAN_E = EnemyIntent(kind="status", target="self", status="sharp_hide", value=3)
 GUARDIAN_F = EnemyIntent(kind="attack", value=9)
 GUARDIAN_G = EnemyIntent(kind="attack", value=8, repeat=2)
+GUARDIAN_G._action_key = "g"
 class GuardianEnemy(PatternEnemy):
     """
     守护者。
@@ -1500,11 +1498,13 @@ class GuardianEnemy(PatternEnemy):
             intent.to_text()
         ))
         action = self._intent_to_action(intent)
-        if intent is GUARDIAN_G:
+        if getattr(intent, "_action_key", "") == "g":
             self._guardian_return_to_attack_pending = True
             self._guardian_defense_index = 2
             self._locked_intent = None
-            logs.append("{} 将在本次攻击后切换回攻击形态。".format(self.name))
+            logs.append("{} 将在本次攻击后切换回攻击形态。".format(
+                self.name
+            ))
         else:
             self.advance_intent()
         return EnemyActionResult(action=action, logs=logs)

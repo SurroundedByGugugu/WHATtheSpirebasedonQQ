@@ -12,15 +12,18 @@ BYRD_A = EnemyIntent(
     status="strength",
     value=1,
 )
+BYRD_A._action_key = "a"
 BYRD_B = EnemyIntent(
     kind="attack",
     value=1,
     repeat=5,
 )
+BYRD_B._action_key = "b"
 BYRD_C = EnemyIntent(
     kind="attack",
     value=12,
 )
+BYRD_C._action_key = "c"
 BYRD_STUN = EnemyIntent(
     kind="wait",
     message="坠落眩晕",
@@ -36,6 +39,7 @@ BYRD_RECOVER = EnemyIntent(
     value=3,
     message="重新起飞",
 )
+
 class ByrdEnemy(PatternEnemy):
     """
     异鸟 Byrd。
@@ -65,15 +69,6 @@ class ByrdEnemy(PatternEnemy):
         self._byrd_first_choice = True
         self._flying_max_hits = 3
         self.statuses.set("flying", 3)
-
-    def _intent_key(self, intent):
-        if intent is BYRD_A:
-            return "a"
-        if intent is BYRD_B:
-            return "b"
-        if intent is BYRD_C:
-            return "c"
-        return ""
 
     def _choose_flying_intent(self):
         if self._byrd_first_choice:
@@ -155,6 +150,8 @@ class ByrdEnemy(PatternEnemy):
         self._locked_intent = BYRD_STUN
         logs.append("{} 坠落，当前意图被打断。".format(self.name))
         return logs
+    def _intent_key(self, intent):
+        return getattr(intent, "_action_key", "")
 def create_byrd():
     return ByrdEnemy()
 

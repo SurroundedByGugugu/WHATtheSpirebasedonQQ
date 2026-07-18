@@ -512,6 +512,11 @@ def _process_enemy_action(room, enemy, action):
                 count,
                 card_id,
             ))
+            if (
+                pile_name == "draw_pile"
+                and bool(action.get("shuffle_draw_pile", False))
+            ):
+                random.shuffle(pile)
         return logs
 
     if op == "enemy_wait":

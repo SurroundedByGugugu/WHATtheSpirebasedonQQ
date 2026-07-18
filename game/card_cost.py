@@ -13,14 +13,17 @@ def get_card_current_cost(game_state, card):
     if is_x_cost_card(card):
         return card.cost
 
-    # 蓝蜡烛 / 医药箱允许打出的诅咒、状态牌，费用按 0 处理。
+    # 蓝蜡烛允许打出的诅咒牌按 0 费处理。
+    # 医药箱只开放状态牌的打出权限，不改变状态牌自身费用。
     if game_state is not None:
         player = getattr(game_state, "player", None)
-        relic_ids = {getattr(relic, "relic_id", "") for relic in getattr(player, "relics", []) or []}
+        relic_ids = {
+            getattr(relic, "relic_id", "")
+            for relic in getattr(player, "relics", []) or []
+        }
         card_type = getattr(card, "card_type", "")
+
         if card_type == "curse" and "relic.blue_candle" in relic_ids:
-            return 0
-        if card_type == "status" and "relic.medical_kit" in relic_ids:
             return 0
 
     try:

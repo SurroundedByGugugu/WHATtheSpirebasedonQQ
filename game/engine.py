@@ -4173,13 +4173,15 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
     
     if op == "enemy_smart_ally_block_or_attack":
         allies = [
-            e for e in game_state.enemies
-            if e is not enemy and e.is_alive()
+            other_enemy
+            for other_enemy in game_state.enemies
+            if other_enemy is not enemy and other_enemy.is_alive()
         ]
 
         if allies:
             target = random.choice(allies)
             block = int(action.get("block", 0))
+
             logs.extend(gain_block_without_modifiers(
                 game_state=game_state,
                 source=enemy,
@@ -4190,15 +4192,28 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             ))
             return
 
-        damage = int(action.get("damage", 0))
+        attack_type = action.get("attack_type", "")
+        attack_element = action.get("attack_element", "")
+
+        damage = calculate_enemy_action_attack_damage(
+            game_state=game_state,
+            enemy=enemy,
+            base_damage=int(action.get("damage", 0)),
+            target=game_state.player,
+            attack_type=attack_type,
+            attack_element=attack_element,
+            zone_element=zone_element
+        )
+
         logs.extend(deal_damage(
             game_state=game_state,
             source=enemy,
             target=game_state.player,
             amount=damage,
             damage_kind="attack",
-            attack_type=action.get("attack_type", ""),
-            attack_element=action.get("attack_element", ""),
+            attack_type=attack_type,
+            attack_element=attack_element,
+            zone_element=zone_element,
             card=None,
         ))
         return
@@ -4264,6 +4279,67 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 added_to_draw,
                 card_name
             ))
+
+            if bool(action.get("shuffle_draw_pile", False)):
+                draw_pile = game_state.player.draw_pile
+
+                batch_size = max(
+                    0,
+                    int(action.get("shuffle_batch_size", 0) or 0)
+                )
+                batch_size = min(batch_size, len(draw_pile))
+
+                added_batch_ids = set()
+                had_existing_cards = False
+
+                if batch_size > 0:
+                    # 腐化之心的五张状态牌在洗牌前位于列表末尾。
+                    added_batch_ids = {
+                        id(card)
+                        for card in draw_pile[-batch_size:]
+                    }
+
+                    # 若总牌数大于本批加入量，说明原抽牌堆中存在牌。
+                    had_existing_cards = len(draw_pile) > batch_size
+
+                random.shuffle(draw_pile)
+
+                # 抽牌使用 draw_pile.pop()，因此列表末尾是牌堆顶。
+                #
+                # 当原抽牌堆非空时，保证牌堆顶接下来的 batch_size 张牌
+                # 不会全部来自腐化之心本批加入的五张状态牌。
+                if had_existing_cards and batch_size > 0:
+                    next_draw_cards = draw_pile[-batch_size:]
+
+                    all_are_new_cards = (
+                        next_draw_cards
+                        and all(
+                            id(card) in added_batch_ids
+                            for card in next_draw_cards
+                        )
+                    )
+
+                    if all_are_new_cards:
+                        old_card_index = next(
+                            (
+                                index
+                                for index, card
+                                in enumerate(draw_pile[:-batch_size])
+                                if id(card) not in added_batch_ids
+                            ),
+                            None
+                        )
+
+                        if old_card_index is not None:
+                            # 将一张原抽牌堆卡牌换进接下来会抽到的区域。
+                            draw_pile[old_card_index], draw_pile[-1] = (
+                                draw_pile[-1],
+                                draw_pile[old_card_index]
+                            )
+
+                logs.append("{} 洗乱了你的抽牌堆。".format(
+                    enemy.name
+                ))
 
         if added_to_hand > 0:
             logs.append("{} 向你的手牌加入 {} 张【{}】。".format(
