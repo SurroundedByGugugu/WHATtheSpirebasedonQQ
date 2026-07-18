@@ -96,31 +96,26 @@ from game.pvp.service import PvpRoomService
 CHARACTER_CHOICES = [
     {
         "index": 0,
-        "character_id": "character.test",
-        "name": "测试角色"
-    },
-    {
-        "index": 1,
         "character_id": "character.armored_warrior",
         "name": "铁甲战士"
     },
     {
-        "index": 2,
+        "index": 1,
         "character_id": "character.silent_huntress",
         "name": "静默猎手"
     },
     {
-        "index": 3,
+        "index": 2,
         "character_id": "character.lumine",
         "name": "昼·里辛塔法"
     },
     {
-        "index": 4,
+        "index": 3,
         "character_id": "character.yoirine",
         "name": "Yoirine"
     },
     {
-        "index": 5,
+        "index": 4,
         "character_id": "character.suzuri",
         "name": "Suzuri"
     }
@@ -1277,8 +1272,7 @@ class GameService(object):
         """
         /card new [角色编号或角色ID]
 
-        当前只有：
-        0 -> character.test
+        测试角色仅供内部测试房使用，不进入公开角色列表。
         """
         if len(parts) < 3:
             return CHARACTER_CHOICES[0]["character_id"]
@@ -1893,7 +1887,7 @@ class GameService(object):
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",
-            "/card new 0      选择 0 号测试角色并开始测试战斗",
+            "/card new 0      选择 0 号铁甲战士并开始游戏",
             "/card view       查看战斗状态和手牌",
             "/card run        查看角色 hp/金币/药水/遗物 总览",
             "/card help       查看帮助",

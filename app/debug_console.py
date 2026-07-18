@@ -109,6 +109,15 @@ def resolve_zone_spec(raw_name):
     return element, is_extreme
 
 
+def _register_card_alias(mapping, alias, value):
+    key = normalize_lookup_key(alias)
+    if not key:
+        return
+    candidates = mapping.setdefault(key, [])
+    if value not in candidates:
+        candidates.append(value)
+
+
 def build_card_alias_map():
     mapping = {}
     for card_id in CARD_REGISTRY.keys():
@@ -116,42 +125,66 @@ def build_card_alias_map():
             card = create_card(card_id)
         except Exception:
             continue
-        _register_alias(mapping, card_id, (card_id, False))
-        _register_alias(mapping, card.name, (card_id, False))
-        _register_alias(mapping, format_card_display_name(card), (card_id, False))
+        _register_card_alias(mapping, card_id, (card_id, False))
+        _register_card_alias(mapping, getattr(card, "card_id", ""), (card_id, False))
+        _register_card_alias(mapping, card.name, (card_id, False))
+        _register_card_alias(mapping, format_card_display_name(card), (card_id, False))
 
         if has_upgrade(card):
             upgraded = upgrade_card(card)
-            _register_alias(mapping, getattr(upgraded, "name", ""), (card_id, True))
-            _register_alias(mapping, format_card_display_name(upgraded), (card_id, True))
+            _register_card_alias(mapping, getattr(upgraded, "name", ""), (card_id, True))
+            _register_card_alias(mapping, format_card_display_name(upgraded), (card_id, True))
 
-    _register_alias(mapping, "粘液", ("card.status.slime_i", False))
-    _register_alias(mapping, "黏液", ("card.status.slime_i", False))
-    _register_alias(mapping, "灼伤", ("card.status.burn_i", False))
+    _register_card_alias(mapping, "粘液", ("card.status.slime_i", False))
+    _register_card_alias(mapping, "黏液", ("card.status.slime_i", False))
+    _register_card_alias(mapping, "灼伤", ("card.status.burn_i", False))
     return mapping
 
 
 CARD_ALIAS_MAP = build_card_alias_map()
 
 
-def resolve_card_spec(raw_name):
+def resolve_card_specs(raw_name):
     raw_text = str(raw_name or "").strip()
     normalized = normalize_lookup_key(raw_text)
-    resolved = CARD_ALIAS_MAP.get(normalized)
-    if resolved is not None:
+    resolved = list(CARD_ALIAS_MAP.get(normalized, []) or [])
+    if resolved:
         return resolved
 
     if normalized.endswith("+"):
         base_name = raw_text[:-1]
-        base = CARD_ALIAS_MAP.get(normalize_lookup_key(base_name))
-        if base is not None:
-            return base[0], True
+        base_specs = CARD_ALIAS_MAP.get(normalize_lookup_key(base_name), []) or []
+        return [(card_id, True) for card_id, _upgraded in base_specs]
 
-    return None
+    return []
 
 
-def create_console_card(raw_name):
-    spec = resolve_card_spec(raw_name)
+def resolve_card_spec(raw_name, character_id=None):
+    specs = resolve_card_specs(raw_name)
+    if not specs:
+        return None
+
+    if character_id:
+        ownerless_spec = None
+        for spec in specs:
+            card_id, _upgraded = spec
+            try:
+                card = create_card(card_id)
+            except Exception:
+                continue
+            owner = str(getattr(card, "owner_character_id", "") or "")
+            if owner == character_id:
+                return spec
+            if not owner and ownerless_spec is None:
+                ownerless_spec = spec
+        if ownerless_spec is not None:
+            return ownerless_spec
+
+    return specs[0]
+
+
+def create_console_card(raw_name, character_id=None):
+    spec = resolve_card_spec(raw_name, character_id=character_id)
     if spec is None:
         return None
     card_id, upgraded = spec
@@ -298,16 +331,21 @@ def parse_optional_count_and_pile(args):
 
 
 def card_matches(card, raw_name):
-    spec = resolve_card_spec(raw_name)
+    specs = resolve_card_specs(raw_name)
     card_id = getattr(card, "card_id", "")
     card_name = getattr(card, "name", "")
-    if spec is not None:
-        expected_id, expected_upgraded = spec
-        if card_id != expected_id:
-            return False
-        if expected_upgraded:
-            return bool(getattr(card, "upgraded", False)) or normalize_lookup_key(card_name).endswith("+")
-        return True
+    if specs:
+        for expected_id, expected_upgraded in specs:
+            try:
+                expected_card_id = getattr(create_card(expected_id), "card_id", expected_id)
+            except Exception:
+                expected_card_id = expected_id
+            if card_id != expected_card_id:
+                continue
+            if expected_upgraded:
+                return bool(getattr(card, "upgraded", False)) or normalize_lookup_key(card_name).endswith("+")
+            return True
+        return False
 
     target = normalize_lookup_key(raw_name)
     return target in (
@@ -513,7 +551,10 @@ def handle_add_card(run_state, args):
     if pile is None:
         return "当前没有可修改的{}。".format(raw_pile)
 
-    sample = create_console_card(card_name)
+    sample = create_console_card(
+        card_name,
+        character_id=getattr(run_state, "character_id", ""),
+    )
     if sample is None:
         return "未知卡牌：{}。".format(card_name)
 

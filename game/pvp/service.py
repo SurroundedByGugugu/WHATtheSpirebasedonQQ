@@ -15,12 +15,11 @@ from game.pvp.state import PVP_STATUS_LOBBY, PvpRoomState
 
 
 CHARACTER_CHOICES = [
-    ("0", "character.test", "测试角色"),
-    ("1", "character.armored_warrior", "铁甲战士"),
-    ("2", "character.silent_huntress", "静默猎手"),
-    ("3", "character.lumine", "昼·里辛塔法"),
-    ("4", "character.yoirine", "Yoirine"),
-    ("5", "character.suzuri", "Suzuri"),
+    ("0", "character.armored_warrior", "铁甲战士"),
+    ("1", "character.silent_huntress", "静默猎手"),
+    ("2", "character.lumine", "昼·里辛塔法"),
+    ("3", "character.yoirine", "Yoirine"),
+    ("4", "character.suzuri", "Suzuri"),
 ]
 
 MAX_PVP_PLAYERS = 2
@@ -40,7 +39,7 @@ class PvpRoomService(object):
         if session_id in self.rooms:
             del self.rooms[session_id]
 
-    def resolve_character_id(self, parts, default="character.test"):
+    def resolve_character_id(self, parts, default="character.armored_warrior"):
         if len(parts) < 4:
             return default
         raw = str(parts[3]).strip().lower()

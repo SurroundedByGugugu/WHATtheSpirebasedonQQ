@@ -264,8 +264,9 @@ def create_ancient_state(run_state, seed=None):
     node = run_state.get_current_node()
     node_id = getattr(node, "node_id", "")
 
-    # Boss 后的下一层先古之民，第一版继续只做过渡。
-    if node_id.startswith("act2") or "after_boss" in node_id:
+    # 只有一层入口提供开局奖励；后续层入口的先古之民只做过渡。
+    is_act1_opening = node_id.startswith("act1.")
+    if not is_act1_opening or "after_boss" in node_id:
         return AncientState(
             description="先古之民站在通往下一层的门前。",
             choices=[AncientChoice("继续前进。", "continue")],

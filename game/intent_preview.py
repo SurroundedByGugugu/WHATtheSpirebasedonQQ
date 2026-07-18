@@ -5,6 +5,8 @@ from game.constants import (
     BLOCK_SOURCE_ENEMY_ACTION,
 )
 from game.modifiers import apply_modifier_profile
+from data.enemy.base_enemy import get_attack_type_display_name
+from data.zones.element_zones import get_element_display_name
 
 
 def find_first_alive_enemy_by_id(game_state, enemy_id, exclude_enemy=None):
@@ -117,6 +119,22 @@ def _format_attack_text(
 
     return text
 
+
+def _get_attack_prefix(intent, verb="攻击"):
+    tag_parts = []
+    attack_element = getattr(intent, "attack_element", "")
+    attack_type = getattr(intent, "attack_type", "")
+
+    if attack_element:
+        tag_parts.append(get_element_display_name(attack_element))
+    if attack_type:
+        tag_parts.append(get_attack_type_display_name(attack_type))
+
+    if not tag_parts:
+        return verb
+    return "{} {}".format("/".join(tag_parts), verb)
+
+
 def _format_one_intent_text(game_state, enemy, intent):
     if intent.kind == "multi":
         parts = []
@@ -149,7 +167,7 @@ def _format_one_intent_text(game_state, enemy, intent):
             return intent.to_text()
 
         text = _format_attack_text(
-            prefix="攻击",
+            prefix=_get_attack_prefix(intent),
             value=value,
             base_value=intent.value,
             repeat=getattr(intent, "repeat", 1)
@@ -171,7 +189,7 @@ def _format_one_intent_text(game_state, enemy, intent):
         )
 
         damage_text = _format_attack_text(
-            prefix="造成",
+            prefix=_get_attack_prefix(intent, verb="造成"),
             value=value,
             base_value=intent.value,
             repeat=getattr(intent, "repeat", 1),
@@ -193,7 +211,7 @@ def _format_one_intent_text(game_state, enemy, intent):
         )
 
         attack_text = _format_attack_text(
-            prefix="攻击",
+            prefix=_get_attack_prefix(intent),
             value=value,
             base_value=intent.count,
             repeat=1

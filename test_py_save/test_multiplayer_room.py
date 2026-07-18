@@ -57,7 +57,7 @@ def test_multiplayer_room_host_start_and_player_limit():
     assert "已更新你的多人测试房角色" in reply
     room = service.multiplayer_service.get_room(session_id)
     assert len(room.players) == 1
-    assert room.players[0].character_id == "character.armored_warrior"
+    assert room.players[0].character_id == "character.silent_huntress"
 
     for index in range(2, 7):
         reply = service.handle_message(session_id, "u{}".format(index), "/card multi join 0")

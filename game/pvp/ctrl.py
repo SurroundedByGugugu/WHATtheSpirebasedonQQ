@@ -256,7 +256,10 @@ class PvpCtrlConsole(object):
         pile, pile_title = self._get_pile(slot, pile_name)
         if pile is None:
             return "当前没有可修改的{}。".format(raw_pile)
-        sample = create_console_card(card_name)
+        sample = create_console_card(
+            card_name,
+            character_id=getattr(slot, "character_id", ""),
+        )
         if sample is None:
             return "未知卡牌：{}。".format(card_name)
         for _ in range(count):
