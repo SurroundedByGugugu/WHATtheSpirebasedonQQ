@@ -71,6 +71,7 @@ class RunState:
     node_entry_snapshot: Any = None
 
     pending_shop: Any = None
+    pending_special_rest: Any = None
     pending_event: Any = None
     # 待处理的瓶装遗物选择队列。
     # 每项格式：
@@ -165,6 +166,7 @@ class RunState:
     
     def clear_pending_nodes(self):
         self.pending_shop = None
+        self.pending_special_rest = None
         self.pending_event = None
         self.pending_rest = None
         self.pending_ancient = None
@@ -174,6 +176,7 @@ class RunState:
     def has_pending_node(self):
         return any([
             self.pending_shop is not None,
+            self.pending_special_rest is not None,
             self.pending_event is not None,
             self.pending_rest is not None,
             self.pending_ancient is not None,

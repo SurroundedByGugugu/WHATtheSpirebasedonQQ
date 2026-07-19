@@ -37,6 +37,7 @@ from game.engine import (
     choose_pending_nilrys_card,
     choose_pending_toolbox_card,
     get_pending_player_choice_hint,
+
 )
 
 from game.relic_logic.bottle_utils import choose_pending_bottle_card, format_pending_bottle, has_pending_bottle_selection
@@ -76,6 +77,7 @@ from game.run_engine import (
     leave_treasure,
     choose_astrolabe_cards,
     choose_empty_cage_cards,
+    handle_special_rest_choice
     
 )
 from game.route import format_route_text
@@ -293,6 +295,7 @@ class GameService(object):
             "reflect", "reflection", "映照", "辉晶映照",
             "sync", "synchronize", "同调",
             "abyss_index", "abyssindex", "index_shade","深渊索引", "索引",
+            "special_rest","support","补给","特殊休息",
             "play",
             "end",
         }
@@ -598,6 +601,16 @@ class GameService(object):
                 self.clear_run(session_id)
             return reply
         
+        # 特殊休息节点命令
+        if command in ("special_rest","support","补给","特殊休息",):
+            if len(parts) < 3:
+                return get_run_view(run_state)
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "特殊休息节点选项编号必须是数字。"
+            return handle_special_rest_choice(run_state,choice_index,seed=DEBUG_SEED,)
+
         # 商店命令
         if command in ("shop", "商店"):
             if run_state.pending_shop is None:
@@ -644,19 +657,15 @@ class GameService(object):
                     self.clear_run(session_id)
                 return reply
             if run_state.pending_rest is not None:
-                # 微型帐篷火堆专用离开；普通火堆若还没使用选项，会在 run_engine 里正常完成当前节点。
-                from game.node.node_rest import has_miniature_tent
-                if has_miniature_tent(run_state):
-                    # 找到 leave 选项编号并调用统一处理。
-                    from game.node.node_rest import get_rest_options
-                    options = get_rest_options(run_state)
-                    for idx, item in enumerate(options):
-                        if item[0] == "leave":
-                            reply = handle_rest_option(run_state, idx)
-                            if run_state.run_over:
-                                self.clear_run(session_id)
-                            return reply
-                return "当前在火堆。请选择火堆选项；拥有【微型帐篷】时可使用 leave 离开。"
+                from game.node.node_rest import get_rest_options
+                options = get_rest_options(run_state)
+                for idx, item in enumerate(options):
+                    if item[0] == "leave":
+                        reply = handle_rest_option(run_state, idx)
+                        if run_state.run_over:
+                            self.clear_run(session_id)
+                        return reply
+                return "当前火堆缺少离开选项。"
             reply = leave_shop(run_state)
             if run_state.run_over:
                 self.clear_run(session_id)

@@ -6,7 +6,7 @@ from data.enemy.pattern_enemy import PatternEnemy
 import random
 from game.constants import EVENT_DAMAGE_AFTER, EVENT_BATTLE_START
 
-SPIKE_SLIME_ATTACK_AND_SLIME = EnemyIntent(
+SPIKE_SLIME_LARGE_ATTACK_AND_SLIME = EnemyIntent(
     kind="multi",
     actions=[
         EnemyIntent(kind="attack", value=16),
@@ -17,15 +17,36 @@ SPIKE_SLIME_ATTACK_AND_SLIME = EnemyIntent(
         ),
     ]
 )
-SPIKE_SLIME_FRAIL = EnemyIntent(
+SPIKE_SLIME_LARGE_FRAIL = EnemyIntent(
     kind="status",
     target="player",
     status="frail",
     value=2,
 )
-SPIKE_SLIME_RANDOM_PATTERN = [
-    (30, SPIKE_SLIME_ATTACK_AND_SLIME),
-    (70, SPIKE_SLIME_FRAIL),
+SPIKE_SLIME_LARGE_RANDOM_PATTERN = [
+    (30, SPIKE_SLIME_LARGE_ATTACK_AND_SLIME),
+    (70, SPIKE_SLIME_LARGE_FRAIL),
+]
+SPIKE_SLIME_MIDDLE_ATTACK_AND_SLIME = EnemyIntent(
+    kind="multi",
+    actions=[
+        EnemyIntent(kind="attack", value=8),
+        EnemyIntent(
+            kind="add_card_to_discard",
+            card_id="card.status.slime_i",
+            count=1,
+        ),
+    ]
+)
+SPIKE_SLIME_MIDDLE_FRAIL = EnemyIntent(
+    kind="status",
+    target="player",
+    status="frail",
+    value=1,
+)
+SPIKE_SLIME_MIDDLE_RANDOM_PATTERN = [
+    (30, SPIKE_SLIME_MIDDLE_ATTACK_AND_SLIME),
+    (70, SPIKE_SLIME_MIDDLE_FRAIL),
 ]
 SLIME_SPLIT_INTENT = EnemyIntent(kind="split")
 class SplittingSlimeEnemy(PatternEnemy):
@@ -121,6 +142,65 @@ class SplittingSlimeEnemy(PatternEnemy):
             split_hp,
         ))
         return logs
+
+
+class RandomSpikeSlimeEnemy(SplittingSlimeEnemy):
+    """大 / 中尖刺史莱姆共用的随机行动与防连续重复逻辑。"""
+
+    def __init__(
+        self,
+        enemy_id,
+        name,
+        max_hp,
+        intent_pattern,
+        split_to_enemy_id="",
+    ):
+        SplittingSlimeEnemy.__init__(
+            self,
+            enemy_id=enemy_id,
+            name=name,
+            max_hp=max_hp,
+            intent_cycle=[intent_pattern],
+            split_to_enemy_id=split_to_enemy_id,
+        )
+        self._recent_spike_action_keys = []
+
+    @staticmethod
+    def _spike_action_key(intent):
+        if intent is None:
+            return ""
+        if getattr(intent, "kind", "") == "multi":
+            return "attack"
+        if (
+            getattr(intent, "kind", "") == "status"
+            and getattr(intent, "status", "") == "frail"
+        ):
+            return "frail"
+        return ""
+
+    def _resolve_intent_slot(self, slot):
+        history = self._recent_spike_action_keys
+        if len(history) >= 2 and history[-1] == history[-2]:
+            forced_key = "frail" if history[-1] == "attack" else "attack"
+            if self._is_weighted_choice_list(slot):
+                candidates = [item[1] for item in slot]
+            elif isinstance(slot, (list, tuple)):
+                candidates = list(slot)
+            else:
+                candidates = [slot]
+            for candidate in candidates:
+                if self._spike_action_key(candidate) == forced_key:
+                    return candidate
+        return PatternEnemy._resolve_intent_slot(self, slot)
+
+    def advance_intent(self):
+        action_key = self._spike_action_key(self._locked_intent)
+        if action_key:
+            self._recent_spike_action_keys.append(action_key)
+            self._recent_spike_action_keys = self._recent_spike_action_keys[-2:]
+        PatternEnemy.advance_intent(self)
+
+
 class SpikeSlimeSmallEnemy(PatternEnemy):
     def __init__(self, max_hp=12):
         PatternEnemy.__init__(
@@ -133,23 +213,19 @@ class SpikeSlimeSmallEnemy(PatternEnemy):
             ],
         )
 def create_spike_slime_large():
-    return SplittingSlimeEnemy(
+    return RandomSpikeSlimeEnemy(
         enemy_id="enemy.spike_slime_large",
         name="大尖刺史莱姆",
         max_hp=random.randint(64, 70),
-        intent_cycle=[
-            SPIKE_SLIME_RANDOM_PATTERN,
-        ],
+        intent_pattern=SPIKE_SLIME_LARGE_RANDOM_PATTERN,
         split_to_enemy_id="enemy.spike_slime_middle",
     )
 def create_spike_slime_middle():
-    return SplittingSlimeEnemy(
+    return RandomSpikeSlimeEnemy(
         enemy_id="enemy.spike_slime_middle",
         name="中尖刺史莱姆",
         max_hp=random.randint(28, 32),
-        intent_cycle=[
-            SPIKE_SLIME_RANDOM_PATTERN,
-        ],
+        intent_pattern=SPIKE_SLIME_MIDDLE_RANDOM_PATTERN,
         split_to_enemy_id="enemy.spike_slime_small",
     )
 def create_spike_slime_small():

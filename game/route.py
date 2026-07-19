@@ -147,6 +147,7 @@ def node_type_display_text(node, run_state=None):
         "mystery": "？",
         "shop": "商店",
         "rest": "火堆",
+        "special_rest": "特殊休息",
         "treasure": "宝箱",
         "boss_empty": "Boss（未实现）",
         "act4_entry": "四层入口",

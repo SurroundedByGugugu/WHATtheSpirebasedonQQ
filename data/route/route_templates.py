@@ -209,6 +209,7 @@ NODE_NAME_BY_TYPE = {
     "mystery": "未知房间",
     "shop": "商店",
     "rest": "火堆",
+    "special_rest": "特殊休息节点",
     "treasure": "宝箱",
     "boss": "一层 Boss",
     "boss_empty": "Boss（未实现）",
@@ -249,12 +250,11 @@ def choose_node_type_for_floor(floor, rng, current_counts):
     """
     普通随机层节点生成规则：
     - 前期偏向普通战斗和事件。
-    - 第 4 层后允许精英。
-    - 中后段允许火堆和商店。
+    - 第 4 层后允许精英与特殊休息节点。
+    - 特殊休息节点进入后可在商店、火堆中二选一。
     - 每层至少 2 个普通战斗。
     - 每层精英最多 2 个。
-    - 每层商店最多 1 个。
-    - 每层火堆最多 1 个。
+    - 每层特殊休息节点最多 1 个。
     """
     remaining_slots = MAP_WIDTH - sum(current_counts.values())
     normal_count = current_counts.get("normal_enemy", 0)
@@ -265,33 +265,36 @@ def choose_node_type_for_floor(floor, rng, current_counts):
     if floor in (2, 3):
         population = ["normal_enemy", "event"]
         weights = [75, 25]
+
     elif 4 <= floor <= 5:
-        population = ["normal_enemy", "event", "elite", "shop"]
+        population = ["normal_enemy","event","elite","special_rest",]
         weights = [60, 25, 12, 3]
+
     elif 6 <= floor <= 9:
-        population = ["normal_enemy", "event", "elite", "shop", "rest"]
-        weights = [48, 27, 15, 5, 5]
+        population = ["normal_enemy","event","elite","special_rest",]
+        weights = [48, 27, 15, 10]
+
     elif 11 <= floor <= 13:
-        population = ["normal_enemy", "event", "elite", "shop", "rest"]
-        weights = [45, 25, 16, 7, 7]
+        population = ["normal_enemy","event","elite","special_rest",]
+        weights = [45, 25, 16, 14]
+
     else:
         population = ["normal_enemy", "event"]
         weights = [70, 30]
 
     for _ in range(20):
-        node_type = rng.choices(
-            population=population,
-            weights=weights,
-            k=1
-        )[0]
+        node_type = rng.choices(population=population,weights=weights,k=1,)[0]
 
-        if node_type == "elite" and current_counts.get("elite", 0) >= 2:
+        if (
+            node_type == "elite"
+            and current_counts.get("elite", 0) >= 2
+        ):
             continue
-        if node_type == "shop" and current_counts.get("shop", 0) >= 1:
+        if (
+            node_type == "special_rest"
+            and current_counts.get("special_rest", 0) >= 1
+        ):
             continue
-        if node_type == "rest" and current_counts.get("rest", 0) >= 1:
-            continue
-
         return node_type
 
     return "normal_enemy"
@@ -333,148 +336,162 @@ def get_floor_type_counts(route, floor):
     return counts
 
 
-def replace_random_route_node_type(route, rng, candidate_floors, new_type):
+def replace_random_route_node_type(route,rng,candidate_floors,new_type,):
     """
     给随机地图做保底补点。
 
     优先替换事件；其次替换普通战斗，但保留每层至少 2 个普通战斗。
-    不替换 starting / treasure / boss / shop / rest。
+    不替换 starting / treasure / boss / shop / rest / special_rest。
     """
-    fixed_types = {"starting", "treasure", "boss", "shop", "rest"}
+    fixed_types = {"starting","treasure","boss","shop","rest","special_rest",}
     candidate_floors = set(candidate_floors)
-
     def collect(prefer_event):
         result = []
-
         for item in route:
             floor = int(item.get("floor", -1))
             if floor not in candidate_floors:
                 continue
             if int(item.get("col", -1)) < 0:
                 continue
-
             node_type = item.get("node_type", "")
             if node_type in fixed_types:
                 continue
             if prefer_event and node_type != "event":
                 continue
-
             if node_type == "normal_enemy":
                 counts = get_floor_type_counts(route, floor)
                 if counts.get("normal_enemy", 0) <= 2:
                     continue
-
             result.append(item)
 
         return result
-
     candidates = collect(prefer_event=True)
     if not candidates:
         candidates = collect(prefer_event=False)
-
     if not candidates:
         return False
-
     item = rng.choice(candidates)
     item["node_type"] = new_type
     item["name"] = NODE_NAME_BY_TYPE.get(new_type, new_type)
-
     return True
 
 
 def floor_has_support_room(route, floor):
-    """判断某一整层是否已经有商店或火堆。"""
+    """判断某一整层是否已有随机特殊休息节点。"""
     return any(
         int(item.get("floor", -1)) == int(floor)
-        and item.get("node_type") in ("shop", "rest")
+        and item.get("node_type") == "special_rest"
         for item in route
     )
 
 
 def is_mutable_support_floor(floor):
-    """可被保底逻辑替换成商店/火堆的普通楼层。"""
+    """可被保底逻辑替换成特殊休息节点的普通楼层。"""
     if floor <= 1:
         return False
-    if floor in (ACT1_TREASURE_FLOOR, ACT1_PRE_BOSS_REST_FLOOR, ACT1_BOSS_FLOOR):
+
+    if floor in (
+        ACT1_TREASURE_FLOOR,
+        ACT1_PRE_BOSS_REST_FLOOR,
+        ACT1_BOSS_FLOOR,
+    ):
         return False
+
     return True
 
 
-def enforce_sliding_shop_rest_guarantee(route, rng, start_floor=2, end_floor=13, lookback=3):
+def enforce_sliding_special_rest_guarantee(
+    route,
+    rng,
+    start_floor=2,
+    end_floor=13,
+    lookback=3,
+):
     """
-    滑动窗口保底商店/火堆密度。
+    滑动窗口保底特殊休息节点密度。
 
-    规则近似：若前 lookback 层整层都没有商店或火堆，
-    则在当前层强行刷出 1~2 个商店/火堆。
-    例如玩家站在第 2 层时，如果第 3、4、5 层都没有补给，
-    第 6 层会被保底刷出补给点。玩家最终走不走得到由路线连接决定。
+    若此前连续 lookback 层都没有特殊休息节点，
+    且当前层也没有，则在当前层强制生成 1 个特殊休息节点。
     """
-    for floor in range(int(start_floor), int(end_floor) + 1):
+    for floor in range(
+        int(start_floor),
+        int(end_floor) + 1,
+    ):
         if not is_mutable_support_floor(floor):
             continue
+
         if floor_has_support_room(route, floor):
             continue
 
-        previous_floors = [f for f in range(floor - int(lookback), floor) if f >= 1]
+        previous_floors = [
+            previous_floor
+            for previous_floor in range(
+                floor - int(lookback),
+                floor,
+            )
+            if previous_floor >= 1
+        ]
+
         if len(previous_floors) < int(lookback):
             continue
-        if any(floor_has_support_room(route, f) for f in previous_floors):
+
+        if any(
+            floor_has_support_room(route, previous_floor)
+            for previous_floor in previous_floors
+        ):
             continue
 
-        inject_count = 2 if rng.random() < 0.35 else 1
-        used_types = set()
-        for _ in range(inject_count):
-            allowed_types = ["shop"]
-            if floor >= 6:
-                allowed_types.append("rest")
-            if len(used_types) < len(allowed_types):
-                candidates = [t for t in allowed_types if t not in used_types]
-            else:
-                candidates = allowed_types
-            new_type = rng.choice(candidates)
-            if replace_random_route_node_type(route, rng, [floor], new_type):
-                used_types.add(new_type)
+        replace_random_route_node_type(
+            route,
+            rng,
+            [floor],
+            "special_rest",
+        )
 
     return route
 
 
-def enforce_act1_route_guarantees(route, rng):
+def enforce_route_special_rest_guarantees(route, rng):
     """
-    避免随机结果在可变楼层完全没有商店或火堆。
+    随机地图补给节点保底。
 
-    第 14 层已经固定为 Boss 前火堆；
-    这里额外保证：
-    - 4~13 层至少有 1 个商店；
-    - 6~13 层至少有 1 个随机火堆。
+    第 14 层继续固定为 Boss 前火堆；
+    随机楼层 4~13（排除宝箱层）至少生成 2 个特殊休息节点，
+    并避免连续过多楼层完全没有补给节点。
     """
-    shop_floors = [
-        floor for floor in range(4, 14)
-        if floor != ACT1_TREASURE_FLOOR
-    ]
-    rest_floors = [
-        floor for floor in range(6, 14)
+    candidate_floors = [
+        floor
+        for floor in range(4, 14)
         if floor != ACT1_TREASURE_FLOOR
     ]
 
-    has_shop = any(
-        item.get("node_type") == "shop"
-        and int(item.get("floor", -1)) in shop_floors
-        for item in route
+    enforce_sliding_special_rest_guarantee(
+        route,
+        rng,
+        start_floor=2,
+        end_floor=13,
+        lookback=3,
     )
 
-    has_rest = any(
-        item.get("node_type") == "rest"
-        and int(item.get("floor", -1)) in rest_floors
+    special_rest_count = sum(
+        1
         for item in route
+        if item.get("node_type") == "special_rest"
+        and int(item.get("floor", -1)) in candidate_floors
     )
 
-    if not has_shop:
-        replace_random_route_node_type(route, rng, shop_floors, "shop")
+    while special_rest_count < 2:
+        changed = replace_random_route_node_type(
+            route,
+            rng,
+            candidate_floors,
+            "special_rest",
+        )
 
-    if not has_rest:
-        replace_random_route_node_type(route, rng, rest_floors, "rest")
+        if not changed:
+            break
 
-    enforce_sliding_shop_rest_guarantee(route, rng, start_floor=2, end_floor=13, lookback=3)
+        special_rest_count += 1
 
     return route
 
@@ -521,7 +538,7 @@ def generate_act1_grid_route(seed=None):
                 "col": col,
                 "next_node_ids": make_adjacent_next_ids(1, floor, col),
             })
-    enforce_act1_route_guarantees(route, rng)
+    enforce_route_special_rest_guarantees(route, rng)
     return route
 
 
@@ -567,7 +584,7 @@ def generate_act2_grid_route(seed=None):
                 "next_node_ids": make_adjacent_next_ids(2, floor, col),
             })
 
-    enforce_act1_route_guarantees(route, rng)
+    enforce_route_special_rest_guarantees(route, rng)
     return route
 
 def generate_act3_grid_route(seed=None):
@@ -615,7 +632,7 @@ def generate_act3_grid_route(seed=None):
                 "next_node_ids": make_adjacent_next_ids(3, floor, col),
             })
 
-    enforce_act1_route_guarantees(route, rng)
+    enforce_route_special_rest_guarantees(route, rng)
     return route
 
 def generate_act4_linear_route(seed=None):

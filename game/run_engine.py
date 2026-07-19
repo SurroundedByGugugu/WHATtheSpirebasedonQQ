@@ -433,6 +433,19 @@ def enter_current_node(run_state, seed=DEBUG_SEED):
             run_state,
             node,
             seed=seed,
+            source_node_type="shop",
+        )
+
+    elif node.node_type == "special_rest":
+        result = enter_special_rest_node(
+            run_state,
+            node,
+        )
+    elif node.node_type == "shop":
+        result = enter_shop_node(
+            run_state,
+            node,
+            seed=seed,
             source_node_type="shop"
         )
     elif node.node_type == "event":
@@ -641,8 +654,74 @@ def roll_mystery_result(run_state, node, seed=DEBUG_SEED):
     update_mystery_chances_after_result(run_state, result_type)
     return result_type
 
+def format_special_rest(run_state):
+    if getattr(run_state, "pending_special_rest", None) is None:
+        return "当前不在特殊休息节点。"
 
-def enter_shop_node(run_state, node, seed=DEBUG_SEED, source_node_type="shop"):
+    return "\n".join([
+        "=== 特殊休息节点 ===",
+        "选择本次进入的设施：",
+        "[0] 商店",
+        "[1] 火堆",
+        "",
+        command_tip(
+            "special_rest",
+            (
+                "使用 /card special_rest 0 进入商店，"
+                "或 /card special_rest 1 进入火堆。"
+            ),
+        ),
+    ])
+
+
+def enter_special_rest_node(run_state, node):
+    run_state.pending_special_rest = True
+
+    return "\n".join([
+        "进入路线节点：{} ({})".format(
+            node.name,
+            node.node_type,
+        ),
+        "",
+        format_special_rest(run_state),
+    ])
+
+
+def handle_special_rest_choice(
+    run_state,
+    choice_index,
+    seed=DEBUG_SEED,
+):
+    if getattr(run_state, "pending_special_rest", None) is None:
+        return "当前不在特殊休息节点。"
+
+    if choice_index not in (0, 1):
+        return "特殊休息节点选项编号无效。"
+
+    node = run_state.get_current_node()
+
+    if node is None:
+        return "路线节点不存在。"
+
+    run_state.pending_special_rest = None
+
+    if choice_index == 0:
+        return enter_shop_node(
+            run_state,
+            node,
+            seed=seed,
+            source_node_type="special_rest",
+            entry_text="你选择进入商店。",
+        )
+
+    return enter_rest_node(
+        run_state,
+        node,
+        source_node_type="special_rest",
+        entry_text="你选择靠近火堆。",
+    )
+
+def enter_shop_node(run_state,node,seed=DEBUG_SEED,source_node_type="shop",entry_text=None,):
     run_state.pending_shop = create_shop_state(
         run_state=run_state,
         seed=make_node_seed(run_state, node, seed, offset=100),
@@ -659,7 +738,7 @@ def enter_shop_node(run_state, node, seed=DEBUG_SEED, source_node_type="shop"):
             relic_logs.extend(result)
 
     lines = [
-        "进入路线节点：{} ({})".format(node.name, node.node_type),
+        entry_text or "进入路线节点：{} ({})".format(node.name,node.node_type,),
     ]
     if relic_logs:
         lines.append("")
@@ -685,7 +764,7 @@ def enter_event_node(run_state, node, seed=DEBUG_SEED, source_node_type="event")
     ])
 
 
-def enter_rest_node(run_state, node, source_node_type="rest"):
+def enter_rest_node(run_state,node,source_node_type="rest",entry_text=None,):
     run_state.pending_rest = create_rest_state(
         source_node_type=source_node_type
     )
@@ -704,7 +783,7 @@ def enter_rest_node(run_state, node, source_node_type="rest"):
         logs.append("【古茶具套装】准备就绪：下一场战斗开始时获得 2 点能量。")
 
     lines = [
-        "进入路线节点：{} ({})".format(node.name, node.node_type),
+        entry_text or "进入路线节点：{} ({})".format(node.name,node.node_type,),
     ]
     if logs:
         lines.append("")
@@ -1377,6 +1456,9 @@ def get_run_view(run_state):
     elif run_state.pending_reward is not None:
         lines.append("")
         lines.append(run_state.pending_reward.reward_text())
+    elif getattr(run_state,"pending_special_rest",None,) is not None:
+        lines.append("")
+        lines.append(format_special_rest(run_state))
     elif run_state.pending_shop is not None:
         lines.append("")
         lines.append(format_shop(run_state))

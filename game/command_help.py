@@ -35,6 +35,7 @@ COMMAND_ALIASES = {
     "smith": ["upgrade", "锻造", "升级"],
     "rest_remove": ["pipe", "peace_pipe", "烟斗", "宁静烟斗"],
     "testroom": ["test_room", "测试房间"],
+    "special_rest": ["support","补给","特殊休息",],
 
     "take": ["claim", "领取", "拿取"],
     "pick": ["choose", "选择奖励", "选牌"],

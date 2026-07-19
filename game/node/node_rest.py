@@ -68,8 +68,7 @@ def get_rest_options(run_state):
         options.append(("pipe", "宁静烟斗"))
     if has_run_relic(run_state, "relic.shovel"):
         options.append(("shovel", "铲子"))
-    if has_miniature_tent(run_state):
-        options.append(("leave", "离开"))
+    options.append(("leave", "离开"))
     return options
 
 
@@ -114,8 +113,7 @@ def format_rest(run_state):
     lines.append(command_tip("rest", "使用 /card rest 0 选择火堆选项。"))
     lines.append(command_tip("smith", "锻造查看后，使用 /card smith 0 升级对应牌。"))
     lines.append(command_tip("rest_remove", "宁静烟斗查看后，使用 /card rest_remove 0 移除对应牌。"))
-    if has_miniature_tent(run_state):
-        lines.append(command_tip("leave", "使用 /card leave 离开火堆。"))
+    lines.append(command_tip("leave", "使用 /card leave 离开火堆。"))
     return "\n".join(lines)
 
 
