@@ -295,6 +295,13 @@ from data.card.character.yoirine_cards import (
     create_divine_bird,
     create_crystal_dust_explosion,
     create_precipitate,
+    create_prayer_echo,
+    create_abyss_hunt,
+    create_swallow_return,
+    create_abyss_symbiosis,
+    create_abyss_wail,
+    create_sink_into_abyss,
+    create_abyss_chaos,
 )
 
 from data.card.character.suzuri_cards import (
@@ -618,6 +625,13 @@ CARD_REGISTRY = {
     "card.abyss_index": create_abyss_index,
     "card.insatiable_abyss": create_insatiable_abyss,
     "card.abyss_manifestation": create_abyss_manifestation,
+    "card.prayer_echo": create_prayer_echo,
+    "card.abyss_hunt": create_abyss_hunt,
+    "card.swallow_return": create_swallow_return,
+    "card.abyss_symbiosis": create_abyss_symbiosis,
+    "card.abyss_wail": create_abyss_wail,
+    "card.sink_into_abyss": create_sink_into_abyss,
+    "card.abyss_chaos": create_abyss_chaos,
     #suzuri
     "card.defend_suzuri":create_defendSuzuri,
     "card.strike_suzuri":create_strikeSuzuri,

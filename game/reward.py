@@ -238,6 +238,13 @@ CARD_REWARD_POOL = [
     "card.abyss_index",
     "card.insatiable_abyss",
     "card.abyss_manifestation",
+    "card.prayer_echo",
+    "card.abyss_hunt",
+    "card.swallow_return",
+    "card.abyss_symbiosis",
+    "card.abyss_wail",
+    "card.sink_into_abyss",
+    "card.abyss_chaos",
     
     # Suzuri
     "card.anatexis",

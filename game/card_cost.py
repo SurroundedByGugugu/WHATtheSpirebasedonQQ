@@ -133,3 +133,49 @@ def get_card_current_cost(game_state, card):
         current_cost = min_cost
 
     return current_cost
+
+
+def is_abyssal_whisper_discount_active(game_state, card):
+    if game_state is None or card is None:
+        return False
+
+    player = getattr(game_state, "player", None)
+    zone = getattr(game_state, "active_zone", None)
+
+    if player is None or zone is None:
+        return False
+
+    has_abyssal_whisper = any(
+        getattr(relic, "relic_id", "") == "relic.abyssal_whisper"
+        for relic in getattr(player, "relics", []) or []
+    )
+
+    if not has_abyssal_whisper:
+        return False
+
+    try:
+        if zone.is_expired():
+            return False
+    except Exception:
+        pass
+
+    if str(getattr(zone, "element", "") or "").strip().lower() != "shade":
+        return False
+
+    return (
+        getattr(card, "card_type", "") == "power"
+        and str(getattr(card, "attack_element", "") or "").strip().lower() == "shade"
+    )
+
+
+def get_x_cost_spent_cost(game_state, card, raw_x):
+    """
+    X 本身仍取打出前费用 raw_x。
+    〈深渊的诱语〉只改变实际支付费用。
+    """
+    raw_x = int(raw_x)
+
+    if is_abyssal_whisper_discount_active(game_state, card):
+        return raw_x - 1
+
+    return raw_x

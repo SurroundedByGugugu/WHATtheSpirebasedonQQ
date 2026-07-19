@@ -11,7 +11,7 @@ from data.zones.element_zones import ElementZone
 
 from game.block import gain_block_without_modifiers
 from game.status.status_defs import get_status_def, get_status_name
-from game.card_cost import get_card_current_cost
+from game.card_cost import get_card_current_cost, get_x_cost_spent_cost
 from game.constants import (DEBUG_SEED, EVENT_POTION_USE_AFTER,
                             EVENT_BATTLE_START,
                             EVENT_TURN_START, EVENT_TURN_END, EVENT_PLAYER_TURN_END,
@@ -2448,8 +2448,8 @@ def play_card(game_state, hand_index, target_index=None):
             source_text="打出【{}】".format(card.name)
         ))
     if is_x_cost:
-        spent_cost = player.cost
-        player.cost = 0
+        spent_cost = get_x_cost_spent_cost(game_state, card, raw_x)
+        player.cost -= spent_cost
     else:
         spent_cost = get_card_current_cost(game_state, card)
         player.cost -= spent_cost
@@ -2458,7 +2458,7 @@ def play_card(game_state, hand_index, target_index=None):
     player.hand.pop(hand_index)
 
     if is_x_cost:
-        logs.append("打出【{}】，消耗全部剩余费用 {}，最终 X = {}。".format(
+        logs.append("打出【{}】，实际消耗 {} 点费用，最终 X = {}。".format(
             card.name,
             spent_cost,
             x_value

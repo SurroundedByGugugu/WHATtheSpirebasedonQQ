@@ -115,6 +115,104 @@ def count_cards_by_name_contains(game_state, card, rule):
             count += 1
     return count
 
+def move_specific_draw_card_to_hand_or_discard(game_state, card, logs, draw_source="special_draw"):
+    player = game_state.player
+
+    if card not in player.draw_pile:
+        return
+
+    player.draw_pile.remove(card)
+
+    if player.is_hand_full():
+        player.discard_pile.append(card)
+        logs.append("抽到【{}】，但手牌已满，进入弃牌堆。".format(card.name))
+        return
+
+    player.hand.append(card)
+    logs.append("抽到【{}】。".format(card.name))
+
+    try:
+        from data.card.enchantment_rules import get_card_enchantment_stacks
+
+        index_plus = get_card_enchantment_stacks(card, "index_shade_plus")
+        if index_plus > 0:
+            player.cost += index_plus
+            logs.append("【索引·阴+】触发：抽到【{}】，获得 {} 点费用。当前费用：{}。".format(
+                card.name,
+                index_plus,
+                player.cost
+            ))
+    except Exception:
+        pass
+
+    if getattr(card, "card_id", "") == "card.status.void":
+        old_cost = int(getattr(player, "cost", 0))
+        player.cost = max(0, old_cost - 1)
+        logs.append("【虚空】触发：失去 1 点能量。当前费用：{}。".format(player.cost))
+
+    from game.battle_context import BattleContext
+    from game.event_bus import dispatch_event
+    from game.constants import EVENT_DRAW_CARD_AFTER
+
+    context = BattleContext(
+        game_state=game_state,
+        player=player,
+        source=player,
+        card=card,
+        extra={
+            "drawn_card": card,
+            "draw_source": draw_source
+        }
+    )
+
+    logs.extend(dispatch_event(
+        game_state,
+        EVENT_DRAW_CARD_AFTER,
+        context
+    ))
+
+    from game.zone.resonance import trigger_resonance_on_draw
+    logs.extend(trigger_resonance_on_draw(
+        game_state=game_state,
+        card=card
+    ))
+    
+def is_real_active_shade_zone(game_state):
+    zone = getattr(game_state, "active_zone", None)
+    if zone is None:
+        return False
+
+    try:
+        if zone.is_expired():
+            return False
+    except Exception:
+        pass
+
+    return str(getattr(zone, "element", "") or "").strip().lower() == "shade"
+
+
+def lose_1_hp_for_shade_bonus(game_state, card, logs, label):
+    player = game_state.player
+
+    logs.append("【{}】触发阴 Zone 额外效果：{} 失去 1 点生命。".format(
+        card.name,
+        player.name
+    ))
+
+    from game.damage import deal_damage
+
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=player,
+        target=player,
+        amount=1,
+        damage_kind="card_hp_loss",
+        card=card,
+        is_reaction_damage=False,
+        ignore_block=True,
+        count_as_player_self_action_hp_loss=True
+    ))
+
 def resolve_amount(
     game_state,
     card,
@@ -1338,6 +1436,269 @@ def handle_abyss_mire_damage_by_gaze(game_state, card, effect, target_index, eff
         logs.append("将 1 张【{}】加入抽牌堆，并重洗抽牌堆。".format(
             prayer.name
         ))
+
+    return logs
+
+@register_effect("play_all_lightless_prayers_from_exhaust")
+def handle_play_all_lightless_prayers_from_exhaust(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    prayers = [
+        pile_card
+        for pile_card in list(player.exhaust_pile)
+        if getattr(pile_card, "card_id", "") == "card.lightless_prayer"
+    ]
+
+    if not prayers:
+        return ["【{}】没有在消耗堆中找到无光祷言。".format(card.name)]
+
+    from game.effects import play_card_from_effect_and_exhaust
+
+    echo_upgraded = bool(getattr(card, "upgraded", False))
+
+    logs.append("【{}】将打出消耗堆中的 {} 张无光祷言。".format(
+        card.name,
+        len(prayers)
+    ))
+
+    for prayer in prayers:
+        if game_state.battle_over:
+            break
+
+        if prayer not in player.exhaust_pile:
+            continue
+
+        player.exhaust_pile.remove(prayer)
+
+        logs.extend(play_card_from_effect_and_exhaust(
+            game_state=game_state,
+            source_card=card,
+            played_card=prayer,
+            reason="prayer_echo",
+            force_exhaust=True,
+            source_label=card.name
+        ))
+
+        if (
+            echo_upgraded
+            and getattr(prayer, "upgraded", False)
+            and prayer in player.exhaust_pile
+            and not game_state.battle_over
+        ):
+            player.exhaust_pile.remove(prayer)
+            logs.append("【{}】升级效果：再次打出【{}】。".format(
+                card.name,
+                prayer.name
+            ))
+            logs.extend(play_card_from_effect_and_exhaust(
+                game_state=game_state,
+                source_card=card,
+                played_card=prayer,
+                reason="prayer_echo",
+                force_exhaust=True,
+                source_label=card.name
+            ))
+
+    return logs
+
+@register_effect("gain_abyss_hunt")
+def handle_gain_abyss_hunt(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    heal = int(effect.get("heal", 4) or 4)
+
+    zone_element = ""
+    if effect_context is not None:
+        zone_element = effect_context.get("zone_element", "")
+
+    if zone_element == "shade":
+        from game.zone.zone_utils import apply_zone_amount_modifier
+        old_heal = heal
+        heal = apply_zone_amount_modifier(
+            value=heal,
+            game_state=game_state,
+            zone_element="shade"
+        )
+        logs.append("【{}】恢复值受到阴 Zone 修正：{} -> {}。".format(
+            card.name,
+            old_heal,
+            heal
+        ))
+
+    status_key = "abyss_hunt_plus" if getattr(card, "upgraded", False) else "abyss_hunt"
+    current = player.gain_status(status_key, heal)
+
+    logs.append("【{}】生效：渊猎触发时恢复 {} HP。当前层数：{}。".format(
+        card.name,
+        heal,
+        current
+    ))
+
+    return logs
+
+@register_effect("gain_abyss_symbiosis")
+def handle_gain_abyss_symbiosis(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=player,
+        target=player,
+        effect_context=effect_context
+    )
+    amount = int(amount)
+
+    if amount <= 0:
+        logs.append("【{}】没有获得深渊共生层数。".format(card.name))
+        return logs
+
+    current = player.gain_status("abyss_symbiosis", amount)
+
+    logs.append("【{}】生效：攻击有深渊凝视的敌人时恢复 {} HP。当前深渊共生：{}。".format(
+        card.name,
+        amount,
+        current
+    ))
+
+    return logs
+
+@register_effect("abyss_wail_damage_by_exhaust_count")
+def handle_abyss_wail_damage_by_exhaust_count(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    target_entity = get_effect_target_entity(
+        game_state=game_state,
+        target_key=effect.get("target", "selected_enemy"),
+        target_index=target_index
+    )
+
+    if target_entity is None:
+        return ["目标敌人无效。"]
+
+    count = len(getattr(player, "exhaust_pile", []) or [])
+
+    if count <= 0:
+        logs.append("【{}】消耗堆没有牌，造成 0 点伤害。".format(card.name))
+    else:
+        logs.append("【{}】依据消耗堆牌数，对 {} 造成 {} 点阴属性攻击伤害。".format(
+            card.name,
+            target_entity.name,
+            count
+        ))
+
+    logs.extend(deal_damage(
+        game_state=game_state,
+        source=player,
+        target=target_entity,
+        amount=count,
+        damage_kind="attack",
+        card=card,
+        attack_type=getattr(card, "attack_type", ""),
+        attack_element="shade",
+        zone_element=effect_context.get("zone_element", "") if effect_context else ""
+    ))
+
+    if getattr(card, "upgraded", False):
+        import copy
+        copied = copy.deepcopy(card)
+        setattr(copied, "temporary", True)
+        setattr(copied, "created_in_battle", True)
+        player.draw_pile.append(copied)
+        random.shuffle(player.draw_pile)
+        logs.append("【{}】升级效果：将 1 张当前【{}】的复制品加入抽牌堆，并重洗抽牌堆。".format(
+            card.name,
+            card.name
+        ))
+
+    return logs
+
+@register_effect("draw_from_draw_pile_bottom")
+def handle_draw_from_draw_pile_bottom(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    count = int(effect.get("count", 1) or 1)
+
+    if is_real_active_shade_zone(game_state):
+        count += int(effect.get("shade_bonus", 1) or 1)
+        lose_1_hp_for_shade_bonus(game_state, card, logs, "沉渊")
+
+        if game_state.battle_over or not player.is_alive():
+            return logs
+
+    if count <= 0:
+        return logs
+
+    if not player.draw_pile:
+        return ["【{}】抽牌堆为空。".format(card.name)]
+
+    selected = list(player.draw_pile[:count])
+
+    logs.append("【{}】从抽牌堆底端取出 {} 张牌。".format(
+        card.name,
+        len(selected)
+    ))
+
+    for pile_card in selected:
+        move_specific_draw_card_to_hand_or_discard(
+            game_state=game_state,
+            card=pile_card,
+            logs=logs,
+            draw_source="sink_into_abyss"
+        )
+
+        if game_state.battle_over:
+            break
+
+    return logs
+
+@register_effect("shuffle_draw_pile_draw_middle")
+def handle_shuffle_draw_pile_draw_middle(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    count = int(effect.get("count", 2) or 2)
+
+    if is_real_active_shade_zone(game_state):
+        count += int(effect.get("shade_bonus", 1) or 1)
+        lose_1_hp_for_shade_bonus(game_state, card, logs, "深渊混沌")
+
+        if game_state.battle_over or not player.is_alive():
+            return logs
+
+    if not player.draw_pile:
+        return ["【{}】抽牌堆为空，无法重洗并抽取。".format(card.name)]
+
+    random.shuffle(player.draw_pile)
+    logs.append("【{}】重洗抽牌堆。".format(card.name))
+
+    total = len(player.draw_pile)
+    count = min(count, total)
+
+    start = (total - count) // 2
+    selected = list(player.draw_pile[start:start + count])
+
+    logs.append("【{}】抽出洗后正中的 {} 张牌。".format(
+        card.name,
+        len(selected)
+    ))
+
+    for pile_card in selected:
+        move_specific_draw_card_to_hand_or_discard(
+            game_state=game_state,
+            card=pile_card,
+            logs=logs,
+            draw_source="abyss_chaos"
+        )
+
+        if game_state.battle_over:
+            break
 
     return logs
 

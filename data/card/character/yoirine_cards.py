@@ -263,6 +263,67 @@ def create_crystal_piercing():
             },
         }
     )
+def create_swallow_return():
+    return CardTemplate(
+        card_id="card.swallow_return",
+        name="燕返",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 5 点伤害 2 次。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 5,
+            "times": 2
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "times": {
+                    "var": "times"
+                },
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "燕返+",
+            "description": "造成 8 点伤害 2 次。",
+            "card_vars": {
+                "damage": 8
+            }
+        }
+    )
+def create_abyss_wail():
+    return CardTemplate(
+        card_id="card.abyss_wail",
+        name="渊唳",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="消耗。对敌人造成一次消耗堆牌数的阴属性伤害。",
+        quantity="common",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "abyss_wail_damage_by_exhaust_count",
+                "target": "selected_enemy"
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "渊唳+",
+            "description": "消耗。对敌人造成一次消耗堆牌数的阴属性伤害。额外在抽牌堆加入一张当前【渊唳+】的复制品，并重洗抽牌堆。"
+        }
+    )
+
 def create_crystal_thorns():
     return CardTemplate(
         card_id="card.crystal_thorns",
@@ -433,7 +494,68 @@ def create_precipitate():
             "cost": 0
         }
     )
-
+def create_sink_into_abyss():
+    return CardTemplate(
+        card_id="card.sink_into_abyss",
+        name="沉渊",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="将抽牌堆底端 1 张牌加入手牌。阴 Zone 时，额外 1 张并失去 1 HP。",
+        quantity="common",
+        attack_element="shade",
+        skip_auto_zone_hp_loss=True,
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "draw_from_draw_pile_bottom",
+                "count": 1,
+                "shade_bonus": 1
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "沉渊+",
+            "description": "将抽牌堆底端 2 张牌加入手牌。阴 Zone 时，额外 1 张并失去 1 HP。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "count"],
+                    "value": 2
+                }
+            ]
+        }
+    )
+def create_abyss_chaos():
+    return CardTemplate(
+        card_id="card.abyss_chaos",
+        name="深渊混沌",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="重洗抽牌堆，抽出洗后正中的 2 张牌。阴 Zone 时，额外 1 张并失去 1 HP。",
+        quantity="common",
+        attack_element="shade",
+        skip_auto_zone_hp_loss=True,
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "shuffle_draw_pile_draw_middle",
+                "count": 2,
+                "shade_bonus": 1
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "深渊混沌+",
+            "description": "重洗抽牌堆，抽出洗后正中的 3 张牌。阴 Zone 时，额外 1 张并失去 1 HP。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "count"],
+                    "value": 3
+                }
+            ]
+        }
+    )
 
 #uncommon
 def create_abyssal_erosion():
@@ -1138,6 +1260,29 @@ def create_synchronization():
             ],
         }
     )
+def create_prayer_echo():
+    return CardTemplate(
+        card_id="card.prayer_echo",
+        name="祷言回声",
+        card_type="skill",
+        cost=2,
+        target="none",
+        description="消耗。打出消耗堆中全部【无光祷言】和【无光祷言+】。",
+        quantity="rare",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "play_all_lightless_prayers_from_exhaust"
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "祷言回声+",
+            "description": "消耗。打出消耗堆中全部【无光祷言】和【无光祷言+】；其中【无光祷言+】打出 2 次。"
+        }
+    )
+
 
 def create_abyssal_form():
     return CardTemplate(
@@ -1224,4 +1369,60 @@ def create_insatiable_abyss():
             "description": "对敌人造成阴属性伤害并清除深渊凝视后，若敌人没有死亡，再赋予清除层数 80% 的深渊凝视。该比例在打出时确定。"
         }
     )
-
+def create_abyss_hunt():
+    return CardTemplate(
+        card_id="card.abyss_hunt",
+        name="渊猎",
+        card_type="power",
+        cost=3,
+        target="self",
+        description="回合结束时，若深渊凝视层数超过敌人当前生命+格挡，自动触发深渊具现，并恢复 4 HP。该恢复值在打出时进行一次阴 Zone 修正后固定。",
+        quantity="rare",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "gain_abyss_hunt",
+                "heal": 4
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "渊猎+",
+            "description": "回合结束时，若深渊凝视按凝视增伤与阴 Zone 修正后超过敌人当前生命+格挡，自动触发深渊具现，并恢复 4 HP。该恢复值在打出时进行一次阴 Zone 修正后固定。"
+        }
+    )
+def create_abyss_symbiosis():
+    return CardTemplate(
+        card_id="card.abyss_symbiosis",
+        name="深渊共生",
+        card_type="power",
+        cost="X",
+        target="self",
+        description="攻击有深渊凝视的敌人时，获得 X 点生命恢复。",
+        quantity="rare",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        effects=[
+            {
+                "op": "gain_abyss_symbiosis",
+                "amount": {
+                    "x_var": "x"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "深渊共生+",
+            "description": "攻击有深渊凝视的敌人时，获得 X+1 点生命恢复。",
+            "patches": [
+                {
+                    "path": ["effects", 0, "amount"],
+                    "value": {
+                        "x_var": "x",
+                        "add": 1
+                    }
+                }
+            ]
+        }
+    )

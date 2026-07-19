@@ -244,6 +244,40 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+register_status_def(StatusDef(
+    key="abyss_hunt",
+    name="渊猎",
+    description="玩家回合结束、敌人行动前，若敌人的深渊凝视层数超过其当前生命与格挡之和，触发深渊具现并恢复生命。",
+    category="buff",
+    display_mode="stack",
+    order=80,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="abyss_hunt_plus",
+    name="渊猎+",
+    description="玩家回合结束、敌人行动前，若敌人的深渊凝视按凝视增伤与阴 Zone 修正后超过其当前生命与格挡之和，触发深渊具现并恢复生命。",
+    category="buff",
+    display_mode="stack",
+    order=81,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="abyss_symbiosis",
+    name="深渊共生",
+    description="攻击有深渊凝视的敌人时，恢复生命。",
+    category="buff",
+    display_mode="stack",
+    order=82,
+    decay_timing="none",
+    decay_amount=0,
+))
+
 register_status_def(StatusDef(
     key="regeneration",
     name="再生",
