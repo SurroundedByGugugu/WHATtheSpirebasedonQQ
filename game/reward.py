@@ -37,15 +37,15 @@ from game.relic_logic.run_relic_utils import (
 
 CARD_REWARD_POOL = [
     #测试存档无色
-    "card.gain_status_strength",
-    "card.exhaust_strength",
-    "card.ethereal_strength",
-    "card.retain_strength",
-    "card.clever_strength",
-    "card.innate_thorns",
-    "card.draw_discard_test",
-    "card.test_heavy_strike",
-    "card.test_x_drill",
+    # "card.gain_status_strength",
+    # "card.exhaust_strength",
+    # "card.ethereal_strength",
+    # "card.retain_strength",
+    # "card.clever_strength",
+    # "card.innate_thorns",
+    # "card.draw_discard_test",
+    # "card.test_heavy_strike",
+    # "card.test_x_drill",
 
     #战士哥
     "card.whirlwind",
@@ -207,7 +207,7 @@ CARD_REWARD_POOL = [
 
     #yoi
     "card.crystal_piercing",
-    "card.spreading_wing",
+    # "card.spreading_wing",
     # "card.crystal_zone",
     "card.crystal_cocoon",
     "card.crystal_thorns",
@@ -245,6 +245,9 @@ CARD_REWARD_POOL = [
     "card.abyss_wail",
     "card.sink_into_abyss",
     "card.abyss_chaos",
+    "card.flash",
+    "card.crystal_curtain_strike",
+    "card.crystal_reflection",
     
     # Suzuri
     "card.anatexis",

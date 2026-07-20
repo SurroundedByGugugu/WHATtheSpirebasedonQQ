@@ -84,19 +84,21 @@ class GameState:
     # 本场战斗中，玩家因为自身行动造成的实际 HP 损失次数。
     # 用于【渊蚀】这类只关心“自我代价”的效果。
     player_self_action_hp_loss_count_this_battle: int = 0
-
     # 本场战斗中，玩家因为自身行动造成的实际 HP 损失总量。
     # 例如一次自伤 2 点，则 count +1，total +2。
     player_self_action_hp_loss_total_this_battle: int = 0
+
+    # 本回合中，玩家因为自身行动造成的实际 HP 损失次数。
+    player_self_action_hp_loss_count_this_turn: int = 0
+    # 本回合中，玩家因为自身行动造成的实际 HP 损失总量。
+    player_self_action_hp_loss_total_this_turn: int = 0
 
     # 本场战斗中，玩家 HP 实际减少的次数。
     # 每次 real_damage > 0 记 1 次，不按损失点数累计。
     player_life_loss_count_this_battle: int = 0
 
     # 本回合玩家是否实际失去过 HP。
-    # 用于【掠影】这类“若你本回合失去过生命”的效果。
     player_lost_hp_this_turn: bool = False
-
     # 本回合玩家实际失去的 HP 总量，暂时备用。
     player_lost_hp_total_this_turn: int = 0
 

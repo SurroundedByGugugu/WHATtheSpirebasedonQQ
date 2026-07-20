@@ -12,7 +12,7 @@ from game.zone.zone_utils import (
     apply_water_zone_regeneration_on_card_play,
     record_player_card_played_this_turn
 )
-from game.block import gain_block_without_modifiers
+from game.block import gain_block_without_modifiers, gain_block
 from game.pending_choice import PendingChoice, set_pending_choice
 
 
@@ -38,11 +38,12 @@ def should_apply_abyssal_form_effect(game_state, card, zone_element=""):
         return False
     if get_status_value(player, "abyssal_form") <= 0:
         return False
-    # 深渊形态现在只强化阴属性攻击牌。(热修复是否只强化shade改这里)
+    # 深渊形态现在只强化晶属性攻击牌。(热修复是否只强化shade改这里)
     card_element = str(getattr(card, "attack_element", "") or "").strip().lower()
-    if card_element != "shade":
+    if card_element != "crystal":
         return False
     # 已经通过真实阴 Zone / 以太介质 / 薄雾等吃到阴 Zone 时，不重复叠加深渊形态的虚拟极阴效果。
+    # 注意：真实晶 Zone 不会阻止深渊形态；晶攻击牌可以同时吃晶 Zone 和深渊形态的虚拟极阴。
     if str(zone_element).strip().lower() == "shade":
         return False
 
@@ -177,18 +178,23 @@ def move_specific_draw_card_to_hand_or_discard(game_state, card, logs, draw_sour
         card=card
     ))
     
-def is_real_active_shade_zone(game_state):
+def get_real_active_shade_zone_info(game_state):
     zone = getattr(game_state, "active_zone", None)
     if zone is None:
-        return False
-
+        return False, False
     try:
         if zone.is_expired():
-            return False
+            return False, False
     except Exception:
         pass
+    if str(getattr(zone, "element", "") or "").strip().lower() != "shade":
+        return False, False
+    return True, bool(getattr(zone, "is_extreme", False))
 
-    return str(getattr(zone, "element", "") or "").strip().lower() == "shade"
+
+def is_real_active_shade_zone(game_state):
+    active, _ = get_real_active_shade_zone_info(game_state)
+    return active
 
 
 def lose_1_hp_for_shade_bonus(game_state, card, logs, label):
@@ -881,17 +887,186 @@ def draw_cards_with_no_draw_check(game_state, count, draw_source="card_effect"):
 def is_enemy_intent_attack(intent):
     if intent is None:
         return False
-
     if getattr(intent, "kind", "") == "attack":
         return True
-
     if getattr(intent, "kind", "") == "multi":
         for child in getattr(intent, "actions", []):
             if is_enemy_intent_attack(child):
                 return True
-
     return False
 
+def any_alive_enemy_intends_attack(game_state):
+    for enemy in getattr(game_state, "enemies", []) or []:
+        if not enemy.is_alive():
+            continue
+        intent = enemy.get_current_intent()
+        if is_enemy_intent_attack(intent):
+            return True
+    return False
+
+@register_effect("gain_status_all_enemies_if_any_enemy_intent_attack")
+def handle_gain_status_all_enemies_if_any_enemy_intent_attack(game_state, card, effect, target_index, effect_context):
+    logs = []
+    if not any_alive_enemy_intends_attack(game_state):
+        logs.append("没有敌人的意图是攻击，【{}】没有施加状态。".format(card.name))
+        return logs
+    status_key = effect.get("status", "weak")
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount", 1),
+        source=game_state.player,
+        target=game_state.player,
+        effect_context=effect_context
+    )
+    amount = int(amount)
+    from game.relic_logic.combat_relic_utils import apply_status_with_player_relics
+    logs.append("有敌人的意图是攻击，【{}】对全体敌人施加状态。".format(card.name))
+    for enemy in get_all_alive_enemies(game_state):
+        logs.extend(apply_status_with_player_relics(
+            game_state=game_state,
+            source=game_state.player,
+            target=enemy,
+            status_key=status_key,
+            amount=amount
+        ))
+    return logs
+
+@register_effect("gain_block_if_enemy_attack_or_self_action_hp_loss_this_turn")
+def handle_gain_block_if_enemy_attack_or_self_action_hp_loss_this_turn(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    enemy_attack = any_alive_enemy_intends_attack(game_state)
+    self_hurt = int(getattr(game_state, "player_self_action_hp_loss_count_this_turn", 0) or 0) > 0
+
+    if not enemy_attack and not self_hurt:
+        logs.append("没有敌人的意图是攻击，且本回合没有触发过自伤，【{}】没有获得格挡。".format(
+            card.name
+        ))
+        return logs
+
+    if get_status_value(player, "no_card_block") > 0:
+        logs.append("{} 受到不能从卡牌获得格挡影响，【{}】没有获得格挡。".format(
+            player.name,
+            card.name
+        ))
+        return logs
+
+    zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
+    local_context = make_zone_effect_context(effect_context, zone_element)
+
+    amount = resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("amount"),
+        source=player,
+        target=player,
+        block_source="played_card",
+        effect_context=local_context
+    )
+    amount = int(amount)
+
+    if enemy_attack and self_hurt:
+        logs.append("有敌人的意图是攻击，且本回合触发过自伤，【{}】触发。".format(card.name))
+    elif enemy_attack:
+        logs.append("有敌人的意图是攻击，【{}】触发。".format(card.name))
+    else:
+        logs.append("本回合触发过自伤，【{}】触发。".format(card.name))
+
+    logs.extend(gain_block_without_modifiers(
+        game_state=game_state,
+        source=player,
+        target=player,
+        amount=amount,
+        block_source="played_card",
+        card=card
+    ))
+
+    from game.zone.zone_utils import apply_earth_zone_temp_thorns
+    apply_earth_zone_temp_thorns(
+        game_state=game_state,
+        target=player,
+        zone_element=zone_element,
+        block_amount=amount,
+        logs=logs
+    )
+
+    return logs
+@register_effect("mirror_target_positive_buffs")
+def handle_mirror_target_positive_buffs(game_state, card, effect, target_index, effect_context):
+    logs = []
+    player = game_state.player
+
+    target_entity = get_effect_target_entity(
+        game_state=game_state,
+        target_key=effect.get("target", "selected_enemy"),
+        target_index=target_index
+    )
+
+    if target_entity is None:
+        return ["【{}】目标无效。".format(card.name)]
+
+    excluded_statuses = set(effect.get("exclude_statuses", []) or [])
+
+    copied = 0
+
+    from game.status.status_defs import get_status_def
+    from game.status.status_gain import format_status_gain_log
+
+    active_statuses = getattr(target_entity, "statuses", None)
+    if active_statuses is None:
+        return ["【{}】目标没有可复制的状态。".format(card.name)]
+
+    for status_key, amount in active_statuses.all_active().items():
+        amount = int(amount)
+
+        if amount <= 0:
+            continue
+
+        if status_key in excluded_statuses:
+            continue
+
+        status_def = get_status_def(status_key)
+        if status_def is None:
+            continue
+
+        if getattr(status_def, "category", "") != "buff":
+            continue
+
+        if hasattr(player, "gain_status_with_result"):
+            result = player.gain_status_with_result(status_key, amount)
+            if bool(result.get("applied", False)):
+                logs.append(format_status_gain_log(
+                    player,
+                    status_key,
+                    amount,
+                    result
+                ))
+                copied += 1
+        else:
+            current = player.gain_status(status_key, amount)
+            logs.append("{} 获得 {} 点{}。当前{}：{}。".format(
+                player.name,
+                amount,
+                status_def.name,
+                status_def.name,
+                current
+            ))
+            copied += 1
+
+    if copied <= 0:
+        logs.append("【{}】没有从 {} 身上复制到正面增益。".format(
+            card.name,
+            target_entity.name
+        ))
+    else:
+        logs.insert(0, "【{}】复制 {} 身上的正面增益。".format(
+            card.name,
+            target_entity.name
+        ))
+
+    return logs
 
 @register_effect("draw_cards")
 def handle_draw_cards(game_state, card, effect, target_index, effect_context):
@@ -1141,8 +1316,8 @@ def handle_deal_damage_heal_on_full_hp_kill(game_state, card, effect, target_ind
 
     return logs
 
-@register_effect("draw_gain_energy_if_player_lost_hp_this_turn")
-def handle_draw_gain_energy_if_player_lost_hp_this_turn(game_state, card, effect, target_index, effect_context):
+@register_effect("draw_gain_energy_if_player_lost_hp_this_battle")
+def handle_draw_gain_energy_if_player_lost_hp_this_battle(game_state, card, effect, target_index, effect_context):
     logs = []
     player = game_state.player
 
@@ -1163,8 +1338,8 @@ def handle_draw_gain_energy_if_player_lost_hp_this_turn(game_state, card, effect
             draw_source="card_effect"
         ))
 
-    if not bool(getattr(game_state, "player_lost_hp_this_turn", False)):
-        logs.append("本回合还没有失去过生命，【{}】没有触发额外效果。".format(card.name))
+    if int(getattr(game_state, "player_life_loss_count_this_battle", 0) or 0) <= 0:
+        logs.append("本场战斗中还没有失去过生命，【{}】没有触发额外效果。".format(card.name))
         return logs
 
     extra_draw = resolve_amount(
@@ -1187,7 +1362,7 @@ def handle_draw_gain_energy_if_player_lost_hp_this_turn(game_state, card, effect
     extra_draw = int(extra_draw)
     energy = int(energy)
 
-    logs.append("本回合已经失去过生命，【{}】触发额外效果。".format(card.name))
+    logs.append("本场战斗中已经失去过生命，【{}】触发额外效果。".format(card.name))
 
     if extra_draw > 0:
         logs.extend(draw_cards_with_no_draw_check(
@@ -1622,29 +1797,28 @@ def handle_abyss_wail_damage_by_exhaust_count(game_state, card, effect, target_i
 def handle_draw_from_draw_pile_bottom(game_state, card, effect, target_index, effect_context):
     logs = []
     player = game_state.player
-
-    count = int(effect.get("count", 1) or 1)
-
-    if is_real_active_shade_zone(game_state):
-        count += int(effect.get("shade_bonus", 1) or 1)
-        lose_1_hp_for_shade_bonus(game_state, card, logs, "沉渊")
-
-        if game_state.battle_over or not player.is_alive():
-            return logs
-
+    count = int(effect.get("count", 2) or 2)
+    shade_active, shade_extreme = get_real_active_shade_zone_info(game_state)
+    if shade_active:
+        if shade_extreme:
+            bonus = int(effect.get("extreme_bonus", effect.get("shade_bonus", 1)) or 0)
+        else:
+            bonus = int(effect.get("shade_bonus", 1) or 0)
+        count += bonus
+        if bonus > 0:
+            lose_1_hp_for_shade_bonus(game_state, card, logs, "沉渊")
+            if game_state.battle_over or not player.is_alive():
+                return logs
     if count <= 0:
         return logs
 
     if not player.draw_pile:
         return ["【{}】抽牌堆为空。".format(card.name)]
-
     selected = list(player.draw_pile[:count])
-
     logs.append("【{}】从抽牌堆底端取出 {} 张牌。".format(
         card.name,
         len(selected)
     ))
-
     for pile_card in selected:
         move_specific_draw_card_to_hand_or_discard(
             game_state=game_state,
@@ -1652,7 +1826,6 @@ def handle_draw_from_draw_pile_bottom(game_state, card, effect, target_index, ef
             logs=logs,
             draw_source="sink_into_abyss"
         )
-
         if game_state.battle_over:
             break
 
@@ -1665,12 +1838,20 @@ def handle_shuffle_draw_pile_draw_middle(game_state, card, effect, target_index,
 
     count = int(effect.get("count", 2) or 2)
 
-    if is_real_active_shade_zone(game_state):
-        count += int(effect.get("shade_bonus", 1) or 1)
-        lose_1_hp_for_shade_bonus(game_state, card, logs, "深渊混沌")
+    shade_active, shade_extreme = get_real_active_shade_zone_info(game_state)
+    if shade_active:
+        if shade_extreme:
+            bonus = int(effect.get("extreme_bonus", effect.get("shade_bonus", 1)) or 0)
+        else:
+            bonus = int(effect.get("shade_bonus", 1) or 0)
 
-        if game_state.battle_over or not player.is_alive():
-            return logs
+        count += bonus
+
+        if bonus > 0:
+            lose_1_hp_for_shade_bonus(game_state, card, logs, "深渊混沌")
+
+            if game_state.battle_over or not player.is_alive():
+                return logs
 
     if not player.draw_pile:
         return ["【{}】抽牌堆为空，无法重洗并抽取。".format(card.name)]
@@ -4034,7 +4215,10 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         status_key = effect.get("status")
         target_key = effect.get("target", "self")
         zone_element = get_effect_zone_element(game_state, card, effect, effect_context)
-        local_context = make_zone_effect_context(effect_context, zone_element)
+        if bool(effect.get("ignore_zone_amount_modifier", False)):
+            local_context = make_zone_effect_context(effect_context, "")
+        else:
+            local_context = make_zone_effect_context(effect_context, zone_element)
         if not status_key:
             logs.append("gain_status 缺少 status。")
             return logs

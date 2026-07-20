@@ -880,6 +880,48 @@ def create_violence():
             "card_vars": {"count": 4}
         }
     )
+def create_mirror_reflection():
+    return CardTemplate(
+        card_id="card.mirror_reflection",
+        name="映镜",
+        card_type="skill",
+        cost=2,
+        target="enemy",
+        description="消耗。获得和目标同样的正面增益。",
+        quantity="rare",
+        owner_character_id="",
+        effects=[
+            {
+                "op": "mirror_target_positive_buffs",
+                "target": "selected_enemy",
+                "exclude_statuses": [
+                    # 四层 / Boss 机制
+                    "beat_of_death",      # 死亡律动
+                    "pain_stab",          # 疼痛戳刺
+                    "time_warp",          # 时间扭曲
+                    "invincible",         # 坚不可摧
+
+                    # 敌人机制状态
+                    "fading",             # 消逝
+                    "self_destruct",      # 自爆
+                    "life_link",          # 生命链接
+                    "shape_shift",        # 形态转换
+                    "shifting",           # 变幻
+                    "writhing",           # 扭动
+                    "spore_cloud",        # 孢子云
+
+                ]
+            }
+        ],
+        keywords=[KEYWORD_EXHAUST],
+        upgraded=False,
+        upgrade_patch={
+            "name": "映镜+",
+            "cost": 1,
+            "description": "费用减少 1。消耗。获得和目标同样的正面增益。"
+        }
+    )
+
 
 #rare power
 def create_magnetism():

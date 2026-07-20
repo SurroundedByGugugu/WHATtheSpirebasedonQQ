@@ -460,6 +460,13 @@ def deal_damage(
             game_state.player_self_action_hp_loss_total_this_battle = int(
                 getattr(game_state, "player_self_action_hp_loss_total_this_battle", 0)
             ) + int(real_damage)
+
+            game_state.player_self_action_hp_loss_count_this_turn = int(
+                getattr(game_state, "player_self_action_hp_loss_count_this_turn", 0)
+            ) + 1
+            game_state.player_self_action_hp_loss_total_this_turn = int(
+                getattr(game_state, "player_self_action_hp_loss_total_this_turn", 0)
+            ) + int(real_damage)
         
     context = BattleContext(
         game_state=game_state,

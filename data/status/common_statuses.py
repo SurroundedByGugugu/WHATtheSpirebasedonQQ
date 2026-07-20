@@ -227,7 +227,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="abyssal_form",
     name="深渊形态",
-    description="攻击牌额外视为有极阴 Zone 效果；不会新开或覆盖 Zone。",
+    description="晶属性攻击牌额外视为有极阴 Zone 效果；不会新开或覆盖 Zone。",
     category="buff",
     display_mode="stack",
     order=81,

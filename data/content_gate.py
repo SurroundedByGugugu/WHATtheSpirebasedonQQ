@@ -54,6 +54,10 @@ PRIVATE_CARD_IDS = [
     "card.abyss_wail",
     "card.sink_into_abyss",
     "card.abyss_chaos",
+    "card.flash",
+    "card.crystal_curtain_strike",
+    "card.crystal_reflection",
+    "card.mirror_reflection",
 
     "card.mirage_shadows",
     "card.deva_form",

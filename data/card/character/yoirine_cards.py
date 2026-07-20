@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.card.base_card import CardTemplate
-from game.constants import KEYWORD_EXHAUST
+from game.constants import KEYWORD_EXHAUST,KEYWORD_INNATE
 
 # 一对私有打防
 def create_strikeYoirine():
@@ -323,6 +323,48 @@ def create_abyss_wail():
             "description": "消耗。对敌人造成一次消耗堆牌数的阴属性伤害。额外在抽牌堆加入一张当前【渊唳+】的复制品，并重洗抽牌堆。"
         }
     )
+def create_crystal_curtain_strike():
+    return CardTemplate(
+        card_id="card.crystal_curtain_strike",
+        name="晶幕打击",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 3 点伤害。获得 7 点格挡。",
+        quantity="common",
+        attack_element="crystal",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 3,
+            "block": 7
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "晶幕打击+",
+            "description": "造成 3 点伤害。获得 10 点格挡。",
+            "card_vars": {
+                "block": 10
+            }
+        }
+    )
 
 def create_crystal_thorns():
     return CardTemplate(
@@ -376,7 +418,7 @@ def create_spreading_wing():
         cost=1,
         target="self",
         description="获得 2 层飞行。",
-        quantity="common",
+        quantity="starting",
         owner_character_id="character.yoirine",
         card_vars={"flying": 2},
         effects=[{
@@ -501,7 +543,7 @@ def create_sink_into_abyss():
         card_type="skill",
         cost=1,
         target="self",
-        description="将抽牌堆底端 1 张牌加入手牌。阴 Zone 时，额外 1 张并失去 1 HP。",
+        description="将抽牌堆底端 2 张牌加入手牌。阴 Zone 时，额外 1 张并失去 1 生命。极阴 Zone 时，额外 2 张并失去 1 生命。",
         quantity="common",
         attack_element="shade",
         skip_auto_zone_hp_loss=True,
@@ -509,18 +551,23 @@ def create_sink_into_abyss():
         effects=[
             {
                 "op": "draw_from_draw_pile_bottom",
-                "count": 1,
-                "shade_bonus": 1
+                "count": 2,
+                "shade_bonus": 1,
+                "extreme_bonus": 2
             }
         ],
         upgraded=False,
         upgrade_patch={
             "name": "沉渊+",
-            "description": "将抽牌堆底端 2 张牌加入手牌。阴 Zone 时，额外 1 张并失去 1 HP。",
+            "description": "将抽牌堆底端 2 张牌加入手牌。阴 Zone 时，额外 2 张并失去 1 生命。极阴 Zone 时，额外 3 张并失去 1 生命。",
             "patches": [
                 {
-                    "path": ["effects", 0, "count"],
+                    "path": ["effects", 0, "shade_bonus"],
                     "value": 2
+                },
+                {
+                    "path": ["effects", 0, "extreme_bonus"],
+                    "value": 3
                 }
             ]
         }
@@ -532,7 +579,7 @@ def create_abyss_chaos():
         card_type="skill",
         cost=1,
         target="self",
-        description="重洗抽牌堆，抽出洗后正中的 2 张牌。阴 Zone 时，额外 1 张并失去 1 HP。",
+        description="重洗抽牌堆，抽出洗后正中的 2 张牌。阴 Zone 时，额外 1 张并失去 1 生命。极阴 Zone 时，额外 2 张并失去 1 生命。",
         quantity="common",
         attack_element="shade",
         skip_auto_zone_hp_loss=True,
@@ -541,19 +588,56 @@ def create_abyss_chaos():
             {
                 "op": "shuffle_draw_pile_draw_middle",
                 "count": 2,
-                "shade_bonus": 1
+                "shade_bonus": 1,
+                "extreme_bonus": 2
             }
         ],
         upgraded=False,
         upgrade_patch={
             "name": "深渊混沌+",
-            "description": "重洗抽牌堆，抽出洗后正中的 3 张牌。阴 Zone 时，额外 1 张并失去 1 HP。",
+            "description": "重洗抽牌堆，抽出洗后正中的 2 张牌。阴 Zone 时，额外 2 张并失去 1 生命。极阴 Zone 时，额外 3 张并失去 1 生命。",
             "patches": [
                 {
-                    "path": ["effects", 0, "count"],
+                    "path": ["effects", 0, "shade_bonus"],
+                    "value": 2
+                },
+                {
+                    "path": ["effects", 0, "extreme_bonus"],
                     "value": 3
                 }
             ]
+        }
+    )
+def create_flash():
+    return CardTemplate(
+        card_id="card.flash",
+        name="闪光",
+        card_type="skill",
+        cost=1,
+        target="none",
+        description="如果有敌人的意图是攻击，赋予全体敌人 1 层虚弱。",
+        quantity="common",
+        attack_element="crystal",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "weak": 1
+        },
+        effects=[
+            {
+                "op": "gain_status_all_enemies_if_any_enemy_intent_attack",
+                "status": "weak",
+                "amount": {
+                    "var": "weak"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "闪光+",
+            "description": "如果有敌人的意图是攻击，赋予全体敌人 2 层虚弱。",
+            "card_vars": {
+                "weak": 2
+            }
         }
     )
 
@@ -805,7 +889,7 @@ def create_call_of_the_abyss():
         card_type="skill",
         cost=0,
         target="self",
-        description="消耗。抽 1 张牌。若你本回合失去过生命，额外抽 1 张牌，并获得 1 点费用。",
+        description="消耗。抽 1 张牌。若你本场战斗中失去过生命，额外抽 1 张牌，并获得 1 点费用。",
         quantity="uncommon",
         owner_character_id="character.yoirine",
         card_vars={
@@ -815,7 +899,7 @@ def create_call_of_the_abyss():
         },
         effects=[
             {
-                "op": "draw_gain_energy_if_player_lost_hp_this_turn",
+                "op": "draw_gain_energy_if_player_lost_hp_this_battle",
                 "base_draw": {
                     "var": "base_draw"
                 },
@@ -831,11 +915,14 @@ def create_call_of_the_abyss():
         upgraded=False,
         upgrade_patch={
             "name": "唤渊+",
-            "description": "消耗。抽 1 张牌。若你本回合失去过生命，额外抽 2 张牌，并获得 2 点费用。",
+            "description": "抽 1 张牌。若你本场战斗中失去过生命，额外抽 2 张牌，并获得 2 点费用。",
             "card_vars": {
                 "extra_draw": 2,
                 "energy": 2
-            }
+            },
+            "remove_keywords": [
+                KEYWORD_EXHAUST
+            ]
         }
     )
 def create_fleeting_shadow():
@@ -1001,6 +1088,38 @@ def create_abyss_index():
                     "value": "index_shade_plus"
                 }
             ]
+        }
+    )
+def create_crystal_reflection():
+    return CardTemplate(
+        card_id="card.crystal_reflection",
+        name="晶面反射",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="如果有敌人的意图是攻击，或本回合触发过自伤，获得 8 点格挡。",
+        quantity="uncommon",
+        attack_element="crystal",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 8
+        },
+        effects=[
+            {
+                "op": "gain_block_if_enemy_attack_or_self_action_hp_loss_this_turn",
+                "amount": {
+                    "var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "晶面反射+",
+            "description": "如果有敌人的意图是攻击，或本回合触发过自伤，获得 14 点格挡。",
+            "card_vars": {
+                "block": 14
+            }
         }
     )
 
@@ -1170,7 +1289,7 @@ def create_abyss_manifestation():
         card_type="skill",
         cost=1,
         target="none",
-        description="对深渊凝视层数最高的敌人造成一次等量无来源环境伤害。次优先级：当前 HP 最低；全部相等则按序取第一个存活敌人。",
+        description="对深渊凝视层数最高的敌人造成一次等量无来源环境伤害。次优先级：当前生命最低；全部相等则按序取第一个存活敌人。",
         quantity="rare",
         owner_character_id="character.yoirine",
         effects=[
@@ -1283,38 +1402,6 @@ def create_prayer_echo():
         }
     )
 
-
-def create_abyssal_form():
-    return CardTemplate(
-        card_id="card.abyssal_form",
-        name="深渊形态",
-        card_type="power",
-        cost=3,
-        target="self",
-        description="阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
-        quantity="rare",
-        attack_element="shade",
-        owner_character_id="character.yoirine",
-        card_vars={
-            "abyssal_form": 1
-        },
-        effects=[
-            {
-                "op": "gain_status",
-                "target": "self",
-                "status": "abyssal_form",
-                "amount": {
-                    "var": "abyssal_form"
-                }
-            }
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "深渊形态+",
-            "cost": 2,
-            "description": "阴属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
-        }
-    )
 def create_tailwind():
     return CardTemplate(
         card_id="card.tailwind",
@@ -1366,7 +1453,8 @@ def create_insatiable_abyss():
         upgraded=False,
         upgrade_patch={
             "name": "无厌之渊+",
-            "description": "对敌人造成阴属性伤害并清除深渊凝视后，若敌人没有死亡，再赋予清除层数 80% 的深渊凝视。该比例在打出时确定。"
+            "description": "对敌人造成阴属性伤害并清除深渊凝视后，若敌人没有死亡，再赋予清除层数 80% 的深渊凝视。该比例在打出时确定。",
+            "keywords":[KEYWORD_INNATE]
         }
     )
 def create_abyss_hunt():
@@ -1376,7 +1464,7 @@ def create_abyss_hunt():
         card_type="power",
         cost=3,
         target="self",
-        description="回合结束时，若深渊凝视层数超过敌人当前生命+格挡，自动触发深渊具现，并恢复 4 HP。该恢复值在打出时进行一次阴 Zone 修正后固定。",
+        description="回合结束时，若深渊凝视层数超过敌人当前生命+格挡，自动触发深渊具现，并恢复 4 生命。该恢复值在打出时进行一次阴 Zone 修正后固定。",
         quantity="rare",
         attack_element="shade",
         owner_character_id="character.yoirine",
@@ -1389,7 +1477,7 @@ def create_abyss_hunt():
         upgraded=False,
         upgrade_patch={
             "name": "渊猎+",
-            "description": "回合结束时，若深渊凝视按凝视增伤与阴 Zone 修正后超过敌人当前生命+格挡，自动触发深渊具现，并恢复 4 HP。该恢复值在打出时进行一次阴 Zone 修正后固定。"
+            "description": "回合结束时，若深渊凝视按凝视增伤与阴 Zone 修正后超过敌人当前生命+格挡，自动触发深渊具现，并恢复 4 生命。该恢复值在打出时进行一次阴 Zone 修正后固定。"
         }
     )
 def create_abyss_symbiosis():
@@ -1424,5 +1512,38 @@ def create_abyss_symbiosis():
                     }
                 }
             ]
+        }
+    )
+def create_abyssal_form():
+    return CardTemplate(
+        card_id="card.abyssal_form",
+        name="深渊形态",
+        card_type="power",
+        cost=3,
+        target="self",
+        description="晶属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+        quantity="rare",
+        attack_element="shade",
+        skip_auto_zone_hp_loss=True,
+        owner_character_id="character.yoirine",
+        card_vars={
+            "abyssal_form": 1
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "abyssal_form",
+                "ignore_zone_amount_modifier": True,
+                "amount": {
+                    "var": "abyssal_form"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "深渊形态+",
+            "cost": 2,
+            "description": "晶属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
         }
     )

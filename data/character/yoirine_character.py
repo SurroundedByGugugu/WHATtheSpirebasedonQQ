@@ -27,11 +27,11 @@ class YoirineCharacter(CharacterTemplate):
                 "card.strike_yoirine",
                 "card.strike_yoirine",
                 "card.strike_yoirine",
-                "card.strike_yoirine",
                 "card.defend_yoirine",
                 "card.defend_yoirine",
                 "card.defend_yoirine",
-                "card.defend_yoirine",
+                "card.spreading_wing",
+                "card.spreading_wing",
                 "card.crystal_plating",
                 "card.crystal_zone",
             ]

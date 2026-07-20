@@ -4722,6 +4722,8 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
     game_state.player_discarded_cards_this_turn = 0
     game_state.player_lost_hp_this_turn = False
     game_state.player_lost_hp_total_this_turn = 0
+    game_state.player_self_action_hp_loss_count_this_turn = 0
+    game_state.player_self_action_hp_loss_total_this_turn = 0
     cleared_temp_costs = clear_turn_temporary_card_costs(player)
     start_turn_block_logs = player.start_turn(game_state)
     if start_turn_block_logs:

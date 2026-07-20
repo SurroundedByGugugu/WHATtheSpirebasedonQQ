@@ -77,6 +77,7 @@ from data.card.colorless_cards import(
     create_soul,
     create_shiv,
     create_jax,
+    create_mirror_reflection,
 )
 
 from data.card.character.test_character_cards import (
@@ -302,6 +303,9 @@ from data.card.character.yoirine_cards import (
     create_abyss_wail,
     create_sink_into_abyss,
     create_abyss_chaos,
+    create_flash,
+    create_crystal_curtain_strike,
+    create_crystal_reflection,
 )
 
 from data.card.character.suzuri_cards import (
@@ -418,6 +422,7 @@ CARD_REGISTRY = {
     "card.transmutation": create_transmutation,
     "card.trip": create_trip,
     "card.violence": create_violence,
+    "card.mirror_reflection": create_mirror_reflection,
     #测试
     "card.gain_status_strength": create_gain_status_strength,
     "card.exhaust_strength": create_exhaust_strength,
@@ -632,6 +637,9 @@ CARD_REGISTRY = {
     "card.abyss_wail": create_abyss_wail,
     "card.sink_into_abyss": create_sink_into_abyss,
     "card.abyss_chaos": create_abyss_chaos,
+    "card.flash": create_flash,
+    "card.crystal_curtain_strike": create_crystal_curtain_strike,
+    "card.crystal_reflection": create_crystal_reflection,
     #suzuri
     "card.defend_suzuri":create_defendSuzuri,
     "card.strike_suzuri":create_strikeSuzuri,

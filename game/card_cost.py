@@ -176,6 +176,7 @@ def get_x_cost_spent_cost(game_state, card, raw_x):
     raw_x = int(raw_x)
 
     if is_abyssal_whisper_discount_active(game_state, card):
-        return raw_x - 1
+        min_cost = min(min_cost, -1)
+        current_cost -= 1
 
     return raw_x
