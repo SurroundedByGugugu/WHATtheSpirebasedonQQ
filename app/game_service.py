@@ -36,6 +36,7 @@ from game.engine import (
     choose_pending_elixir_cards,
     choose_pending_nilrys_card,
     choose_pending_toolbox_card,
+    choose_pending_four_color_nectar_card,
     get_pending_player_choice_hint,
 
 )
@@ -275,6 +276,7 @@ class GameService(object):
             "ancient", "先古", "先古之民",
             "next", "go", "选择路线", "前进",
             "toolbox", "工具箱",
+            "dance", "舞", "花蜜", "四色花蜜",
             "drop", "drop_hand", "丢弃手牌", "选择丢弃",
             "top", "headbutt", "置顶", "选择弃牌置顶",
             "exhaust_hand", "burn", "consume", "选择消耗", "消耗手牌",
@@ -788,7 +790,7 @@ class GameService(object):
             return get_pending_player_choice_hint(game_state)
         
         if command in ("toolbox", "工具箱"):
-            if not getattr(game_state, "pending_toolbox_selection", False):
+            if not pending_choice_is(game_state, "toolbox"):
                 return "当前没有需要处理的【工具箱】选择。"
             if len(parts) < 3:
                 return "用法：/card toolbox 0"
@@ -797,10 +799,28 @@ class GameService(object):
             except ValueError:
                 return "工具箱选择编号必须是数字。"
             reply = choose_pending_toolbox_card(game_state, choice_index)
+            if game_state.pending_choice is not None:
+                reply += "\n\n" + get_pending_player_choice_hint(game_state)
             return self.append_run_progress_after_battle(session_id, run_state, reply)
-        if getattr(game_state, "pending_toolbox_selection", False):
+        if pending_choice_is(game_state, "toolbox"):
             return get_pending_player_choice_hint(game_state)
         
+        if command in ("dance","舞","花蜜","四色花蜜"):
+            if not pending_choice_is(game_state,"four_color_nectar"):
+                return "当前没有需要处理的【四色花蜜】选择。"
+            if len(parts) < 3:
+                return "用法：/card dance 0"
+            try:
+                choice_index = int(parts[2])
+            except ValueError:
+                return "dance 选择编号必须是数字。"
+            reply = choose_pending_four_color_nectar_card(game_state,choice_index)
+            if game_state.pending_choice is not None:
+                reply += "\n\n" + get_pending_player_choice_hint(game_state)
+            return self.append_run_progress_after_battle(session_id,run_state,reply)
+        if pending_choice_is(game_state,"four_color_nectar"):
+            return get_pending_player_choice_hint(game_state)
+
         if command in ("drop", "drop_hand", "丢弃手牌", "选择丢弃"):
             game_state = run_state.current_battle
             if game_state is None:

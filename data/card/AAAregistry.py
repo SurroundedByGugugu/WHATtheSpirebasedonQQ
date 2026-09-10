@@ -348,6 +348,17 @@ from data.card.character.lumine_cards import (
     create_ok_next,
 )
 
+from data.card.dance_cards import (
+    create_dragon_dance,
+    create_swords_dance,
+    create_petal_dance,
+    create_feather_dance,
+    create_quiver_dance,
+    create_fiery_dance,
+    create_aqua_step,
+    create_dragon_sound_inspiration,
+)
+
 CARD_REGISTRY = {
     "card.strike": create_strike,
     "card.defend": create_defend,
@@ -676,6 +687,15 @@ CARD_REGISTRY = {
     "card.fast_transfer": create_fast_transfer,
     "card.brain_shockwave": create_brain_shockwave,
     "card.ok_next": create_ok_next,
+    # dance
+    "card.dance.dragon_dance": create_dragon_dance,
+    "card.dance.swords_dance": create_swords_dance,
+    "card.dance.petal_dance": create_petal_dance,
+    "card.dance.feather_dance": create_feather_dance,
+    "card.dance.quiver_dance": create_quiver_dance,
+    "card.dance.fiery_dance": create_fiery_dance,
+    "card.dance.aqua_step": create_aqua_step,
+    "card.dance.dragon_sound_inspiration": create_dragon_sound_inspiration,
 }
 
 def create_card(card_id):

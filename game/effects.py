@@ -397,7 +397,7 @@ def resolve_amount(
             zone_element=zone_element
         )
 
-    if modifier_profile == "attack_damage":
+    if modifier_profile in ("attack_damage", "block"):
         value = apply_abyssal_form_amount_modifier(
             value=value,
             game_state=game_state,
@@ -1677,6 +1677,159 @@ def handle_play_all_lightless_prayers_from_exhaust(game_state, card, effect, tar
 
     return logs
 
+@register_effect("scale_status")
+def handle_scale_status(game_state, card, effect, target_index, effect_context):
+    target = get_effect_target_entity(
+        game_state,
+        effect.get("target", "self"),
+        target_index
+    )
+    if target is None:
+        return ["目标无效。"]
+
+    status_key = str(effect.get("status", "") or "")
+    if not status_key:
+        return ["scale_status 缺少 status。"]
+
+    multiplier = effect.get("multiplier", 1.0)
+    multiplier_var = effect.get("multiplier_var")
+
+    if multiplier_var:
+        multiplier = (
+            getattr(card, "card_vars", {}) or {}
+        ).get(multiplier_var, multiplier)
+
+    try:
+        multiplier = float(multiplier)
+    except (TypeError, ValueError):
+        multiplier = 1.0
+
+    old_value = int(get_status_value(target, status_key))
+    new_value = int(old_value * multiplier)
+
+    target.statuses.set(status_key, new_value)
+
+    return [
+        "【{}】使 {} 的{} {} -> {}。".format(
+            card.name,
+            target.name,
+            get_status_name(status_key),
+            old_value,
+            new_value,
+        )
+    ]
+
+
+@register_effect("reduce_enemy_strength_half")
+def handle_reduce_enemy_strength_half(
+    game_state,
+    card,
+    effect,
+    target_index,
+    effect_context
+):
+    target = get_effect_target_entity(
+        game_state,
+        effect.get("target", "selected_enemy"),
+        target_index
+    )
+    if target is None:
+        return ["目标敌人无效。"]
+
+    minimum = effect.get("minimum", 0)
+    minimum_var = effect.get("minimum_var")
+
+    if minimum_var:
+        minimum = (
+            getattr(card, "card_vars", {}) or {}
+        ).get(minimum_var, minimum)
+
+    minimum = max(0, int(minimum or 0))
+
+    old_strength = int(get_status_value(target, "strength"))
+
+    half_loss = max(0, old_strength) // 2
+    loss = max(minimum, half_loss)
+
+    result = target.gain_status_with_result(
+        "strength",
+        -loss
+    )
+
+    return [
+        "【{}】使 {} 失去 {} 点力量。当前力量：{}。".format(
+            card.name,
+            target.name,
+            loss,
+            int(result.get("current", 0)),
+        )
+    ]
+
+
+@register_effect("start_petal_dance")
+def handle_start_petal_dance(
+    game_state,
+    card,
+    effect,
+    target_index,
+    effect_context
+):
+    player = game_state.player
+
+    duration = int(resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("duration"),
+        source=player,
+        target=player,
+        effect_context=effect_context,
+    ))
+
+    damage = int(resolve_amount(
+        game_state=game_state,
+        card=card,
+        amount_spec=effect.get("damage"),
+        source=player,
+        target=player,
+        effect_context=effect_context,
+    ))
+
+    if duration <= 0 or damage <= 0:
+        return ["【{}】没有形成持续效果。".format(card.name)]
+
+    entries = list(
+        getattr(player, "_petal_dance_entries", []) or []
+    )
+
+    entries.append({
+        "remaining": duration,
+        "damage": damage,
+        "card_name": getattr(card, "name", "花瓣舞"),
+        "attack_element": str(
+            getattr(card, "attack_element", "wind") or "wind"
+        ),
+        "cost": getattr(card, "cost", 2),
+    })
+
+    setattr(
+        player,
+        "_petal_dance_entries",
+        entries
+    )
+
+    player.statuses.set(
+        "petal_dance",
+        len(entries)
+    )
+
+    return [
+        "【{}】开始旋舞：接下来 {} 个回合结束时对随机敌人造成 {} 点伤害。".format(
+            card.name,
+            duration,
+            damage,
+        )
+    ]
+
 @register_effect("gain_abyss_hunt")
 def handle_gain_abyss_hunt(game_state, card, effect, target_index, effect_context):
     logs = []
@@ -2728,19 +2881,14 @@ def handle_request_discovery_card(game_state, card, effect, target_index, effect
         random.choice(candidates) for _ in range(option_count)
     ]
     options = [
-        prepare_generated_card(create_card(card_id), temp_cost_zero=True)
+        prepare_generated_card(create_card(card_id))
         for card_id in selected_ids
     ]
-    game_state.pending_toolbox_selection = True
-    game_state.pending_toolbox_source = card.name
-    game_state.pending_toolbox_options = options
-    game_state.pending_toolbox_mode = "add_choice_to_hand"
-    game_state.pending_toolbox_temp_cost_zero = True
-    logs = ["=== {}：选择 1 张牌加入手牌，本回合耗能为 0 ===".format(card.name)]
-    for index, option in enumerate(options):
-        logs.append("[{}] {}".format(index, option.summary_text()))
-    logs.append("使用 /card toolbox 0 选择。")
-    return logs
+    from game.engine import queue_toolbox_card_choice
+    return queue_toolbox_card_choice(
+        game_state, card.name, options, temp_cost_zero=True,
+        prompt="=== {}：选择 1 张牌加入手牌，本回合耗能为 0 ===".format(card.name),
+    )
 
 
 @register_effect("reduce_hand_costs_to")
@@ -2813,15 +2961,12 @@ def handle_request_draw_pile_card_to_hand(game_state, card, effect, target_index
     ]
     if not options:
         return ["抽牌堆中没有可选择的{}牌。".format({"attack": "攻击", "skill": "技能"}.get(required_type, ""))]
-    game_state.pending_toolbox_selection = True
-    game_state.pending_toolbox_source = card.name
-    game_state.pending_toolbox_options = options
-    game_state.pending_toolbox_mode = "draw_pile_to_hand"
-    logs = ["=== {}：选择 1 张{}牌加入手牌 ===".format(card.name, {"attack": "攻击", "skill": "技能"}.get(required_type, ""))]
-    for index, option in enumerate(options):
-        logs.append("[{}] {}".format(index, option.summary_text()))
-    logs.append("使用 /card toolbox 0 选择。")
-    return logs
+    from game.engine import queue_toolbox_card_choice
+    return queue_toolbox_card_choice(
+        game_state, card.name, options, mode="draw_pile_to_hand",
+        prompt="=== {}：选择 1 张{}牌加入手牌 ===".format(
+            card.name, {"attack": "攻击", "skill": "技能"}.get(required_type, "")),
+    )
 
 
 @register_effect("request_exhaust_multiple_hand_cards")

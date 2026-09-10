@@ -765,6 +765,45 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="petal_dance",
+    name="花瓣舞",
+    description=(
+        "玩家回合结束时，对随机敌人造成记录的伤害；"
+        "持续结束后获得 1 回合混乱。"
+    ),
+    category="buff",
+    display_mode="stack",
+    order=99,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
+    key="petal_confusion",
+    name="混乱",
+    description=(
+        "持续 1 个玩家回合。抽到非 X 费用、非状态/诅咒牌时，"
+        "其本回合费用随机变为 0 到 3。"
+    ),
+    category="debuff",
+    display_mode="turns",
+    order=98,
+    decay_timing="turn_end",
+    decay_amount=1,
+))
+
+register_status_def(StatusDef(
+    key="dragon_sound_inspiration",
+    name="龙声鼓舞",
+    description="下一次对敌人造成的伤害翻倍。每层可触发一次。",
+    category="buff",
+    display_mode="stack",
+    order=97,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
     key="magnetism",
     name="磁力",
     description="每个回合开始时，增加一张随机无色牌到你的手牌。",

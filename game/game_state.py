@@ -24,6 +24,7 @@ class GameState:
     victory: bool = False
     # 需要玩家继续选择的临时流程。
     pending_choice: Any = None
+    pending_choice_queue: List[Any] = field(default_factory=list)
 
     # 旧式 pending_* 字段仍保留，后续逐步迁移到 pending_choice。
     pending_discard_selection: bool = False

@@ -77,58 +77,10 @@ def get_card_current_cost(game_state, card):
         if "min_cost" in rule:
             min_cost = int(rule.get("min_cost", 0))
 
-    if game_state is not None:
-        player = getattr(game_state, "player", None)
-        zone = getattr(game_state, "active_zone", None)
+    if is_abyssal_whisper_discount_active(game_state, card):
+        min_cost = min(min_cost, -1)
+        current_cost -= 1
 
-        has_abyssal_whisper = any(
-            getattr(relic, "relic_id", "") == "relic.abyssal_whisper"
-            for relic in getattr(player, "relics", []) or []
-        )
-
-        zone_is_shade = False
-        if zone is not None:
-            try:
-                zone_is_shade = (
-                    not zone.is_expired()
-                    and str(getattr(zone, "element", "") or "").strip().lower() == "shade"
-                )
-            except Exception:
-                zone_is_shade = str(getattr(zone, "element", "") or "").strip().lower() == "shade"
-
-        if (
-            has_abyssal_whisper
-            and zone_is_shade
-            and getattr(card, "card_type", "") == "power"
-            and str(getattr(card, "attack_element", "") or "").strip().lower() == "shade"
-        ):
-            min_cost = min(min_cost, -1)
-    if game_state is not None:
-        player = getattr(game_state, "player", None)
-        zone = getattr(game_state, "active_zone", None)
-
-        has_abyssal_whisper = any(
-            getattr(relic, "relic_id", "") == "relic.abyssal_whisper"
-            for relic in getattr(player, "relics", []) or []
-        )
-
-        zone_is_shade = False
-        if zone is not None:
-            try:
-                zone_is_shade = (
-                    not zone.is_expired()
-                    and str(getattr(zone, "element", "") or "").strip().lower() == "shade"
-                )
-            except Exception:
-                zone_is_shade = str(getattr(zone, "element", "") or "").strip().lower() == "shade"
-
-        if (
-            has_abyssal_whisper
-            and zone_is_shade
-            and getattr(card, "card_type", "") == "power"
-            and str(getattr(card, "attack_element", "") or "").strip().lower() == "shade"
-        ):
-            current_cost -= 1
     if current_cost < min_cost:
         current_cost = min_cost
 
@@ -172,11 +124,19 @@ def get_x_cost_spent_cost(game_state, card, raw_x):
     """
     X 本身仍取打出前费用 raw_x。
     〈深渊的诱语〉只改变实际支付费用。
+
+    例：
+    当前 3 费打出【深渊共生】：
+    - X = 3
+    - 若诱语生效，实际消耗 2
+
+    当前 0 费打出【深渊共生】：
+    - X = 0
+    - 若诱语生效，实际消耗 -1，等效恢复 1 费
     """
     raw_x = int(raw_x)
 
     if is_abyssal_whisper_discount_active(game_state, card):
-        min_cost = min(min_cost, -1)
-        current_cost -= 1
+        return raw_x - 1
 
     return raw_x

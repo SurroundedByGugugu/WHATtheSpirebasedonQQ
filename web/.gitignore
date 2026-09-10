@@ -1,0 +1,4 @@
+dist/
+cloudflare-upload.zip
+__pycache__/
+.test-runtime/

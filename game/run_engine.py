@@ -1118,7 +1118,7 @@ def process_post_battle_effects(run_state, rng=None):
                 injections = list(getattr(run_state, "pending_reward_injections", []) or [])
                 injections.append(RewardOption(
                     option_type="relic",
-                    title="心灵绽放：稀有遗物：{}".format(format_relic_display_name(relic)),
+                    title="稀有遗物：{}".format(format_relic_display_name(relic)),
                     payload={"relic": relic, "source": "mind_bloom"},
                 ))
                 run_state.pending_reward_injections = injections

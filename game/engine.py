@@ -51,6 +51,7 @@ from game.pending_choice import (
     has_pending_choice,
     pending_choice_is,
     set_pending_choice,
+    enqueue_pending_choice,
 )
 
 
@@ -394,7 +395,6 @@ def has_pending_player_choice(game_state):
         getattr(game_state, "pending_potion_card_selection", False),
         getattr(game_state, "pending_elixir_selection", False),
         getattr(game_state, "pending_nilrys_selection", False),
-        getattr(game_state, "pending_toolbox_selection", False),
     ])
 
 
@@ -405,7 +405,10 @@ def get_pending_player_choice_hint(game_state):
         return format_pending_well_laid_plans_selection(game_state)
     if pending_choice_is(game_state, "night_terror"):
         return format_pending_night_terror_selection(game_state)
-
+    if pending_choice_is(game_state,"four_color_nectar"):
+        return format_pending_four_color_nectar_selection(game_state)
+    if pending_choice_is(game_state, "toolbox"):
+        return format_pending_toolbox_selection(game_state)
     pending_choice_hint = format_pending_choice_hint(game_state)
     if pending_choice_hint:
         return pending_choice_hint
@@ -429,8 +432,6 @@ def get_pending_player_choice_hint(game_state):
         return "当前需要先处理万灵药水选择。用法：/card elixir 0,1,2；不消耗则 /card elixir none。"
     if getattr(game_state, "pending_nilrys_selection", False):
         return "当前需要先处理尼利的宝典选择。用法：/card codex 0；跳过则 /card codex skip。"
-    if getattr(game_state, "pending_toolbox_selection", False):
-        return "当前需要先处理工具箱选择。用法：/card toolbox 0。"
     return ""
 
 def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
@@ -5027,18 +5028,33 @@ def queue_toolbox_selection(game_state, source_name="工具箱"):
         setattr(card, "temporary", True)
         setattr(card, "created_in_battle", True)
         options.append(card)
-    game_state.pending_toolbox_selection = True
-    game_state.pending_toolbox_source = source_name
-    game_state.pending_toolbox_options = options
-    return [format_pending_toolbox_selection(game_state)]
+    return queue_toolbox_card_choice(game_state, source_name, options)
+
+
+def queue_toolbox_card_choice(game_state, source_name, options,
+                              mode="add_choice_to_hand", temp_cost_zero=False,
+                              prompt=None):
+    if temp_cost_zero:
+        for card in options:
+            card.temporary_cost_override = 0
+    enqueue_pending_choice(game_state, PendingChoice(
+        kind="toolbox",
+        source=source_name,
+        prompt=prompt or "=== {}：选择 1 张无色牌加入手牌 ===".format(source_name),
+        command_hint="使用 /card toolbox 0 选择。",
+        block_message="当前需要先处理【{}】选择。用法：/card toolbox 0。".format(source_name),
+        options=options,
+        payload={"mode": mode, "temp_cost_zero": temp_cost_zero},
+    ))
+    return [get_pending_player_choice_hint(game_state)]
 
 
 def format_pending_toolbox_selection(game_state):
-    if not getattr(game_state, "pending_toolbox_selection", False):
+    if not pending_choice_is(game_state, "toolbox"):
         return "当前没有需要处理的【工具箱】选择。"
-    source = getattr(game_state, "pending_toolbox_source", "工具箱")
-    options = getattr(game_state, "pending_toolbox_options", []) or []
-    lines = ["=== {}：选择 1 张无色牌加入手牌 ===".format(source), ""]
+    choice = get_pending_choice(game_state)
+    options = choice.options
+    lines = [choice.prompt, ""]
     for index, card in enumerate(options):
         try:
             text = card.summary_text()
@@ -5046,34 +5062,28 @@ def format_pending_toolbox_selection(game_state):
             text = "【{}】".format(getattr(card, "name", "未知卡牌"))
         lines.append("[{}] {}".format(index, text))
     lines.append("")
-    lines.append("使用 /card toolbox 0 选择。")
+    lines.append(choice.command_hint)
     return "\n".join(lines)
 
 
 def clear_pending_toolbox_selection(game_state):
-    game_state.pending_toolbox_selection = False
-    game_state.pending_toolbox_source = ""
-    game_state.pending_toolbox_options = []
-    game_state.pending_toolbox_mode = ""
-    game_state.pending_toolbox_temp_cost_zero = False
+    clear_pending_choice(game_state, "toolbox")
 
 
 def choose_pending_toolbox_card(game_state, choice_index):
     import copy
-    if not getattr(game_state, "pending_toolbox_selection", False):
+    if not pending_choice_is(game_state, "toolbox"):
         return "当前没有需要处理的【工具箱】选择。"
-    options = getattr(game_state, "pending_toolbox_options", []) or []
+    choice = get_pending_choice(game_state)
+    options = choice.options
     if choice_index < 0 or choice_index >= len(options):
         return "选择编号无效。"
-    source = getattr(game_state, "pending_toolbox_source", "工具箱")
-    mode = getattr(game_state, "pending_toolbox_mode", "") or "add_choice_to_hand"
+    source = choice.source
+    mode = choice.payload.get("mode", "add_choice_to_hand")
     selected = options[choice_index]
     card = copy.deepcopy(selected)
-    if bool(getattr(game_state, "pending_toolbox_temp_cost_zero", False)):
-        try:
-            card.cost = 0
-        except Exception:
-            setattr(card, "temporary_cost_override", 0)
+    if choice.payload.get("temp_cost_zero", False):
+        card.temporary_cost_override = 0
     player = game_state.player
     clear_pending_toolbox_selection(game_state)
     if mode == "draw_pile_to_hand":
@@ -5086,3 +5096,95 @@ def choose_pending_toolbox_card(game_state, choice_index):
         return "【{}】选择【{}】，但手牌已满，进入弃牌堆。".format(source, getattr(card, "name", "未知卡牌"))
     player.hand.append(card)
     return "【{}】选择【{}】，加入手牌。".format(source, getattr(card, "name", "未知卡牌"))
+
+# =========================
+# 四色花蜜：战斗开局 dance 三选一
+# =========================
+
+def queue_four_color_nectar_selection(game_state,source_name="四色花蜜"):
+    from data.card.AAAregistry import create_card
+    from data.card.dance_cards import DANCE_CARD_IDS
+    from data.card.upgrade_rules import upgrade_card
+
+    pool = list(DANCE_CARD_IDS)
+
+    if not pool:
+        return ["【{}】触发，但 dance 卡池为空。".format(source_name)]
+
+    selected_ids = (
+        random.sample(pool, 3)
+        if len(pool) >= 3
+        else [
+            random.choice(pool)
+            for _ in range(3)
+        ]
+    )
+
+    upgraded_index = random.randrange(len(selected_ids))
+    options = []
+
+    for index, card_id in enumerate(selected_ids):
+        card = create_card(card_id)
+        if index == upgraded_index:
+            card = upgrade_card(card)
+        setattr(card,"temporary",True)
+        setattr(card,"created_in_battle",True)
+        options.append(card)
+
+    choice = PendingChoice(
+        kind="four_color_nectar",
+        source=source_name,
+        prompt=("【{}】触发：从 3 张 dance 牌中选择 1 张临时加入手牌。".format(source_name)),
+        command_hint=("使用 /card dance 0 选择。"),
+        block_message=("当前需要先处理【{}】的 dance 选择。用法：/card dance 0。".format(source_name)),
+        options=options,
+        payload={"upgraded_index": upgraded_index},
+    )
+
+    enqueue_pending_choice(game_state, choice)
+    return [get_pending_player_choice_hint(game_state)]
+
+
+def format_pending_four_color_nectar_selection(game_state):
+    if not pending_choice_is(game_state,"four_color_nectar"):
+        return "当前没有需要处理的【四色花蜜】选择。"
+    choice = get_pending_choice(game_state)
+    source = getattr(choice,"source","四色花蜜")
+    options = list(
+        getattr(choice,"options",[]) or [])
+    lines = ["=== {}：dance 三选一 ===".format(source),""]
+    for index, card in enumerate(options):
+        try:
+            text = card.summary_text()
+        except Exception:
+            text = "【{}】".format(getattr(card,"name","未知卡牌"))
+        lines.append("[{}] {}".format(index,text))
+
+    lines.append("")
+    lines.append("其中恰有 1 张为升级后的版本。")
+    lines.append("使用 /card dance 0 选择。")
+    return "\n".join(lines)
+
+def choose_pending_four_color_nectar_card(game_state,choice_index):
+    import copy
+    if not pending_choice_is(game_state,"four_color_nectar"):
+        return "当前没有需要处理的【四色花蜜】选择。"
+    choice = get_pending_choice(game_state)
+    options = list(
+        getattr(choice,"options",[]) or [])
+
+    if (choice_index < 0 or choice_index >= len(options)):
+        return "dance 选择编号无效。"
+    source = getattr(choice,"source","四色花蜜")
+    card = copy.deepcopy(options[choice_index])
+
+    setattr(card, "temporary", True)
+    setattr(card, "created_in_battle", True)
+
+    clear_pending_choice(game_state,"four_color_nectar")
+    player = game_state.player
+    if player.is_hand_full():
+        player.discard_pile.append(card)
+        return ("【{}】选择【{}】，但手牌已满，进入弃牌堆。".format(source,card.name))
+    player.hand.append(card)
+    return ("【{}】选择【{}】，临时加入手牌。".format(source,card.name))

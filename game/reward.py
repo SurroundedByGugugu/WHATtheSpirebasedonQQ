@@ -448,6 +448,7 @@ RARE_RELIC_POOL = [
     "relic.tough_bandages",
     "relic.unceasing_top",
     "relic.abyssal_whisper",
+    "relic.four_color_nectar",
 ]
 
 EVENT_RELIC_POOL = [

@@ -28,6 +28,14 @@ def set_pending_choice(game_state, choice):
     game_state.pending_choice = choice
 
 
+def enqueue_pending_choice(game_state, choice):
+    """多个选择同时触发时，保留当前选择并按顺序等待。"""
+    if get_pending_choice(game_state) is None:
+        set_pending_choice(game_state, choice)
+    else:
+        game_state.pending_choice_queue.append(choice)
+
+
 def has_pending_choice(game_state):
     return get_pending_choice(game_state) is not None
 
@@ -42,7 +50,13 @@ def pending_choice_is(game_state, kind):
 def clear_pending_choice(game_state, kind=None):
     if kind is not None and not pending_choice_is(game_state, kind):
         return
-    game_state.pending_choice = None
+    if kind is None:
+        # 不指定类型表示取消全部选择，例如回合结束时清理。
+        game_state.pending_choice_queue.clear()
+    game_state.pending_choice = (
+        game_state.pending_choice_queue.pop(0)
+        if game_state.pending_choice_queue else None
+    )
 
 
 def format_pending_choice_hint(game_state):

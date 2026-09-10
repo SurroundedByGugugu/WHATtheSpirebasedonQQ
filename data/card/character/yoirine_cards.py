@@ -359,9 +359,9 @@ def create_crystal_curtain_strike():
         upgraded=False,
         upgrade_patch={
             "name": "晶幕打击+",
-            "description": "造成 3 点伤害。获得 10 点格挡。",
+            "description": "造成 3 点伤害。获得 11 点格挡。",
             "card_vars": {
-                "block": 10
+                "block": 11
             }
         }
     )
@@ -1291,6 +1291,8 @@ def create_abyss_manifestation():
         target="none",
         description="对深渊凝视层数最高的敌人造成一次等量无来源环境伤害。次优先级：当前生命最低；全部相等则按序取第一个存活敌人。",
         quantity="rare",
+        attack_element="shade",
+        skip_auto_zone_hp_loss=True,
         owner_character_id="character.yoirine",
         effects=[
             {

@@ -95,6 +95,9 @@ STATUS_EVENT_PRIORITY = {
     "noxious_fumes": 10,
     "infinite_blades": 10,
     "accuracy": 12,
+    "petal_confusion": 14,
+    "petal_dance": 15,
+    "dragon_sound_inspiration": 9,  # 在精准等伤害加算之后翻倍。
 }
 
 def get_status_event_priority(status_key):
@@ -1019,6 +1022,345 @@ def handle_confusion(event_name, context, owner, value):
         drawn_card.name,
         new_cost
     ))
+
+    return logs
+
+def handle_dragon_sound_inspiration(
+    event_name,
+    context,
+    owner,
+    value
+):
+    logs = []
+
+    if event_name != EVENT_DAMAGE_BEFORE:
+        return logs
+
+    if owner is None:
+        return logs
+
+    if owner is not context.game_state.player:
+        return logs
+
+    if context.source is not owner:
+        return logs
+
+    if (
+        context.target is None
+        or not hasattr(context.target, "enemy_id")
+    ):
+        return logs
+
+    old_amount = int(
+        context.extra.get("amount", 0) or 0
+    )
+
+    if old_amount <= 0 or int(value) <= 0:
+        return logs
+
+    new_amount = old_amount * 2
+    context.extra["amount"] = new_amount
+
+    current = owner.statuses.add(
+        "dragon_sound_inspiration",
+        -1
+    )
+
+    logs.append(
+        "龙声鼓舞触发：本次伤害 {} -> {}。剩余层数：{}。".format(
+            old_amount,
+            new_amount,
+            current,
+        )
+    )
+
+    return logs
+
+
+def handle_petal_confusion(
+    event_name,
+    context,
+    owner,
+    value
+):
+    logs = []
+
+    if event_name != EVENT_DRAW_CARD_AFTER:
+        return logs
+
+    if (
+        owner is None
+        or owner is not context.game_state.player
+        or not owner.is_alive()
+    ):
+        return logs
+
+    if int(value) <= 0:
+        return logs
+
+    # 已有普通混乱时，由普通混乱处理，
+    # 防止同一张抽到的牌被随机两次费用。
+    if get_status_value(owner, "confusion") > 0:
+        return logs
+
+    drawn_card = context.extra.get(
+        "drawn_card",
+        context.card
+    )
+
+    if drawn_card is None:
+        return logs
+
+    if getattr(
+        drawn_card,
+        "card_type",
+        ""
+    ) in ("status", "curse"):
+        return logs
+
+    if getattr(drawn_card, "cost", 0) == "X":
+        return logs
+
+    new_cost = random.randint(0, 3)
+
+    setattr(
+        drawn_card,
+        "temporary_cost_override",
+        new_cost
+    )
+
+    logs.append(
+        "【混乱】使抽到的【{}】费用随机变为 {}。".format(
+            drawn_card.name,
+            new_cost
+        )
+    )
+
+    return logs
+
+
+def _apply_one_turn_petal_confusion(owner):
+    logs = []
+
+    if get_status_value(owner, "confusion") > 0:
+        logs.append(
+            "{} 已处于混乱，花瓣舞的 1 回合混乱不再重复随机费用。".format(
+                owner.name
+            )
+        )
+        return logs
+
+    from game.status.status_gain import (
+        format_status_gain_log
+    )
+
+    result = owner.gain_status_with_result(
+        "petal_confusion",
+        1
+    )
+
+    logs.append(
+        format_status_gain_log(
+            owner,
+            "petal_confusion",
+            1,
+            result
+        )
+    )
+
+    if (
+        result.get("applied")
+        and hasattr(
+            owner.statuses,
+            "skip_next_decay"
+        )
+    ):
+        # 花瓣舞在 PLAYER_TURN_END 赋予混乱。
+        # 本轮后面还有一次 EVENT_TURN_END 自然衰减，
+        # 这里跳过一次，确保混乱覆盖完整的下一回合。
+        owner.statuses.skip_next_decay(
+            "petal_confusion",
+            EVENT_TURN_END
+        )
+
+    return logs
+
+
+def handle_petal_dance(
+    event_name,
+    context,
+    owner,
+    value
+):
+    logs = []
+
+    if event_name != EVENT_PLAYER_TURN_END:
+        return logs
+
+    if (
+        owner is None
+        or owner is not context.game_state.player
+        or not owner.is_alive()
+    ):
+        return logs
+
+    entries = list(
+        getattr(
+            owner,
+            "_petal_dance_entries",
+            []
+        ) or []
+    )
+
+    if not entries:
+        owner.statuses.remove("petal_dance")
+        return logs
+
+    game_state = context.game_state
+    new_entries = []
+
+    for entry in entries:
+        remaining = int(
+            entry.get("remaining", 0) or 0
+        )
+
+        base_damage = int(
+            entry.get("damage", 0) or 0
+        )
+
+        if remaining <= 0 or base_damage <= 0:
+            continue
+
+        alive_enemies = [
+            enemy
+            for enemy in game_state.enemies
+            if enemy.is_alive()
+        ]
+
+        if not alive_enemies:
+            break
+
+        target = random.choice(alive_enemies)
+
+        attack_element = str(
+            entry.get(
+                "attack_element",
+                "wind"
+            ) or "wind"
+        )
+
+        card_name = str(
+            entry.get(
+                "card_name",
+                "花瓣舞"
+            ) or "花瓣舞"
+        )
+
+        card_cost = entry.get(
+            "cost",
+            2
+        )
+
+        source_card = type(
+            "PetalDanceDelayedCard",
+            (),
+            {
+                "name": card_name,
+                "card_id": "card.dance.petal_dance",
+                "card_type": "attack",
+                "target": "random_enemy",
+                "attack_element": attack_element,
+                "cost": card_cost,
+            }
+        )()
+
+        from game.zone.zone_utils import (
+            get_effective_zone_element_for_card
+        )
+        from game.modifiers import (
+            apply_attack_damage_modifiers
+        )
+        from game.constants import (
+            DAMAGE_SOURCE_PLAYED_CARD
+        )
+        from game.damage import deal_damage
+
+        zone_element = (
+            get_effective_zone_element_for_card(
+                game_state=game_state,
+                card=source_card,
+            )
+        )
+
+        damage = apply_attack_damage_modifiers(
+            value=base_damage,
+            game_state=game_state,
+            source=owner,
+            target=target,
+            card=source_card,
+            damage_source=DAMAGE_SOURCE_PLAYED_CARD,
+            attack_element=attack_element,
+            zone_element=zone_element,
+        )
+
+        logs.append(
+            "【花瓣舞】回合结束触发：随机命中 {}，造成 {} 点攻击伤害。".format(
+                target.name,
+                damage,
+            )
+        )
+
+        logs.extend(deal_damage(
+            game_state=game_state,
+            source=owner,
+            target=target,
+            amount=damage,
+            damage_kind="attack",
+            card=source_card,
+            attack_element=attack_element,
+            zone_element=zone_element,
+        ))
+
+        remaining -= 1
+
+        if remaining > 0:
+            updated = dict(entry)
+            updated["remaining"] = remaining
+            new_entries.append(updated)
+
+        else:
+            logs.append(
+                "【花瓣舞】持续效果结束。"
+            )
+
+            logs.extend(
+                _apply_one_turn_petal_confusion(
+                    owner
+                )
+            )
+
+        if getattr(
+            game_state,
+            "battle_over",
+            False
+        ):
+            break
+
+    setattr(
+        owner,
+        "_petal_dance_entries",
+        new_entries
+    )
+
+    if new_entries:
+        owner.statuses.set(
+            "petal_dance",
+            len(new_entries)
+        )
+    else:
+        owner.statuses.remove(
+            "petal_dance"
+        )
 
     return logs
 
@@ -3308,5 +3650,8 @@ STATUS_EVENT_HANDLERS = {
     "accuracy": handle_accuracy,
     "abyss_hunt": handle_abyss_hunt,
     "abyss_hunt_plus": handle_abyss_hunt_plus,
+    "petal_confusion": handle_petal_confusion,
+    "petal_dance": handle_petal_dance,
+    "dragon_sound_inspiration": handle_dragon_sound_inspiration,
     "abyss_symbiosis": handle_abyss_symbiosis,
 }

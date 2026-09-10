@@ -64,7 +64,7 @@ from data.relic.rare_relics import (
     TungstenRodRelic, GamblingChipRelic, BirdFacedUrnRelic, ChampionBeltRelic, DuVuDollRelic, DeadBranchRelic, 
     GingerRelic, TurnipRelic, CabbageRelic, GiryaRelic, PeacePipeRelic, ShovelRelic, MiniatureTentRelic, LizardTailRelic, 
     MagicFlowerRelic, OldCoinRelic, PrayerWheelRelic, TheSpecimenRelic, ThreadAndNeedleRelic, TingshaRelic, ToriiRelic, 
-    ToughBandagesRelic, UnceasingTopRelic)
+    ToughBandagesRelic, UnceasingTopRelic, FourColorNectarRelic)
 
 from data.relic.event_relics import (
     GoldenIdolRelic, OddMushroomRelic, SsserpentHeadRelic, WarpedTongsRelic, SpiritPoopRelic, 
@@ -256,6 +256,7 @@ RELIC_REGISTRY = {
     "relic.wrist_blade": WristBladeRelic,
     "relic.sacred_bark": SacredBarkRelic,
     "relic.slavers_collar": SlaversCollarRelic,
+    "relic.four_color_nectar": FourColorNectarRelic,
 
     "relic.matte_false_eye": MatteFalseEyeRelic,
     "relic.flower_in_abyss": FlowerInAbyssRelic,

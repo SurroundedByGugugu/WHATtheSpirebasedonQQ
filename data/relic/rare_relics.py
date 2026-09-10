@@ -612,3 +612,54 @@ class UnceasingTopRelic(RelicTemplate):
         logs = ["【{}】触发：手牌为空，抽 1 张牌。".format(self.name)]
         logs.extend(context.player.draw_cards(1, game_state=context.game_state, draw_source="unceasing_top"))
         return logs
+
+class FourColorNectarRelic(RelicTemplate):
+    def __init__(self):
+        RelicTemplate.__init__(
+            self,
+            relic_id="relic.four_color_nectar",
+            name="四色花蜜",
+            description=(
+                "战斗开始时，从 3 张随机 dance 牌中选择 1 张临时加入手牌；"
+                "其中随机 1 张为升级后的版本。"
+            ),
+            story=(
+                "某处热带群岛上产出的花蜜。"
+                "据说岛上的一种小鸟会因为食用不同花蜜变成不同的样子。"
+            ),
+            quantity="rare",
+            owner_character_id="",
+            allow_duplicate=False
+        )
+
+    def on_turn_start_hand_ready(
+        self,
+        game_state,
+        player
+    ):
+        if int(
+            getattr(
+                game_state,
+                "turn_count",
+                1
+            )
+        ) != 1:
+            return []
+
+        if getattr(
+            game_state,
+            "_four_color_nectar_offered",
+            False
+        ):
+            return []
+
+        from game.engine import (
+            queue_four_color_nectar_selection
+        )
+
+        game_state._four_color_nectar_offered = True
+
+        return queue_four_color_nectar_selection(
+            game_state,
+            self.name
+        )
