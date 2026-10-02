@@ -56,3 +56,9 @@ python -B web/serve.py
 - origin null / CORS / file://：使用启动网页版.cmd 提供的 HTTP 地址。
 - 游戏运行环境下载失败：检查网络是否能打开 jsDelivr；刷新重试。
 - engine.zip / build.json 找不到：部署了源码目录或漏传文件；重新上传 cloudflare-upload.zip。
+
+## 部署更新与缓存
+
+构建会为启动脚本、界面脚本、样式、Worker、版本清单和引擎包生成带内容版本的文件名。页面会引用同一构建版本，避免浏览器缓存的旧界面与新引擎混用。首次从旧版升级时，部署成功后请结束当前游戏再强制刷新一次；刷新会丢失本局进度。
+
+根页面及固定名称的兼容入口设置为 no-cache。若 Cloudflare 中存在覆盖缓存响应头的自定义规则，应让入口 HTML 遵循源站缓存策略。CSP 已允许 Cloudflare Web Analytics 的脚本和上报域名；本项目不主动注入或启用统计。

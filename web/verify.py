@@ -50,6 +50,33 @@ class WebChecks(unittest.TestCase):
             self.assertIn("仅支持单人", result["reply"])
             self.assertIsNone(result["run"])
 
+    def test_relic_data_supports_old_and_new_clients(self):
+        result = self.send("/card new 0")["run"]
+        self.assertTrue(all(isinstance(name, str) for name in result["relics"]))
+        details = result["relicDetails"][0]
+        original = bridge.service.get_run(bridge.SESSION).relics[0]
+        self.assertEqual(details["name"], original.name)
+        self.assertEqual(details["info"], original.description)
+        self.assertEqual(details["story"], original.story)
+
+    def test_versioned_resource_chain(self):
+        dist = WEB / "dist"
+        manifest = json.loads((dist / "build.json").read_text(encoding="utf-8"))
+        version = manifest["version"]
+        chain = {
+            "index.html": [f"bootstrap.{version}.js", f"style.{version}.css"],
+            f"bootstrap.{version}.js": [f"app.{version}.js"],
+            f"app.{version}.js": [f"worker.{version}.js"],
+            f"worker.{version}.js": [f"build.{version}.json"],
+        }
+        with zipfile.ZipFile(WEB / "cloudflare-upload.zip") as archive:
+            for name, references in chain.items():
+                text = archive.read(name).decode("utf-8")
+                for reference in references:
+                    self.assertIn(reference, text)
+                    self.assertIn(reference, archive.namelist())
+            self.assertIn(f"engine.{manifest['engine']}.zip", archive.namelist())
+
     def test_bundle_has_required_files_only(self):
         with zipfile.ZipFile(WEB / "cloudflare-upload.zip") as archive:
             for name in ("index.html", "app.js", "bootstrap.js", "style.css", "worker.js", "engine.zip", "build.json"):

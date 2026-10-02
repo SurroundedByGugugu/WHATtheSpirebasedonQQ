@@ -3,12 +3,12 @@ const $ = (id) => document.getElementById(id);
 let worker, ready = false, busy = true, state = null, target = null, requestId = 0;
 let watchdog, loadingStarted, currentStage = "准备游戏";
 const descriptions = [
-  ["IRONCLAD", "铁甲战士", "HP 80，gold 99"],
-  ["THE SILENT", "静默猎手", "HP 70，gold 99"],
-  ["LUMINE", "昼·里辛塔法", "HP 70，gold 99"],
-  ["YOIRINE", "Yoirine", "HP 70，gold 67"],
-  ["SUZURI", "Suzuri", "HP 76，gold 99"],
-  ["DEFECT", "故障机器人", "HP 75，gold 99"]
+  ["IRONCLAD", "铁甲战士", "HP 80，GOLD 99"],
+  ["THE SILENT", "静默猎手", "HP 70，GOLD 99"],
+  ["LUMINE", "昼·里辛塔法", "HP 70，GOLD 99"],
+  ["YOIRINE", "Yoirine", "HP 70，GOLD 67"],
+  ["SUZURI", "Suzuri", "HP 76，GOLD 99"],
+  ["DEFECT", "故障机器人", "HP 75，GOLD 99"]
 ];
 function el(tag, text, className) {
   const node = document.createElement(tag);
@@ -152,7 +152,12 @@ function render(data) {
   }
   $("relics").replaceChildren();
   if (!run.relics.length) $("relics").append(el("span", "暂无遗物"));
-  for (const relic of run.relics) {
+  for (const value of (run.relicDetails || run.relics)) {
+    // Accept both cached legacy names and structured relic details.
+    const relic = typeof value === "string"
+      ? { name: value, info: "此遗物暂无效果说明，请重新加载以获取最新数据。", story: "暂无故事。" }
+      : { name: value?.name || "遗物", info: value?.info || value?.description || "暂无效果说明。",
+          story: value?.story || "暂无故事。" };
     const item = el("button", relic.name, "relic-button");
     item.type = "button";
     item.title = relic.info;
