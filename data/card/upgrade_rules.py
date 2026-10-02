@@ -39,6 +39,9 @@ def upgrade_card(card):
 
     apply_upgrade_patch(upgraded_card, patch)
     upgraded_card.upgraded = True
+    if getattr(upgraded_card,"card_id","") in ("card.genetic_algorithm","card.steam_barrier","card.claw"):
+        from game.defect import refresh_description
+        refresh_description(upgraded_card)
 
     return upgraded_card
 

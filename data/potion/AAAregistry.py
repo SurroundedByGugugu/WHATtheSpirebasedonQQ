@@ -91,6 +91,10 @@ POTION_REGISTRY = {
 }
 
 
+from data.potion.defect_potions import DEFECT_POTION_REGISTRY
+POTION_REGISTRY.update(DEFECT_POTION_REGISTRY)
+
+
 def create_potion(potion_id):
     create_func = POTION_REGISTRY.get(potion_id)
 

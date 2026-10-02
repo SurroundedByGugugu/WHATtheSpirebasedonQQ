@@ -8,6 +8,7 @@
 import copy
 
 STARTING_RELIC_MYTH_MAP = {
+    "relic.cracked_core": "relic.frozen_core",
     "relic.burning_blood": "relic.black_blood",
     "relic.ring_of_the_snake": "relic.ring_of_the_serpent",
     

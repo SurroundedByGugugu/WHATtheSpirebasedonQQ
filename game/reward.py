@@ -283,7 +283,11 @@ CARD_REWARD_POOL = [
 CARD_REWARD_QUANTITIES = {"common", "uncommon", "rare"}
 
 
+from data.card.character.defect_cards import DEFECT_REWARD_IDS
+CARD_REWARD_POOL.extend(DEFECT_REWARD_IDS)
+
 COMMON_POTION_POOL=[
+    "potion.focus",
     "potion.test_strength",
     "potion.test_fire",
     "potion.test_dexterity",
@@ -305,6 +309,7 @@ COMMON_POTION_POOL=[
 ]
 
 UNCOMMON_POTION_POOL=[
+    "potion.capacity",
     "potion.duplication",
     "potion.liquid_memories",
     "potion.cunning",
@@ -318,6 +323,7 @@ UNCOMMON_POTION_POOL=[
 ]
 
 RARE_POTION_POOL=[
+    "potion.essence_of_darkness",
     "potion.fairy_in_a_bottle",
     "potion.chaos",
     "potion.smoke_bomb",
@@ -334,6 +340,8 @@ POTION_REWARD_POOL = COMMON_POTION_POOL + UNCOMMON_POTION_POOL + RARE_POTION_POO
 
 
 COMMON_RELIC_POOL = [
+    "relic.data_disk",
+
     "relic.juzu_bracelet",
     "relic.tiny_chest",
     "relic.bag_of_marbles",
@@ -373,6 +381,9 @@ COMMON_RELIC_POOL = [
 ]
 
 UNCOMMON_RELIC_POOL = [
+    "relic.gold_plated_cables",
+    "relic.symbiotic_virus",
+
     "relic.ether_medium",
     "relic.bottled_lightning",
     "relic.bottled_flame",
@@ -412,6 +423,8 @@ UNCOMMON_RELIC_POOL = [
 ]
 
 RARE_RELIC_POOL = [
+    "relic.emotion_chip",
+
     "relic.charon_ashes",
     "relic.placeholder_stone",
     "relic.calipers",
@@ -472,6 +485,8 @@ EVENT_RELIC_POOL = [
 ]
 
 SHOP_RELIC_POOL = [
+    "relic.runic_capacitor",
+
     "relic.x_potion",
     "relic.twisted_funnel",
     "relic.membership_card",
@@ -498,6 +513,10 @@ RELIC_REWARD_POOL = [
 ] + COMMON_RELIC_POOL + UNCOMMON_RELIC_POOL + RARE_RELIC_POOL + EVENT_RELIC_POOL
 
 BOSS_RELIC_POOL = [
+    "relic.inserter",
+    "relic.nuclear_battery",
+    "relic.frozen_core",
+
     "relic.astrolabe",
     "relic.xanthosis",
     "relic.black_star",
@@ -1039,6 +1058,8 @@ def get_available_boss_relic_ids(run_state):
             continue
         owner = getattr(relic, "owner_character_id", "")
         if owner and owner != current_character_id:
+            continue
+        if relic_id == "relic.frozen_core" and "relic.cracked_core" not in owned:
             continue
         if relic_id == "relic.xanthosis" and not can_upgrade_starting_relic(run_state):
             continue

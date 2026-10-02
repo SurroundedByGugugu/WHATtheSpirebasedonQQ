@@ -417,6 +417,9 @@ def handle_debug_console(run_state, parts):
 
     if command in ("help", "帮助"):
         return debug_console_help()
+    if command in ("orb", "orbs", "充能球"):
+        from game.orbs.ctrl import handle_orb_ctrl
+        return handle_orb_ctrl(run_state, args)
     if command == "addcard":
         return handle_add_card(run_state, args)
     if command == "removecard":
@@ -1053,6 +1056,7 @@ def handle_clear_enemies(run_state, args):
 def debug_console_help():
     return "\n".join([
         "ctrl 控制台：",
+        "/ctrl orb help：充能球控制（球槽、生成、被动、激发、移除、集中、数值）",
         "/ctrl、.ctrl、。ctrl 等价；下面示例的开头都可以互换。",
         "/ctrl addcard 打击+ 手牌",
         "/ctrl removecard 粘液 弃牌堆",

@@ -2754,7 +2754,7 @@ def handle_draw_if_no_attack_in_hand(game_state, card, effect, target_index, eff
 def get_random_card_candidates(card_type=None, colorless_only=False, exclude_card_ids=None):
     from data.card.AAAregistry import CARD_REGISTRY, create_card
     from data.content_gate import is_content_enabled
-    exclude_card_ids = set(exclude_card_ids or [])
+    exclude_card_ids = set(exclude_card_ids or []) | {"card.self_repair"}
     candidates = []
     for candidate_card_id in CARD_REGISTRY:
         if candidate_card_id in exclude_card_ids:
@@ -6388,6 +6388,10 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
                 play_index + 1,
                 total_times
             ))
+        from game.defect import before_resolution
+        logs.extend(before_resolution(game_state, card, effect_context))
+        if game_state.battle_over:
+            break
         from game.status.status_effects import increment_slow_for_card_play
         increment_slow_for_card_play(game_state, logs)
         apply_abyssal_form_hp_loss_if_needed(
@@ -6741,3 +6745,20 @@ def handle_request_night_terror_card(game_state, card, effect, target_index, eff
     ))
 
     return ["{}".format("\n".join(lines))]
+
+
+@register_effect("defect_card")
+def handle_defect_card(game_state, card, effect, target_index, effect_context):
+    from game.defect import effect as apply_defect_effect
+    return apply_defect_effect(game_state, card, effect, target_index, effect_context)
+
+
+@register_effect("defect_potion")
+def handle_defect_potion(game_state, card, effect, target_index, effect_context):
+    from game.orbs import rack, set_slots, channel
+    player = game_state.player
+    multiplier = int(effect_context.get("potion_amount_multiplier", 1))
+    if effect["action"] == "capacity":
+        set_slots(player, rack(player).capacity + 2 * multiplier)
+        return ["增加 {} 个球槽。".format(2 * multiplier)]
+    return channel(game_state, player, "dark", rack(player).capacity * multiplier)

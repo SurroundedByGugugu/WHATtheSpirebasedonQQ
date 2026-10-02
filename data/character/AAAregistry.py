@@ -8,7 +8,10 @@ from data.character.silent_huntress_character import SilentHuntressCharacter
 from data.character.test_character import TestCharacter
 
 
+from data.character.defect_character import DefectCharacter
+
 CHARACTER_REGISTRY = {
+    "character.defect": DefectCharacter,
     "character.test": TestCharacter,
     "character.armored_warrior" : ArmoredWarriorCharacter,
     "character.silent_huntress": SilentHuntressCharacter,

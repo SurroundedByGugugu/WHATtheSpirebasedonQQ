@@ -1327,3 +1327,32 @@ register_status_def(StatusDef(
     decay_timing="none",
     decay_amount=0,
 ))
+
+
+register_status_def(StatusDef(
+    key="focus", name="集中", description="调整充能球数值；不直接改变黑暗积蓄，不影响等离子。",
+    category="buff", display_mode="value", order=21, can_be_negative=True,
+))
+register_status_def(StatusDef(
+    key="electrodynamics", name="电动力学", description="闪电球被动与激发攻击所有敌人。",
+    category="buff", display_mode="flag", order=22,
+))
+
+
+# Defect powers and turn-local effects.
+for _key, _name, _description in [
+    ("heatsinks", "散热片", "打出能力牌时按层数抽牌。"),
+    ("loop", "循环", "回合开始时按层数触发最前方球的被动。"),
+    ("self_repair", "自我修复", "胜利时按层数回复生命。"),
+    ("static_discharge", "静电释放", "受到攻击生命损失时按层数生成闪电球。"),
+    ("hello_world", "你好，世界", "回合开始按层数生成普通蓝色牌。"),
+    ("storm", "雷暴", "打出能力牌时按层数生成闪电球。"),
+    ("creative_ai", "创造性AI", "回合开始按层数生成蓝色能力牌。"),
+    ("echo_form", "回响形态", "每回合前若干张牌额外结算一次。"),
+    ("machine_learning", "机器学习", "每回合开始按层数额外抽牌。"),
+    ("defect_rebound", "弹回", "本回合下一张牌放回抽牌堆顶。"),
+    ("defect_equilibrium", "均衡", "本回合保留全部手牌，虚无仍生效。"),
+]:
+    register_status_def(StatusDef(key=_key,name=_name,description=_description,category="buff",display_mode="stack"))
+register_status_def(StatusDef(key="bias",name="偏差",description="回合开始按层数失去集中。",category="debuff",display_mode="stack"))
+register_status_def(StatusDef(key="lock_on",name="锁定",description="受到的充能球伤害增加50%。",category="debuff",display_mode="turns",decay_timing="turn_end",decay_amount=1))

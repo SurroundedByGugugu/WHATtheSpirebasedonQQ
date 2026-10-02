@@ -121,7 +121,8 @@ CHARACTER_CHOICES = [
         "index": 4,
         "character_id": "character.suzuri",
         "name": "Suzuri"
-    }
+    },
+    {"index": 5, "character_id": "character.defect", "name": "故障机器人"}
 ]
 
 class GameService(object):
@@ -539,6 +540,16 @@ class GameService(object):
                 format_pending_dollys_mirror(run_state)
             ])
         
+        if command in ("pick", "选择蓝色牌") and pending_choice_is(run_state.current_battle, "defect_select"):
+            game_state = run_state.current_battle
+            from game.defect import choose_cards
+            try:
+                indices = [int(item) for item in " ".join(parts[2:]).replace(",", " ").split()]
+            except ValueError:
+                return "选择编号必须是数字。"
+            reply = choose_cards(game_state, indices)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
         if command in ("pick", "choose", "选择奖励", "选牌"):
             if len(parts) < 3:
                 return "用法：/card pick 卡牌编号，例如 /card pick 0"
@@ -819,6 +830,9 @@ class GameService(object):
                 reply += "\n\n" + get_pending_player_choice_hint(game_state)
             return self.append_run_progress_after_battle(session_id,run_state,reply)
         if pending_choice_is(game_state,"four_color_nectar"):
+            return get_pending_player_choice_hint(game_state)
+
+        if pending_choice_is(game_state, "defect_select"):
             return get_pending_player_choice_hint(game_state)
 
         if command in ("drop", "drop_hand", "丢弃手牌", "选择丢弃"):
@@ -1909,10 +1923,7 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.7.18",
-            "- 新增四层矛盾和心脏大人",
-            "- 暂时没有正常上四楼的方法，有需要请使用控制台ctrl go 4 floor",
-            "- 更新更多的开局随机选项",
+            "当前版本：v26.10.02",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",

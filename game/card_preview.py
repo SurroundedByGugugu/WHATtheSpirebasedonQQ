@@ -29,6 +29,9 @@ def _alive_enemy_parts(game_state, card, amount_spec, effect_context, attack_typ
 
 def _preview_effect(game_state, card, effect, effect_context):
     op = effect.get("op")
+    if op == "defect_card":
+        from game.defect import preview
+        return preview(game_state, card, effect_context)
     attack_type = effect.get("attack_type", getattr(card, "attack_type", ""))
     attack_element = effect.get("attack_element", getattr(card, "attack_element", ""))
 

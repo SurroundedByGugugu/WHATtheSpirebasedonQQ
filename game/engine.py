@@ -140,7 +140,7 @@ def get_opening_draw_bonus(game_state):
 
 def get_turn_draw_bonus(game_state):
     player = game_state.player
-    bonus = 0
+    bonus = player.statuses.get("machine_learning")
     for relic in getattr(player, "relics", []) or []:
         getter = getattr(relic, "get_turn_draw_bonus", None)
         if getter is None:
@@ -286,12 +286,21 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
         player=player,
         source=player
     )
+    from game.defect import initialize_battle
+    initialize_battle(game_state)
     logs.extend(dispatch_event(game_state, EVENT_BATTLE_START, context))
     logs.append(format_enemy_start_info(enemies, game_state))
+    from game.orbs import trigger_passives
+    logs.extend(trigger_passives(game_state, player, timing="start"))
     logs.extend(dispatch_event(game_state, EVENT_TURN_START, context))
+    if game_state.battle_over:
+        return game_state, "\n".join(logs)
     logs.extend(move_bottled_cards_to_opening_hand(player))
     logs.extend(move_innate_cards_to_opening_hand(player))
     logs.append(player.status_text())
+    from game.orbs import rack, format_orbs
+    if rack(player).capacity or player.statuses.get("focus"):
+        logs.append(format_orbs(player, game_state))
     opening_draw_count = 5 + get_opening_draw_bonus(game_state) - len(player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
@@ -343,12 +352,21 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
         player=player,
         source=player
     )
+    from game.defect import initialize_battle
+    initialize_battle(game_state)
     logs.extend(dispatch_event(game_state, EVENT_BATTLE_START, context))
     logs.append(format_enemy_start_info(enemies, game_state))
+    from game.orbs import trigger_passives
+    logs.extend(trigger_passives(game_state, player, timing="start"))
     logs.extend(dispatch_event(game_state, EVENT_TURN_START, context))
+    if game_state.battle_over:
+        return game_state, "\n".join(logs)
     logs.extend(move_bottled_cards_to_opening_hand(player))
     logs.extend(move_innate_cards_to_opening_hand(player))
     logs.append(player.status_text())
+    from game.orbs import rack, format_orbs
+    if rack(player).capacity or player.statuses.get("focus"):
+        logs.append(format_orbs(player, game_state))
     opening_draw_count = 5 + get_opening_draw_bonus(game_state) - len(player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
@@ -631,8 +649,13 @@ def move_played_card_to_destination(game_state, card):
             reason="after_play"
         ))
     else:
-        player.discard_pile.append(card)
-        logs.append("【{}】进入弃牌堆。".format(card.name))
+        if getattr(card, "_defect_rebound", False):
+            player.draw_pile.append(card)
+            logs.append("弹回：【{}】放回抽牌堆顶。".format(card.name))
+        else:
+            player.discard_pile.append(card)
+            logs.append("【{}】进入弃牌堆。".format(card.name))
+    card._defect_rebound = False
 
     return logs
 
@@ -853,7 +876,7 @@ def end_player_turn_hand_cleanup(game_state):
             ))
             continue
 
-        if should_retain_at_turn_end(card):
+        if player.statuses.get("defect_equilibrium") > 0 or should_retain_at_turn_end(card):
             retained_cards.append(card)
             if bool(getattr(card, "temporary_retain_once", False)):
                 try:
@@ -2215,6 +2238,9 @@ def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
     player = game_state.player
     card_type = getattr(card, "card_type", "")
 
+    from game.defect import before_card
+    before_card(game_state, card, effect_context, logs)
+
     replay_status_by_type = {
         "attack": ("double_tap", "双发"),
         "skill": ("burst", "爆发"),
@@ -2732,6 +2758,8 @@ def get_potion_card_pool(game_state, wanted_card_type=None, colorless_only=False
     result = []
 
     for card_id in pool_ids:
+        if card_id == "card.self_repair":
+            continue
         try:
             card = create_card(card_id)
         except Exception:
@@ -4666,6 +4694,19 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
         logs.append(result)
         return "\n".join(logs)
     logs.append("")
+    from game.orbs import rack, trigger_passives
+    from game.constants import EVENT_BEFORE_ENEMY_ACTIONS
+    orb_snapshot = list(rack(player).orbs)
+    logs.extend(dispatch_event(game_state, EVENT_BEFORE_ENEMY_ACTIONS,
+                               BattleContext(game_state=game_state, player=player, source=player)))
+    result = None if game_state.battle_over else check_battle_result(game_state)
+    if result:
+        logs.append(result)
+    if game_state.battle_over:
+        return "\n".join(logs)
+    logs.extend(trigger_passives(game_state, player, timing="end", snapshot=orb_snapshot))
+    if game_state.battle_over:
+        return "\n".join(logs)
     logs.append("敌人行动：")
 
     # 使用快照遍历，避免史莱姆分裂后新生成的小史莱姆在同一轮立刻行动。
@@ -4727,6 +4768,11 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
     game_state.player_self_action_hp_loss_total_this_turn = 0
     cleared_temp_costs = clear_turn_temporary_card_costs(player)
     start_turn_block_logs = player.start_turn(game_state)
+    from game.orbs import trigger_passives
+    start_turn_block_logs.extend(trigger_passives(game_state, player, timing="start"))
+    if game_state.battle_over:
+        logs.extend(start_turn_block_logs)
+        return "\n".join(logs)
     if start_turn_block_logs:
         logs.extend(start_turn_block_logs)
     if cleared_temp_costs:
@@ -4740,6 +4786,8 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
     )
     turn_start_logs = dispatch_event(game_state, EVENT_TURN_START, context)
     logs.extend(turn_start_logs)
+    if game_state.battle_over:
+        return "\n".join(logs)
     try:
         from game.status.status_effects import resolve_night_terror_next_turn
         logs.extend(resolve_night_terror_next_turn(game_state, player))
@@ -4765,6 +4813,9 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
     ))
     logs.extend(apply_turn_start_hand_ready_effects(game_state))
     logs.append(player.status_text())
+    from game.orbs import rack, format_orbs
+    if rack(player).capacity or player.statuses.get("focus"):
+        logs.append(format_orbs(player, game_state))
     logs.append(format_enemy_current_status(game_state))
     logs.append("")
     logs.append(player.hand_text(game_state))

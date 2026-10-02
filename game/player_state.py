@@ -3,6 +3,7 @@
 import random
 from dataclasses import dataclass, field
 from typing import List, Any
+from game.orbs import OrbRack
 from game.status.status_container import StatusContainer
 from game.status.status_display import get_status_display_text
 
@@ -35,6 +36,7 @@ class PlayerState:
     discard_pile: List[Any] = field(default_factory=list)
     exhaust_pile: List[Any] = field(default_factory=list)
     hand: List[Any] = field(default_factory=list)
+    orb_rack: OrbRack = field(default_factory=OrbRack)
 
     def is_alive(self):
         return self.hp > 0
@@ -122,7 +124,7 @@ class PlayerState:
     def is_hand_full(self):
         return len(self.hand) >= self.max_hand_size
 
-    def draw_cards(self, count, game_state=None, draw_source="unknown"):
+    def draw_cards(self, count, game_state=None, draw_source="unknown", drawn_cards=None):
         """
         抽牌。
         抽牌堆空时，把弃牌堆洗回抽牌堆。
@@ -156,6 +158,8 @@ class PlayerState:
                 continue
 
             self.hand.append(card)
+            if drawn_cards is not None:
+                drawn_cards.append(card)
             logs.append("抽到【{}】。".format(card.name))
             try:
                 from data.card.enchantment_rules import get_card_enchantment_stacks

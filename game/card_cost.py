@@ -41,7 +41,9 @@ def get_card_current_cost(game_state, card):
         for rule in getattr(card, "cost_rules", []):
             op = rule.get("op")
 
-            if op == "reduce_by_player_life_loss_count":
+            if op == "defect_power_discount":
+                current_cost -= int(getattr(game_state, "defect_powers_played", 0))
+            elif op == "reduce_by_player_life_loss_count":
                 count = int(getattr(game_state, "player_life_loss_count_this_battle", 0))
                 amount_per_loss = int(rule.get("amount_per_loss", 1))
                 current_cost -= count * amount_per_loss

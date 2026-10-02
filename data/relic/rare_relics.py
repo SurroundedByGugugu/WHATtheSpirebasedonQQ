@@ -394,7 +394,7 @@ class TurnipRelic(RelicTemplate):
         RelicTemplate.__init__(self, relic_id="relic.turnip", name="萝卜",
             description="你不会再被脆弱。", 
             story="与生姜搭配尤为适合",
-            quantity="rare", owner_character_id="", allow_duplicate=False)
+            quantity="rare", owner_character_id="character.defect", allow_duplicate=False)
 
 
 class CabbageRelic(RelicTemplate):

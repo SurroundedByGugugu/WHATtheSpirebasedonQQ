@@ -274,6 +274,10 @@ RELIC_REGISTRY = {
 }
 
 
+from data.relic.defect_relics import DEFECT_RELIC_REGISTRY
+RELIC_REGISTRY.update(DEFECT_RELIC_REGISTRY)
+
+
 def create_relic(relic_id):
     relic_class = RELIC_REGISTRY.get(relic_id)
 

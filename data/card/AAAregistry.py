@@ -698,6 +698,10 @@ CARD_REGISTRY = {
     "card.dance.dragon_sound_inspiration": create_dragon_sound_inspiration,
 }
 
+from data.card.character.defect_cards import DEFECT_CARD_REGISTRY
+CARD_REGISTRY.update(DEFECT_CARD_REGISTRY)
+
+
 def create_card(card_id):
     create_func = CARD_REGISTRY.get(card_id)
 

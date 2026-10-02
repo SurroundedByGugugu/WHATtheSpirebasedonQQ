@@ -10,6 +10,7 @@ from game.constants import (
     EVENT_DRAW_CARD_AFTER,
     EVENT_GAIN_BLOCK_AFTER,
     EVENT_PLAYER_TURN_END,
+    EVENT_BEFORE_ENEMY_ACTIONS,
     EVENT_TURN_END,
     EVENT_TURN_START,
     BLOCK_SOURCE_PLAYED_CARD,
@@ -133,6 +134,8 @@ def dispatch_status_event(game_state, event_name, context):
             ))
     status_items.sort(key=lambda item: item[0], reverse=True)
     for _, owner, status_key, value in status_items:
+        if event_name == EVENT_BEFORE_ENEMY_ACTIONS and game_state.battle_over:
+            break
         handler = STATUS_EVENT_HANDLERS.get(status_key)
         if handler is None:
             continue
@@ -144,6 +147,9 @@ def dispatch_status_event(game_state, event_name, context):
         )
         if result:
             logs.extend(result)
+        if event_name == EVENT_BEFORE_ENEMY_ACTIONS:
+            from game.orbs import finish_check
+            finish_check(game_state, logs)
     return logs
 
 def handle_constricted(event_name, context, owner, value):
@@ -807,7 +813,7 @@ def handle_poison(event_name, context, owner, value):
     """
     logs = []
 
-    if event_name != EVENT_PLAYER_TURN_END:
+    if event_name != EVENT_BEFORE_ENEMY_ACTIONS:
         return logs
 
     if owner is None:

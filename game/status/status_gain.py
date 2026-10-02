@@ -38,6 +38,11 @@ def add_status_with_artifact(owner, key, amount):
             "status_name": status_name,
         }
 
+    if key == "focus" and amount < 0 and statuses.get("artifact") > 0:
+        statuses.add("artifact", -1)
+        return {"current": statuses.get(key), "applied": False, "blocked": True,
+                "artifact_left": statuses.get("artifact"), "status_name": status_name}
+
     if amount > 0:
         if key == "weak" and _owner_has_relic(owner, "relic.ginger"):
             return {
