@@ -3,11 +3,12 @@ const $ = (id) => document.getElementById(id);
 let worker, ready = false, busy = true, state = null, target = null, requestId = 0;
 let watchdog, loadingStarted, currentStage = "准备游戏";
 const descriptions = [
-  ["IRONCLAD", "铁甲战士", "用力量与格挡，踏出登塔的第一步。"],
-  ["THE SILENT", "静默猎手", "在手牌流转之间寻找机会。"],
-  ["LUMINE", "昼·里辛塔法", "让这场旅途，染上一点私货。"],
-  ["YOIRINE", "Yoirine", "另一位旅人，另一副起手牌。"],
-  ["SUZURI", "Suzuri", "带上你的牌组，走进高塔。"]
+  ["IRONCLAD", "铁甲战士", "HP 80，gold 99"],
+  ["THE SILENT", "静默猎手", "HP 70，gold 99"],
+  ["LUMINE", "昼·里辛塔法", "HP 70，gold 99"],
+  ["YOIRINE", "Yoirine", "HP 70，gold 67"],
+  ["SUZURI", "Suzuri", "HP 76，gold 99"],
+  ["DEFECT", "故障机器人", "HP 75，gold 99"]
 ];
 function el(tag, text, className) {
   const node = document.createElement(tag);
@@ -21,6 +22,27 @@ function button(label, command, className = "") {
   node.dataset.command = command;
   node.disabled = busy || !ready;
   return node;
+}
+function showRelicDetails(relic) {
+  let dialog = $("relic-dialog");
+  if (!dialog) {
+    dialog = el("dialog", undefined, "relic-dialog");
+    dialog.id = "relic-dialog";
+    dialog.setAttribute("aria-labelledby", "relic-dialog-name");
+    document.body.append(dialog);
+  }
+  const heading = el("div", undefined, "panel-heading");
+  const name = el("h2", relic.name);
+  name.id = "relic-dialog-name";
+  const close = el("button", "关闭");
+  close.type = "button";
+  close.autofocus = true;
+  close.onclick = () => dialog.close();
+  heading.append(name, close);
+  dialog.replaceChildren(heading, el("h3", "效果说明"),
+    el("p", relic.info, "relic-info"), el("h3", "遗物故事"),
+    el("p", relic.story, "relic-story"));
+  dialog.showModal();
 }
 function setBusy(value) {
   busy = value;
@@ -128,7 +150,17 @@ function render(data) {
   for (const [key, label] of [["draw", "抽牌堆"], ["discard", "弃牌堆"], ["exhaust", "消耗堆"]]) {
     $("piles").append(button(label + " " + (run.piles?.[key] ?? 0), "/card " + key));
   }
-  $("relics").replaceChildren(...(run.relics.length ? run.relics : ["暂无遗物"]).map((name) => el("span", name)));
+  $("relics").replaceChildren();
+  if (!run.relics.length) $("relics").append(el("span", "暂无遗物"));
+  for (const relic of run.relics) {
+    const item = el("button", relic.name, "relic-button");
+    item.type = "button";
+    item.title = relic.info;
+    item.setAttribute("aria-description", relic.info);
+    item.setAttribute("aria-haspopup", "dialog");
+    item.onclick = () => showRelicDetails(relic);
+    $("relics").append(item);
+  }
   $("potions").replaceChildren();
   if (!run.potions.length) $("potions").append(el("span", "暂无药水"));
   run.potions.forEach((name, index) => {

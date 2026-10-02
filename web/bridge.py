@@ -35,7 +35,11 @@ def snapshot(reply=""):
         "view": get_run_view(run), "hand": [], "enemies": [], "routes": [],
         "choices": [], "deckCount": len(run.master_deck),
         "status": get_status_display_text(player.statuses) if battle else "",
-        "relics": [getattr(item, "name", "遗物") for item in player.relics],
+        "relics": [{
+            "name": getattr(item, "name", "遗物"),
+            "info": getattr(item, "description", "") or "暂无效果说明。",
+            "story": getattr(item, "story", "") or "暂无故事。",
+        } for item in player.relics],
         "potions": [getattr(item, "name", "药水") for item in player.potions],
     }
     if battle:
