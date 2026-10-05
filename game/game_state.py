@@ -173,6 +173,10 @@ class GameState:
         lines.append("=== 战斗状态 ===")
         lines.append("回合：{}".format(self.turn_count))
         lines.append(self.player.status_text())
+        from game.pending_choice import format_pending_choice_hint
+        pending_hint = format_pending_choice_hint(self)
+        if pending_hint:
+            lines.append(pending_hint)
         from game.orbs import rack, format_orbs
         if rack(self.player).capacity or self.player.statuses.get("focus"):
             lines.append(format_orbs(self.player, self))

@@ -429,12 +429,13 @@ def get_card_or_effect_element(card=None, effect=None):
     return normalize_element(getattr(card, "attack_element", ""))
 
 
-def get_effective_zone_element_for_card(game_state, card=None, effect=None, effect_context=None):
+def get_effective_zone_element_for_card(game_state, card=None, effect=None, effect_context=None, include_abyssal_form=True):
     """
     返回本次卡牌/效果实际吃到的 Zone 元素。
 
     正常规则：卡牌/效果元素 tag 必须与当前 Zone 元素一致。
     以太介质：该场战斗中第一次打出该牌时，无视 tag，直接吃当前 Zone。
+    深渊形态：晶、阴攻击跨属性触发特殊效果；计算基础倍率时关闭此选项。
     """
     zone = get_active_zone(game_state)
     if zone is None or zone.is_expired():
@@ -454,7 +455,28 @@ def get_effective_zone_element_for_card(game_state, card=None, effect=None, effe
     if element == zone_element:
         return zone_element
 
+    if include_abyssal_form and getattr(card, "card_type", "") == "attack":
+        from game.modifiers import get_status_value
+        if (
+            {element, zone_element} == {"crystal", "shade"}
+            and get_status_value(getattr(game_state, "player", None), "abyssal_form") > 0
+        ):
+            return zone_element
+
     return ""
+
+
+def get_base_zone_element_for_card(game_state, card, zone_element, effect=None, effect_context=None):
+    """仅剔除深渊形态跨属性提供的基础倍率，保留其他显式 Zone 修正。"""
+    if (
+        zone_element
+        and get_effective_zone_element_for_card(game_state, card, effect, effect_context) == zone_element
+        and get_effective_zone_element_for_card(
+            game_state, card, effect, effect_context, include_abyssal_form=False,
+        ) != zone_element
+    ):
+        return ""
+    return zone_element
 
 
 def is_zone_effect_active_for_card(game_state, card=None, effect=None, effect_context=None, element=""):

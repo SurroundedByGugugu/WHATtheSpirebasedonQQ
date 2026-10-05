@@ -2,6 +2,7 @@
 # 指令提示统一工具：让流程文本同步显示等效中文指令。
 
 COMMAND_ALIASES = {
+    "scry": ["预见"],
     "characters": ["character", "chars", "角色", "角色选择", "查看角色"],
     "info": ["说明", "查看说明", "buffinfo", "状态说明"],
     "private": ["私货"],

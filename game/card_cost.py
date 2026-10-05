@@ -74,6 +74,8 @@ def get_card_current_cost(game_state, card):
         and get_status_value(game_state.player, "corruption") > 0
     ):
         current_cost = 0
+    if game_state is not None and card.card_type == "attack" and game_state.player.statuses.get("w_swivel"):
+        current_cost = 0
     min_cost = 0
     for rule in getattr(card, "cost_rules", []):
         if "min_cost" in rule:
@@ -137,6 +139,9 @@ def get_x_cost_spent_cost(game_state, card, raw_x):
     - 若诱语生效，实际消耗 -1，等效恢复 1 费
     """
     raw_x = int(raw_x)
+
+    if game_state is not None and card.card_type == "attack" and game_state.player.statuses.get("w_swivel"):
+        return 0
 
     if is_abyssal_whisper_discount_active(game_state, card):
         return raw_x - 1

@@ -1464,24 +1464,20 @@ def create_abyss_hunt():
         card_id="card.abyss_hunt",
         name="渊猎",
         card_type="power",
-        cost=3,
+        cost=2,
         target="self",
-        description="回合结束时，若深渊凝视层数超过敌人当前生命+格挡，自动触发深渊具现，并恢复 4 生命。该恢复值在打出时进行一次阴 Zone 修正后固定。",
+        description="每次伤害实际扣除敌人生命，给予目标 1 层深渊凝视。",
         quantity="rare",
         attack_element="shade",
         owner_character_id="character.yoirine",
-        effects=[
-            {
-                "op": "gain_abyss_hunt",
-                "heal": 4
-            }
-        ],
+        effects=[{"op": "gain_abyss_hunt"}],
         upgraded=False,
         upgrade_patch={
             "name": "渊猎+",
-            "description": "回合结束时，若深渊凝视按凝视增伤与阴 Zone 修正后超过敌人当前生命+格挡，自动触发深渊具现，并恢复 4 生命。该恢复值在打出时进行一次阴 Zone 修正后固定。"
-        }
+            "description": "每次伤害实际扣除敌人生命，给予目标 2 层深渊凝视。",
+        },
     )
+
 def create_abyss_symbiosis():
     return CardTemplate(
         card_id="card.abyss_symbiosis",
@@ -1523,7 +1519,7 @@ def create_abyssal_form():
         card_type="power",
         cost=3,
         target="self",
-        description="晶属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+        description="晶、阴属性攻击牌也能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
         quantity="rare",
         attack_element="shade",
         skip_auto_zone_hp_loss=True,
@@ -1546,6 +1542,6 @@ def create_abyssal_form():
         upgrade_patch={
             "name": "深渊形态+",
             "cost": 2,
-            "description": "晶属性攻击牌额外视为有极阴 Zone 效果。不会新开或覆盖 Zone。",
+            "description": "晶、阴属性攻击牌也能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
         }
     )

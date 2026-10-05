@@ -122,7 +122,8 @@ CHARACTER_CHOICES = [
         "character_id": "character.suzuri",
         "name": "Suzuri"
     },
-    {"index": 5, "character_id": "character.defect", "name": "故障机器人"}
+    {"index": 5, "character_id": "character.defect", "name": "故障机器人"},
+    {"index": 6, "character_id": "character.watcher", "name": "观者"}
 ]
 
 class GameService(object):
@@ -258,7 +259,7 @@ class GameService(object):
             "cage", "empty_cage", "鸟笼", "空鸟笼",
             "orrery", "星系仪",
             "mirror", "dolly", "dollys_mirror", "镜子", "多利之镜",
-            "pick", "choose", "选择奖励", "选牌",
+            "scry", "预见", "pick", "choose", "选择奖励", "选牌",
             "take", "claim", "领取", "拿取",
             "replace_potion", "replacepotion", "换药水", "替换药水",
             "bowl", "singing_bowl", "颂钵", "唱歌碗",
@@ -540,6 +541,23 @@ class GameService(object):
                 format_pending_dollys_mirror(run_state)
             ])
         
+        if command in ("scry", "预见", "pick", "choose", "skip") and (
+            pending_choice_is(run_state.current_battle, "scry") or pending_choice_is(run_state.current_battle, "watcher_select")
+        ):
+            game_state = run_state.current_battle
+            raw = " ".join(parts[2:]).replace(",", " ").replace("，", " ")
+            if command == "skip" or raw.strip() in ("skip", "跳过", "无"):
+                indices = []
+            else:
+                try:
+                    indices = [int(i) for i in raw.split()]
+                except ValueError:
+                    return "选择编号必须是数字；预见全部保留请使用 /card scry skip。"
+            from game.scry import choose_scry
+            from game.watcher import choose_cards
+            handler = choose_scry if pending_choice_is(game_state,"scry") else choose_cards
+            return self.append_run_progress_after_battle(session_id,run_state,handler(game_state,indices))
+
         if command in ("pick", "选择蓝色牌") and pending_choice_is(run_state.current_battle, "defect_select"):
             game_state = run_state.current_battle
             from game.defect import choose_cards
@@ -1923,7 +1941,7 @@ class GameService(object):
     def opening_help_text(self):
         return "\n".join([
             "卡牌测试命令（*命令中的“/”与 “。”和“.”等价）：",
-            "当前版本：v26.10.02",
+            "当前版本：v26.10.05",
             "",
             "/card characters 查看可选角色",
             "/card private on/off      控制当前会话是否启用私货内容，默认开启",

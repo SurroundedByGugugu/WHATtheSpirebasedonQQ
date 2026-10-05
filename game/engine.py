@@ -1,3 +1,4 @@
+from game.resolution import resumable
 # -*- coding: utf-8 -*-
 
 import random
@@ -40,6 +41,7 @@ from game.zone.zone_utils import (
     format_zone_field_detail,
     is_card_first_play_this_battle,
     mark_card_played_this_battle,
+    get_effective_zone_element_for_card,
     record_player_card_played_this_turn,
     make_empty_player_card_type_played_counts
 )
@@ -184,6 +186,11 @@ def apply_turn_start_hand_ready_effects(game_state):
     """
     logs = []
     player = game_state.player
+    miracles = getattr(game_state, 'watcher_opening_miracles', 0)
+    if miracles:
+        game_state.watcher_opening_miracles = 0
+        from game.watcher import generate
+        logs.extend(generate(game_state, 'miracle', miracles))
     for relic in getattr(player, "relics", []) or []:
         handler = getattr(relic, "on_turn_start_hand_ready", None)
         if handler is None:
@@ -611,6 +618,10 @@ def move_played_card_to_destination(game_state, card):
     logs = []
     player = game_state.player
 
+    if card.card_id == "card.tantrum" and not getattr(card, "force_exhaust_after_play", False):
+        player.draw_pile.insert(random.randrange(len(player.draw_pile)+1), card)
+        return ["发泄随机放回抽牌堆。"]
+
     if getattr(card, "force_exhaust_after_play", False):
         logs.extend(move_card_to_exhaust_pile(
             game_state=game_state,
@@ -675,6 +686,7 @@ def apply_card_discard_relics(game_state, card, reason="丢弃"):
     return logs
 
 
+@resumable(text=False)
 def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=False):
     player = game_state.player
     logs = []
@@ -697,6 +709,8 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
             player.discard_pile.append(card)
             logs.append("【{}】被 {}，进入弃牌堆。".format(card.name, reason))
             logs.extend(apply_card_discard_relics(game_state, card, reason=reason))
+            yield logs
+            logs = []
             return logs
 
         logs.append("【{}】因奇巧被{}，免费打出。".format(card.name, reason))
@@ -712,12 +726,16 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
             logs=logs
         )
         logs.extend(apply_card_play_start_relics(game_state, card))
+        yield logs
+        logs = []
         logs.extend(apply_card_effects(
             game_state,
             card,
             target_index,
             effect_context=effect_context
         ))
+        yield logs
+        logs = []
         mark_card_played_this_battle(game_state, card)
         record_player_card_played_this_turn(game_state, card, player)
 
@@ -728,15 +746,25 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
             card=card
         )
         logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
+        yield logs
+        logs = []
         logs.extend(resolve_pain_cards_after_card_play(game_state, card))
+        yield logs
+        logs = []
         logs.extend(resolve_abyss_index_after_shade_card_play(game_state, card))
+        yield logs
+        logs = []
 
         logs.extend(move_played_card_to_destination(game_state, card))
+        yield logs
+        logs = []
         return logs
 
     player.discard_pile.append(card)
     logs.append("【{}】被{}，进入弃牌堆。".format(card.name, reason))
     logs.extend(apply_card_discard_relics(game_state, card, reason=reason))
+    yield logs
+    logs = []
     return logs
 
 def resolve_pain_cards_after_card_play(game_state, played_card):
@@ -878,6 +906,8 @@ def end_player_turn_hand_cleanup(game_state):
 
         if player.statuses.get("defect_equilibrium") > 0 or should_retain_at_turn_end(card):
             retained_cards.append(card)
+            from game.watcher import on_retain
+            logs.extend(on_retain(game_state, card))
             if bool(getattr(card, "temporary_retain_once", False)):
                 try:
                     delattr(card, "temporary_retain_once")
@@ -2240,6 +2270,8 @@ def apply_next_card_replay_statuses(game_state, card, effect_context, logs):
 
     from game.defect import before_card
     before_card(game_state, card, effect_context, logs)
+    if card_type == 'attack' and player.statuses.get('w_swivel'):
+        player.statuses.add('w_swivel', -1)
 
     replay_status_by_type = {
         "attack": ("double_tap", "双发"),
@@ -2356,7 +2388,7 @@ def apply_next_card_virtual_zone_statuses(game_state, card, effect_context, logs
             effect_context["virtual_mist_zone_element"] = "shade"
             effect_context["virtual_mist_zone_is_extreme"] = True
 
-            if str(getattr(card, "attack_element", "") or "").strip().lower() == "shade":
+            if get_effective_zone_element_for_card(game_state, card, effect_context=effect_context) == "shade":
                 logs.append("【极·深渊薄雾】触发：【{}】在极阴 Zone 下结算。剩余：{}。".format(
                     card.name,
                     remaining
@@ -2378,7 +2410,7 @@ def apply_next_card_virtual_zone_statuses(game_state, card, effect_context, logs
             effect_context["virtual_mist_zone_element"] = "shade"
             effect_context["virtual_mist_zone_is_extreme"] = False
 
-            if str(getattr(card, "attack_element", "") or "").strip().lower() == "shade":
+            if get_effective_zone_element_for_card(game_state, card, effect_context=effect_context) == "shade":
                 logs.append("【深渊薄雾】触发：【{}】在阴 Zone 下结算。剩余：{}。".format(
                     card.name,
                     remaining
@@ -2401,7 +2433,7 @@ def apply_next_card_virtual_zone_statuses(game_state, card, effect_context, logs
         effect_context["virtual_mist_zone_element"] = "crystal"
         effect_context["virtual_mist_zone_is_extreme"] = False
 
-        if str(getattr(card, "attack_element", "") or "").strip().lower() == "crystal":
+        if get_effective_zone_element_for_card(game_state, card, effect_context=effect_context) == "crystal":
             logs.append("【结晶薄雾】触发：【{}】在晶 Zone 下结算。剩余：{}。".format(
                 card.name,
                 remaining
@@ -2415,6 +2447,7 @@ def apply_next_card_virtual_zone_statuses(game_state, card, effect_context, logs
 
     return effect_context
 
+@resumable(text=True)
 def play_card(game_state, hand_index, target_index=None):
     """
     打出一张手牌。
@@ -2423,6 +2456,9 @@ def play_card(game_state, hand_index, target_index=None):
 
     if game_state.battle_over:
         return "战斗已经结束。"
+
+    if has_pending_player_choice(game_state):
+        return get_pending_player_choice_hint(game_state)
 
     player = game_state.player
 
@@ -2474,6 +2510,8 @@ def play_card(game_state, hand_index, target_index=None):
             target_enemy=game_state.enemies[target_index],
             source_text="打出【{}】".format(card.name)
         ))
+        yield logs
+        logs = []
     if is_x_cost:
         spent_cost = get_x_cost_spent_cost(game_state, card, raw_x)
         player.cost -= spent_cost
@@ -2491,6 +2529,8 @@ def play_card(game_state, hand_index, target_index=None):
             x_value
         ))
         logs.extend(x_logs)
+        yield logs
+        logs = []
     else:
         logs.append("打出【{}】，消耗 {} 点费用。".format(
             card.name,
@@ -2511,6 +2551,8 @@ def play_card(game_state, hand_index, target_index=None):
             is_reaction_damage=False,
             ignore_block=True
         ))
+        yield logs
+        logs = []
     elif getattr(card, "card_type", "") == "status" and any(getattr(relic, "relic_id", "") == "relic.medical_kit" for relic in getattr(player, "relics", []) or []):
         setattr(card, "force_exhaust_after_play", True)
         logs.append("【医药箱】触发：打出状态牌【{}】，该牌将被消耗。".format(card.name))
@@ -2540,12 +2582,16 @@ def play_card(game_state, hand_index, target_index=None):
     )
 
     logs.extend(apply_card_play_start_relics(game_state, card))
+    yield logs
+    logs = []
     logs.extend(apply_card_effects(
         game_state,
         card,
         target_index,
         effect_context=effect_context
     ))
+    yield logs
+    logs = []
 
     clear_current_virtual_mist_zone(game_state)
     mark_card_played_this_battle(game_state, card)
@@ -2559,16 +2605,26 @@ def play_card(game_state, hand_index, target_index=None):
         card=card
     )
     logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
+    yield logs
+    logs = []
     logs.extend(resolve_pain_cards_after_card_play(game_state, card))
+    yield logs
+    logs = []
     logs.extend(resolve_abyss_index_after_shade_card_play(game_state, card))
+    yield logs
+    logs = []
 
     logs.extend(move_played_card_to_destination(game_state, card))
+    yield logs
+    logs = []
 
     if getattr(game_state, "force_end_turn_after_card", False):
         game_state.force_end_turn_after_card = False
+        reason = getattr(game_state, "force_end_turn_reason", "") or "【{}】".format(card.name)
+        game_state.force_end_turn_reason = ""
         if not game_state.battle_over:
             logs.append("")
-            logs.append("【{}】结束了你的回合。".format(card.name))
+            logs.append("{}结束了你的回合。".format(reason))
             logs.append(end_turn(game_state))
             return "\n".join(logs)
         
@@ -2719,6 +2775,8 @@ def add_temporary_card_to_hand_or_discard(game_state, card, source_name="药水"
     player = game_state.player
     logs = []
     new_card = copy.deepcopy(card)
+    from game.generated_cards import prepare_created_card
+    new_card = prepare_created_card(new_card, game_state)
     setattr(new_card, "temporary", True)
     setattr(new_card, "created_in_battle", True)
     if temporary_cost_zero:
@@ -2758,7 +2816,7 @@ def get_potion_card_pool(game_state, wanted_card_type=None, colorless_only=False
     result = []
 
     for card_id in pool_ids:
-        if card_id == "card.self_repair":
+        if card_id in ("card.self_repair", "card.lesson_learned"):
             continue
         try:
             card = create_card(card_id)
@@ -2774,7 +2832,7 @@ def get_potion_card_pool(game_state, wanted_card_type=None, colorless_only=False
         if getattr(card, "card_type", "") in ("status", "curse"):
             continue
 
-        if getattr(card, "quantity", "") in ("status", "curse", "starting", "test"):
+        if getattr(card, "quantity", "") in ("status", "curse", "starting", "test", "dance", "special"):
             continue
 
         if getattr(card, "cost", None) == "X":
@@ -3056,6 +3114,7 @@ def add_upgraded_shivs_to_hand(game_state, count, source_name="狡诈药水"):
         logs.extend(add_temporary_card_to_hand_or_discard(game_state, shiv, source_name=source_name, temporary_cost_zero=False))
     return logs
 
+@resumable(text=True)
 def use_potion(game_state, potion_index, target_index=None):
     """
     使用药水。
@@ -3103,6 +3162,8 @@ def use_potion(game_state, potion_index, target_index=None):
             target_enemy=game_state.enemies[target_index],
             source_text="使用【{}】".format(potion.name)
         ))
+        yield logs
+        logs = []
     def dispatch_potion_after():
         context = BattleContext(
             game_state=game_state,
@@ -3128,6 +3189,8 @@ def use_potion(game_state, potion_index, target_index=None):
     if potion_card_type:
         options = roll_potion_card_options(game_state, potion_card_type, count=3)
         logs.extend(dispatch_potion_after())
+        yield logs
+        logs = []
 
         if not options:
             logs.append("【{}】没有可生成的{}牌。".format(potion.name, potion_card_type))
@@ -3155,6 +3218,8 @@ def use_potion(game_state, potion_index, target_index=None):
         )
 
         logs.extend(dispatch_potion_after())
+        yield logs
+        logs = []
 
         if not options:
             logs.append("【{}】没有可生成的无色牌。".format(potion.name))
@@ -3176,6 +3241,8 @@ def use_potion(game_state, potion_index, target_index=None):
     if potion_id == "potion.liquid_memories":
         options = [(i, card) for i, card in enumerate(getattr(player, "discard_pile", []) or [])]
         logs.extend(dispatch_potion_after())
+        yield logs
+        logs = []
 
         if not options:
             logs.append("【{}】没有可选择的弃牌堆卡牌。".format(potion.name))
@@ -3196,6 +3263,8 @@ def use_potion(game_state, potion_index, target_index=None):
     # 万灵药水：消耗任意张手牌。神圣树皮排除，不翻倍。
     if potion_id == "potion.elixir":
         logs.extend(dispatch_potion_after())
+        yield logs
+        logs = []
 
         options = [(i, card) for i, card in enumerate(getattr(player, "hand", []) or [])]
 
@@ -3217,7 +3286,11 @@ def use_potion(game_state, potion_index, target_index=None):
             logs.append("【神圣树皮】触发：【{}】生成数量 3 -> 6。".format(potion.name))
 
         logs.extend(add_upgraded_shivs_to_hand(game_state, amount, source_name=potion.name))
+        yield logs
+        logs = []
         logs.extend(dispatch_potion_after())
+        yield logs
+        logs = []
 
         result = check_battle_result(game_state)
         if result:
@@ -3228,6 +3301,8 @@ def use_potion(game_state, potion_index, target_index=None):
     # 赌徒特酿：丢弃任意张牌，然后抽相同数量。神圣树皮排除，不翻倍。
     if potion_id == "potion.gamblers_brew":
         logs.extend(dispatch_potion_after())
+        yield logs
+        logs = []
 
         options = [(i, card) for i, card in enumerate(getattr(player, "hand", []) or [])]
 
@@ -3276,8 +3351,12 @@ def use_potion(game_state, potion_index, target_index=None):
 
                 new_potion = create_potion(new_potion_id)
                 logs.extend(try_gain_potion_with_relics(player, new_potion, source=potion.name))
+                yield logs
+                logs = []
 
         logs.extend(dispatch_potion_after())
+        yield logs
+        logs = []
 
         result = check_battle_result(game_state)
         if result:
@@ -3289,6 +3368,8 @@ def use_potion(game_state, potion_index, target_index=None):
     if potion_id == "potion.smoke_bomb":
         logs.append("【{}】触发：你从战斗中逃离。".format(potion.name))
         logs.extend(dispatch_potion_after())
+        yield logs
+        logs = []
 
         game_state.battle_over = True
         game_state.victory = True
@@ -3310,8 +3391,12 @@ def use_potion(game_state, potion_index, target_index=None):
             "potion_amount_multiplier": potion_amount_multiplier
         }
     ))
+    yield logs
+    logs = []
 
     logs.extend(dispatch_potion_after())
+    yield logs
+    logs = []
 
     result = check_battle_result(game_state)
     if result:
@@ -3458,6 +3543,11 @@ def calculate_enemy_action_attack_damage(
     return max(0, int(damage))
 
 def process_enemy_action_payload(game_state, enemy, action, logs):
+    logs.extend(_resolve_enemy_action_payload(game_state, enemy, action, []))
+
+
+@resumable()
+def _resolve_enemy_action_payload(game_state, enemy, action, logs):
     op = action.get("op")
     attack_type = action.get("attack_type", "")
     attack_element = action.get("attack_element", "")
@@ -3509,6 +3599,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                     total_times
                 ))
                 process_enemy_action_payload(game_state, enemy, replay_action, logs)
+                yield logs
+                logs = []
             return
 
     if op == "enemy_multi_action":
@@ -3526,7 +3618,11 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
 
         try:
             for child_action in child_actions:
+                if not enemy.is_alive() or game_state.battle_over:
+                    break
                 process_enemy_action_payload(game_state, enemy, child_action, logs)
+                yield logs
+                logs = []
                 result = check_battle_result(game_state)
                 if result:
                     logs.append(result)
@@ -3536,6 +3632,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 game_state=game_state,
                 action_key=flying_action_key
             ))
+            yield logs
+            logs = []
         finally:
             if old_flying_action_key is None:
                 try:
@@ -3590,6 +3688,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             child_action,
             logs
         )
+        yield logs
+        logs = []
 
         if enemy.is_alive():
             logs.extend(gain_block_without_modifiers(
@@ -3608,6 +3708,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                     enemy.block + damage_output
                 )
             ))
+            yield logs
+            logs = []
         return
     
     if op == "enemy_attack":
@@ -3644,11 +3746,14 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             target=target,
             amount=damage,
             damage_kind="attack",
+            stance_applied=True,
             card=None,
             attack_type=attack_type,
             attack_element=attack_element,
             zone_element=zone_element
         ))
+        yield logs
+        logs = []
 
         real_damage = old_target_hp - int(getattr(target, "hp", 0))
         if real_damage < 0:
@@ -3713,7 +3818,14 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             ))
         return
 
-    if op == "enemy_champ_burst":
+    if op in ("enemy_champ_burst", "enemy_time_eater_heal"):
+        if op == "enemy_time_eater_heal":
+            enemy.hp = max(enemy.hp, (enemy.max_hp + 1) // 2)
+            enemy._healed_once = True
+            enemy._force_heal = False
+            logs.append("{} 恢复至 50% 生命值。当前 HP：{}/{}。".format(
+                enemy.name, enemy.hp, enemy.max_hp,
+            ))
         removed = []
 
         from game.status.status_defs import get_status_def, get_status_name
@@ -3744,6 +3856,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
         else:
             logs.append("{} 试图移除负面效果，但没有可移除的负面效果。".format(enemy.name))
 
+        if op == "enemy_time_eater_heal":
+            return
         result = enemy.gain_status_with_result("strength", 6)
         from game.status.status_gain import format_status_gain_log
         logs.append(format_status_gain_log(enemy, "strength", 6, result))
@@ -3823,6 +3937,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             block_source=BLOCK_SOURCE_ENEMY_ACTION,
             card=None
         ))
+        yield logs
+        logs = []
         return
 
     if op == "enemy_collector_buff":
@@ -3846,6 +3962,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             block_source=BLOCK_SOURCE_ENEMY_ACTION,
             card=None
         ))
+        yield logs
+        logs = []
         return
 
     if op == "enemy_collector_summon_torch_heads":
@@ -3952,6 +4070,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 block_source=BLOCK_SOURCE_ENEMY_ACTION,
                 card=None
             ))
+            yield logs
+            logs = []
 
         return
     
@@ -4072,6 +4192,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 block_source=BLOCK_SOURCE_ENEMY_ACTION,
                 card=None
             ))
+            yield logs
+            logs = []
 
             apply_earth_zone_temp_thorns(
                 game_state=game_state,
@@ -4138,6 +4260,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             block_source=BLOCK_SOURCE_ENEMY_ACTION,
             card=None
         ))
+        yield logs
+        logs = []
 
         apply_earth_zone_temp_thorns(
             game_state=game_state,
@@ -4184,6 +4308,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             block_source=BLOCK_SOURCE_ENEMY_ACTION,
             card=None
         ))
+        yield logs
+        logs = []
         apply_earth_zone_temp_thorns(
             game_state=game_state,
             target=enemy,
@@ -4219,6 +4345,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 block_source=BLOCK_SOURCE_ENEMY_ACTION,
                 card=None
             ))
+            yield logs
+            logs = []
             return
 
         attack_type = action.get("attack_type", "")
@@ -4240,11 +4368,14 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             target=game_state.player,
             amount=damage,
             damage_kind="attack",
+            stance_applied=True,
             attack_type=attack_type,
             attack_element=attack_element,
             zone_element=zone_element,
             card=None,
         ))
+        yield logs
+        logs = []
         return
     
     if op == "enemy_split":
@@ -4253,6 +4384,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
             logs.append("{} 想要分裂，但没有实现分裂逻辑。".format(enemy.name))
             return
         logs.extend(resolver(game_state))
+        yield logs
+        logs = []
         return
     
     if op == "enemy_wait":
@@ -4422,6 +4555,8 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
                 card,
                 source=enemy.name
             ))
+            yield logs
+            logs = []
 
         # 如果御守未抵消且黑石护符等修改了生命上限/生命值，同步回当前战斗。
         game_state.player.max_hp = run_state.max_hp
@@ -4593,6 +4728,7 @@ def process_enemy_action_payload(game_state, enemy, action, logs):
     logs.append("敌人行动未处理：{}".format(op))
 
 
+@resumable(text=False)
 def process_enemy_action(game_state, enemy):
     """
     处理单个敌人的行动。
@@ -4627,6 +4763,8 @@ def process_enemy_action(game_state, enemy):
         enemy=enemy,
         action=result.action
     ))
+    yield logs
+    logs = []
 
     if game_state.battle_over or not enemy.is_alive():
         return logs
@@ -4636,17 +4774,23 @@ def process_enemy_action(game_state, enemy):
         before_logs = before_enemy_action(game_state)
         if before_logs:
             logs.extend(before_logs)
+            yield logs
+            logs = []
     process_enemy_action_payload(
         game_state=game_state,
         enemy=enemy,
         action=result.action,
         logs=logs
     )
+    yield logs
+    logs = []
     after_enemy_action = getattr(enemy, "after_enemy_action", None)
     if after_enemy_action is not None:
         after_logs = after_enemy_action(game_state)
         if after_logs:
             logs.extend(after_logs)
+            yield logs
+            logs = []
 
     return logs
 
@@ -4671,6 +4815,7 @@ def format_enemy_current_status(game_state):
         ))
     return "\n".join(lines)
     
+@resumable(text=True)
 def continue_end_turn_after_player_turn_end(game_state, logs=None):
     """
     从“玩家回合结束状态结算”之后继续完整回合流程。
@@ -4689,6 +4834,8 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
         return "\n".join(logs)
 
     logs.extend(end_player_turn_hand_cleanup(game_state))
+    yield logs
+    logs = []
     result = check_battle_result(game_state)
     if result:
         logs.append(result)
@@ -4699,23 +4846,31 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
     orb_snapshot = list(rack(player).orbs)
     logs.extend(dispatch_event(game_state, EVENT_BEFORE_ENEMY_ACTIONS,
                                BattleContext(game_state=game_state, player=player, source=player)))
+    yield logs
+    logs = []
     result = None if game_state.battle_over else check_battle_result(game_state)
     if result:
         logs.append(result)
     if game_state.battle_over:
         return "\n".join(logs)
     logs.extend(trigger_passives(game_state, player, timing="end", snapshot=orb_snapshot))
+    yield logs
+    logs = []
     if game_state.battle_over:
         return "\n".join(logs)
     logs.append("敌人行动：")
 
     # 使用快照遍历，避免史莱姆分裂后新生成的小史莱姆在同一轮立刻行动。
-    for enemy in list(game_state.enemies):
+    skip_enemies = bool(getattr(game_state, "watcher_skip_enemy_actions", False))
+    game_state.watcher_skip_enemy_actions = False
+    for enemy in ([] if skip_enemies else list(game_state.enemies)):
         if enemy not in game_state.enemies:
             continue
         if not enemy.is_alive():
             continue
         logs.extend(process_enemy_action(game_state, enemy))
+        yield logs
+        logs = []
         result = check_battle_result(game_state)
         if result:
             logs.append(result)
@@ -4735,6 +4890,8 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
         logs.append("")
         logs.append("回合结束状态结算：")
         logs.extend(turn_end_logs)
+        yield logs
+        logs = []
 
     zone_tick_logs = tick_zone_turn_end(game_state)
     field_tick_logs = tick_fields_turn_end(game_state)
@@ -4742,7 +4899,11 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
         logs.append("")
         logs.append("场地结算：")
         logs.extend(zone_tick_logs)
+        yield logs
+        logs = []
         logs.extend(field_tick_logs)
+        yield logs
+        logs = []
     result = check_battle_result(game_state)
     if result:
         logs.append(result)
@@ -4753,11 +4914,15 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
         logs.append("")
         logs.append("锁定目标结算：")
         logs.extend(target_lock_logs)
+        yield logs
+        logs = []
     status_decay_logs = decay_statuses_by_timing(game_state, EVENT_TURN_END)
     if status_decay_logs:
         logs.append("")
         logs.append("状态衰减：")
         logs.extend(status_decay_logs)
+        yield logs
+        logs = []
     # 进入下一回合
     game_state.turn_count += 1
     game_state.player_card_type_played_counts_this_turn = make_empty_player_card_type_played_counts()
@@ -4772,9 +4937,13 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
     start_turn_block_logs.extend(trigger_passives(game_state, player, timing="start"))
     if game_state.battle_over:
         logs.extend(start_turn_block_logs)
+        yield logs
+        logs = []
         return "\n".join(logs)
     if start_turn_block_logs:
         logs.extend(start_turn_block_logs)
+        yield logs
+        logs = []
     if cleared_temp_costs:
         logs.append("临时费用变化已清除：{} 张牌。".format(cleared_temp_costs))
     logs.append("")
@@ -4786,11 +4955,15 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
     )
     turn_start_logs = dispatch_event(game_state, EVENT_TURN_START, context)
     logs.extend(turn_start_logs)
+    yield logs
+    logs = []
     if game_state.battle_over:
         return "\n".join(logs)
     try:
         from game.status.status_effects import resolve_night_terror_next_turn
         logs.extend(resolve_night_terror_next_turn(game_state, player))
+        yield logs
+        logs = []
     except Exception:
         pass
     result = check_battle_result(game_state)
@@ -4811,7 +4984,11 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
         game_state=game_state,
         draw_source="turn_start"
     ))
+    yield logs
+    logs = []
     logs.extend(apply_turn_start_hand_ready_effects(game_state))
+    yield logs
+    logs = []
     logs.append(player.status_text())
     from game.orbs import rack, format_orbs
     if rack(player).capacity or player.statuses.get("focus"):
@@ -4823,6 +5000,7 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
     return "\n".join(logs)
 
 
+@resumable(text=True)
 def end_turn(game_state):
     """
     结束玩家回合，敌人行动，然后进入下一回合。
@@ -4833,6 +5011,9 @@ def end_turn(game_state):
         return "战斗已经结束。"
 
     player = game_state.player
+
+    if has_pending_player_choice(game_state):
+        return get_pending_player_choice_hint(game_state)
 
     logs.append("玩家回合结束。")
     clear_pending_choice(game_state)
@@ -4862,6 +5043,8 @@ def end_turn(game_state):
         logs.append("")
         logs.append("玩家回合结束状态结算：")
         logs.extend(player_turn_end_logs)
+        yield logs
+        logs = []
 
     # 【计划妥当】等效果可能在玩家回合结束时插入选择。
     # 必须等选择完成后再清理手牌，否则被选中的牌会被回合结束丢弃。
@@ -5059,7 +5242,7 @@ def _get_toolbox_colorless_pool():
             continue
         if getattr(card, "card_type", "") in ("status", "curse"):
             continue
-        if getattr(card, "quantity", "") in ("starting", "status", "curse", "test"):
+        if getattr(card, "quantity", "") in ("starting", "status", "curse", "test", "dance", "special"):
             continue
         result.append(card_id)
     return result

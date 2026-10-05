@@ -37,8 +37,8 @@ def test_test_character_is_not_publicly_selectable():
     assert "character.test" not in single_ids
     assert "character.test" not in multiplayer_ids
     assert "character.test" not in pvp_ids
-    assert [item["index"] for item in CHARACTER_CHOICES] == list(range(6))
-    assert single_ids[-1] == "character.defect"
+    assert [item["index"] for item in CHARACTER_CHOICES] == list(range(7))
+    assert single_ids[-2:] == ["character.defect", "character.watcher"]
     assert [item[0] for item in MULTIPLAYER_CHARACTER_CHOICES] == [str(i) for i in range(5)]
     assert [item[0] for item in PVP_CHARACTER_CHOICES] == [str(i) for i in range(5)]
 

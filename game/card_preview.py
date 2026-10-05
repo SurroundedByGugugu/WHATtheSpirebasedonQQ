@@ -29,6 +29,9 @@ def _alive_enemy_parts(game_state, card, amount_spec, effect_context, attack_typ
 
 def _preview_effect(game_state, card, effect, effect_context):
     op = effect.get("op")
+    if op == "watcher_card":
+        from game.watcher import preview
+        return preview(game_state, card, effect_context)
     if op == "defect_card":
         from game.defect import preview
         return preview(game_state, card, effect_context)
@@ -149,6 +152,10 @@ def format_card_actual_preview(game_state, card):
             parts.append("费用 {}".format(current_cost))
             
     for effect in getattr(card, "effects", []):
+        from game.zone.zone_utils import get_effective_zone_element_for_card
+        effect_context["zone_element"] = get_effective_zone_element_for_card(
+            game_state, card, effect, effect_context,
+        )
         text = _preview_effect(game_state, card, effect, effect_context)
         if text:
             parts.append(text)

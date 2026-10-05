@@ -160,6 +160,11 @@ def check_card_play_conditions(game_state, card, play_reason="normal"):
     for condition in conditions:
         op = condition.get("op")
 
+        if op == "only_attack_in_hand":
+            if any(c is not card and c.card_type == "attack" for c in player.hand):
+                return False, "招牌技要求手中没有其他攻击牌。"
+            continue
+
         if op == "hand_all_cards_are_type":
             required_type = condition.get("card_type", "attack")
 

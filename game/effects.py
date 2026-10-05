@@ -1,3 +1,4 @@
+from game.resolution import resumable
 # -*- coding: utf-8 -*-
 
 from game.modifiers import apply_modifier_profile, get_status_value
@@ -7,6 +8,7 @@ import random
 
 from game.zone.zone_utils import (
     get_effective_zone_element_for_card,
+    get_base_zone_element_for_card,
     get_zone_replay_extra,
     apply_zone_source_hp_loss_if_needed,
     apply_water_zone_regeneration_on_card_play,
@@ -29,48 +31,6 @@ def register_effect(op):
 def is_player_attack_card(card):
     return getattr(card, "card_type", "") == "attack"
 
-
-def should_apply_abyssal_form_effect(game_state, card, zone_element=""):
-    player = getattr(game_state, "player", None)
-    if player is None:
-        return False
-    if not is_player_attack_card(card):
-        return False
-    if get_status_value(player, "abyssal_form") <= 0:
-        return False
-    # 深渊形态现在只强化晶属性攻击牌。(热修复是否只强化shade改这里)
-    card_element = str(getattr(card, "attack_element", "") or "").strip().lower()
-    if card_element != "crystal":
-        return False
-    # 已经通过真实阴 Zone / 以太介质 / 薄雾等吃到阴 Zone 时，不重复叠加深渊形态的虚拟极阴效果。
-    # 注意：真实晶 Zone 不会阻止深渊形态；晶攻击牌可以同时吃晶 Zone 和深渊形态的虚拟极阴。
-    if str(zone_element).strip().lower() == "shade":
-        return False
-
-    return True
-
-
-def apply_abyssal_form_amount_modifier(value, game_state, card, zone_element=""):
-    if not should_apply_abyssal_form_effect(game_state, card, zone_element):
-        return int(value)
-    # 按当前极阴 Zone 的实际实现折算：基础数值乘区 1.3 × 阴特殊效果 2.0。
-    return int(int(value) * 1.3 * 2.0)
-
-
-def apply_abyssal_form_hp_loss_if_needed(game_state, card, zone_element, logs):
-    if not should_apply_abyssal_form_effect(game_state, card, zone_element):
-        return
-
-    logs.append("深渊形态使【{}】额外视为有极阴 Zone 效果。".format(card.name))
-    apply_zone_source_hp_loss_if_needed(
-        game_state=game_state,
-        source=game_state.player,
-        zone_element="shade",
-        logs=logs,
-        label="深渊形态",
-        card=card,
-        count_as_player_self_action_hp_loss=True
-    )
 
 def iter_player_cards_by_piles(player, pile_names):
     """
@@ -386,7 +346,10 @@ def resolve_amount(
         block_source=block_source,
         attack_type=attack_type,
         attack_element=attack_element,
-        zone_element=zone_element
+        zone_element=zone_element,
+        zone_base_element=get_base_zone_element_for_card(
+            game_state, card, zone_element, {"attack_element": attack_element}, effect_context,
+        ),
     )
 
     if zone_element:
@@ -394,14 +357,6 @@ def resolve_amount(
         value = apply_zone_amount_modifier(
             value=value,
             game_state=game_state,
-            zone_element=zone_element
-        )
-
-    if modifier_profile in ("attack_damage", "block"):
-        value = apply_abyssal_form_amount_modifier(
-            value=value,
-            game_state=game_state,
-            card=card,
             zone_element=zone_element
         )
 
@@ -586,6 +541,7 @@ def deal_card_attack_damage_to_target(game_state, card, effect, target_entity, e
         target=target_entity,
         amount=damage,
         damage_kind="attack",
+        stance_applied=True,
         card=card,
         attack_type=attack_type,
         attack_element=attack_element,
@@ -653,6 +609,7 @@ def get_auto_play_target_index(game_state, card):
 
     return 0
 
+@resumable(text=False)
 def play_card_from_effect_and_exhaust(
         game_state,
         source_card,
@@ -660,7 +617,8 @@ def play_card_from_effect_and_exhaust(
         reason="havoc",
         force_exhaust=True,
         effect_context_extra=None,
-        source_label=None
+        source_label=None,
+        defer_destination=False
     ):
     """
     被其他效果自动打出的牌。
@@ -700,14 +658,20 @@ def play_card_from_effect_and_exhaust(
             played_card.name,
             cannot_play_reason
         ))
+        if defer_destination:
+            return logs
         if force_exhaust:
             logs.extend(move_card_to_exhaust_pile(
                 game_state=game_state,
                 card=played_card,
                 reason=reason
             ))
+            yield logs
+            logs = []
         else:
             logs.extend(move_played_card_to_destination(game_state, played_card))
+            yield logs
+            logs = []
         return logs
 
     target_index = get_auto_play_target_index(game_state, played_card)
@@ -719,11 +683,15 @@ def play_card_from_effect_and_exhaust(
             played_card.name,
             target_error
         ))
+        if defer_destination:
+            return logs
         logs.extend(move_card_to_exhaust_pile(
             game_state=game_state,
             card=played_card,
             reason=reason
         ))
+        yield logs
+        logs = []
         return logs
 
     effect_context = {
@@ -761,6 +729,8 @@ def play_card_from_effect_and_exhaust(
                 x_value
             ))
         logs.extend(x_logs)
+        yield logs
+        logs = []
     else:
         if source_label:
             logs.append("【{}】自动打出【{}】。".format(
@@ -785,6 +755,8 @@ def play_card_from_effect_and_exhaust(
         target_index=target_index,
         effect_context=effect_context
     ))
+    yield logs
+    logs = []
 
     mark_card_played_this_battle(game_state, played_card)
     record_player_card_played_this_turn(
@@ -800,13 +772,20 @@ def play_card_from_effect_and_exhaust(
         card=played_card
     )
     logs.extend(dispatch_event(game_state, EVENT_CARD_PLAY_AFTER, context))
+    yield logs
+    logs = []
     logs.extend(resolve_abyss_index_after_shade_card_play(game_state, played_card))
+    yield logs
+    logs = []
 
-    logs.extend(move_card_to_exhaust_pile(
-        game_state=game_state,
-        card=played_card,
-        reason=reason
-    ))
+    if not defer_destination:
+        logs.extend(move_card_to_exhaust_pile(
+            game_state=game_state,
+            card=played_card,
+            reason=reason
+        ) if force_exhaust else move_played_card_to_destination(game_state, played_card))
+    yield logs
+    logs = []
 
     return logs
 
@@ -1279,6 +1258,7 @@ def handle_deal_damage_heal_on_full_hp_kill(game_state, card, effect, target_ind
         target=target_entity,
         amount=damage,
         damage_kind="attack",
+        stance_applied=True,
         card=card,
         attack_type=attack_type,
         attack_element=attack_element,
@@ -1527,7 +1507,10 @@ def handle_abyss_mire_damage_by_gaze(game_state, card, effect, target_index, eff
             damage_source="played_card",
             attack_type=attack_type,
             attack_element=attack_element,
-            zone_element=zone_element
+            zone_element=zone_element,
+            zone_base_element=get_base_zone_element_for_card(
+                game_state, card, zone_element, effect, effect_context,
+            ),
         )
 
         if zone_element:
@@ -1537,14 +1520,6 @@ def handle_abyss_mire_damage_by_gaze(game_state, card, effect, target_index, eff
                 game_state=game_state,
                 zone_element=zone_element
             )
-
-        # 若深渊形态存在，且渊淖本身是阴属性攻击牌，则吃深渊形态的极阴效果。
-        damage = apply_abyssal_form_amount_modifier(
-            value=damage,
-            game_state=game_state,
-            card=card,
-            zone_element=zone_element
-        )
 
         damage = int(damage)
 
@@ -1571,6 +1546,7 @@ def handle_abyss_mire_damage_by_gaze(game_state, card, effect, target_index, eff
             target=enemy,
             amount=damage,
             damage_kind="attack",
+            stance_applied=True,
             card=card,
             attack_type=attack_type,
             attack_element=attack_element,
@@ -1832,39 +1808,12 @@ def handle_start_petal_dance(
 
 @register_effect("gain_abyss_hunt")
 def handle_gain_abyss_hunt(game_state, card, effect, target_index, effect_context):
-    logs = []
-    player = game_state.player
+    amount = 2 if getattr(card, "upgraded", False) else 1
+    current = game_state.player.gain_status("abyss_hunt", amount)
+    return ["【{}】生效：每次伤害实际扣除敌人生命，给予目标 {} 层深渊凝视。当前层数：{}。".format(
+        card.name, amount, current,
+    )]
 
-    heal = int(effect.get("heal", 4) or 4)
-
-    zone_element = ""
-    if effect_context is not None:
-        zone_element = effect_context.get("zone_element", "")
-
-    if zone_element == "shade":
-        from game.zone.zone_utils import apply_zone_amount_modifier
-        old_heal = heal
-        heal = apply_zone_amount_modifier(
-            value=heal,
-            game_state=game_state,
-            zone_element="shade"
-        )
-        logs.append("【{}】恢复值受到阴 Zone 修正：{} -> {}。".format(
-            card.name,
-            old_heal,
-            heal
-        ))
-
-    status_key = "abyss_hunt_plus" if getattr(card, "upgraded", False) else "abyss_hunt"
-    current = player.gain_status(status_key, heal)
-
-    logs.append("【{}】生效：渊猎触发时恢复 {} HP。当前层数：{}。".format(
-        card.name,
-        heal,
-        current
-    ))
-
-    return logs
 
 @register_effect("gain_abyss_symbiosis")
 def handle_gain_abyss_symbiosis(game_state, card, effect, target_index, effect_context):
@@ -2754,7 +2703,7 @@ def handle_draw_if_no_attack_in_hand(game_state, card, effect, target_index, eff
 def get_random_card_candidates(card_type=None, colorless_only=False, exclude_card_ids=None):
     from data.card.AAAregistry import CARD_REGISTRY, create_card
     from data.content_gate import is_content_enabled
-    exclude_card_ids = set(exclude_card_ids or []) | {"card.self_repair"}
+    exclude_card_ids = set(exclude_card_ids or []) | {"card.self_repair", "card.lesson_learned"}
     candidates = []
     for candidate_card_id in CARD_REGISTRY:
         if candidate_card_id in exclude_card_ids:
@@ -2769,7 +2718,7 @@ def get_random_card_candidates(card_type=None, colorless_only=False, exclude_car
             continue
         if getattr(candidate, "card_type", "") in ("status", "curse"):
             continue
-        if getattr(candidate, "quantity", "") in ("starting", "status", "curse", "test"):
+        if getattr(candidate, "quantity", "") in ("starting", "status", "curse", "test", "dance", "special"):
             continue
         if card_type and getattr(candidate, "card_type", "") != card_type:
             continue
@@ -2778,6 +2727,8 @@ def get_random_card_candidates(card_type=None, colorless_only=False, exclude_car
 
 
 def prepare_generated_card(card, temp_cost_zero=False, upgrade=False):
+    from game.generated_cards import prepare_created_card
+    card = prepare_created_card(card)
     setattr(card, "temporary", True)
     setattr(card, "created_in_battle", True)
     if upgrade:
@@ -3497,6 +3448,7 @@ def trigger_beat_of_death_after_card_resolution(
             break
     return logs
 
+@resumable(text=False)
 def apply_card_effect(game_state, card, effect, target_index, effect_context=None):
     """
     执行单个卡牌效果。
@@ -3741,11 +3693,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 target=target_entity,
                 amount=damage,
                 damage_kind="attack",
+                stance_applied=True,
                 card=card,
                 attack_type=attack_type,
                 attack_element=attack_element,
                 zone_element=zone_element
             ))
+            yield logs
+            logs = []
             from game.zone.zone_utils import apply_fire_zone_burn
             apply_fire_zone_burn(
                 game_state=game_state,
@@ -3852,11 +3807,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target=target_entity,
             amount=damage,
             damage_kind="attack",
+            stance_applied=True,
             card=card,
             attack_type=attack_type,
             attack_element=attack_element,
             zone_element=zone_element
         ))
+        yield logs
+        logs = []
 
         from game.zone.zone_utils import apply_fire_zone_burn
         apply_fire_zone_burn(
@@ -3944,11 +3902,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target=target_entity,
             amount=damage,
             damage_kind="attack",
+            stance_applied=True,
             card=card,
             attack_type=attack_type,
             attack_element=attack_element,
             zone_element=zone_element
         ))
+        yield logs
+        logs = []
 
         from game.zone.zone_utils import apply_fire_zone_burn
         apply_fire_zone_burn(
@@ -3986,6 +3947,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                         gold_gain,
                         source="【{}】斩杀".format(card.name)
                     ))
+                    yield logs
+                    logs = []
 
         elif was_alive and not target_entity.is_alive() and was_minion:
             logs.append("目标是爪牙，【{}】不获得金币。".format(card.name))
@@ -4031,11 +3994,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target=target_entity,
             amount=damage,
             damage_kind="attack",
+            stance_applied=True,
             card=card,
             attack_type=attack_type,
             attack_element=attack_element,
             zone_element=zone_element
         ))
+        yield logs
+        logs = []
 
         from game.zone.zone_utils import apply_fire_zone_burn
         apply_fire_zone_burn(
@@ -4127,11 +4093,14 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 target=target_entity,
                 amount=damage,
                 damage_kind="attack",
+                stance_applied=True,
                 card=card,
                 attack_type=attack_type,
                 attack_element=attack_element,
                 zone_element=zone_element
             ))
+            yield logs
+            logs = []
 
             real_damage = old_hp - target_entity.hp
             if real_damage < 0:
@@ -4217,6 +4186,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             block_source="played_card",
             card=card
         ))
+        yield logs
+        logs = []
         from game.zone.zone_utils import apply_earth_zone_temp_thorns
         apply_earth_zone_temp_thorns(
             game_state=game_state,
@@ -4305,6 +4276,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 and bool(effect.get("count_as_player_self_action_hp_loss", True))
             )
         ))
+        yield logs
+        logs = []
 
         return logs
 
@@ -4350,6 +4323,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 target_index=target_index,
                 effect_context=effect_context
             ))
+            yield logs
+            logs = []
 
             if game_state.battle_over:
                 break
@@ -4411,6 +4386,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     status_key=status_key,
                     amount=amount
                 ))
+                yield logs
+                logs = []
                 after_value = get_status_value(target_entity, status_key)
                 status_applied = after_value != before_value or int(amount) == 0
             elif hasattr(target_entity, "gain_status_with_result"):
@@ -4482,6 +4459,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                             is_reaction_damage=False,
                             ignore_block=False
                         ))
+                        yield logs
+                        logs = []
 
             if (
                 status_applied
@@ -5062,6 +5041,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             target_index=target_index,
             effect_context=effect_context
         ))
+        yield logs
+        logs = []
 
         return logs
 
@@ -5175,6 +5156,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             duration=duration,
             initial_bonus_percent=initial_bonus
         ))
+        yield logs
+        logs = []
         return logs
 
     if op == "increase_card_var":
@@ -5452,6 +5435,13 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         player = game_state.player
 
         has_draw_card = reshuffle_discard_into_draw_if_needed(player, logs, game_state=game_state)
+        yield logs
+        logs = []
+        while not player.draw_pile and player.discard_pile:
+            reshuffle_discard_into_draw_if_needed(player, logs, game_state=game_state)
+            yield logs
+            logs = []
+        has_draw_card = bool(player.draw_pile)
 
         if not has_draw_card:
             logs.append("抽牌堆和弃牌堆都为空，【{}】没有可打出的牌。".format(card.name))
@@ -5466,6 +5456,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             played_card=top_card,
             reason="havoc"
         ))
+        yield logs
+        logs = []
 
         return logs
 
@@ -5488,6 +5480,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             card=chosen_card,
             reason="true_grit"
         ))
+        yield logs
+        logs = []
 
         return logs
 
@@ -5516,6 +5510,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 card=hand_card,
                 reason="sever_soul"
             ))
+            yield logs
+            logs = []
 
         return logs
 
@@ -5548,6 +5544,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 card=hand_card,
                 reason="fiend_fire"
             ))
+            yield logs
+            logs = []
             exhausted_count += 1
 
         if exhausted_count <= 0:
@@ -5616,6 +5614,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 card=hand_card,
                 reason="second_wind"
             ))
+            yield logs
+            logs = []
             exhausted_count += 1
 
         if exhausted_count <= 0:
@@ -5655,6 +5655,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 old_block + total_block
             )
         ))
+        yield logs
+        logs = []
 
         apply_earth_zone_temp_thorns(
             game_state=game_state,
@@ -5928,6 +5930,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
         if scope == "hand":
             upgraded_count, upgrade_logs = upgrade_all_cards_in_pile_for_this_combat(player.hand)
             logs.extend(upgrade_logs)
+            yield logs
+            logs = []
 
             if upgraded_count <= 0:
                 logs.append("手牌中没有可以升级的牌。")
@@ -5951,6 +5955,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                 upgraded_count, upgrade_logs = upgrade_all_cards_in_pile_for_this_combat(pile)
                 total_upgraded += upgraded_count
                 logs.extend(upgrade_logs)
+                yield logs
+                logs = []
                 if upgraded_count > 0:
                     logs.append("{}中 {} 张牌被临时升级。".format(pile_label, upgraded_count))
 
@@ -5999,6 +6005,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     reason="主动丢弃",
                     trigger_clever=True
                 ))
+                yield logs
+                logs = []
 
             for after_effect in list(effect.get("after_effects", []) or []):
                 logs.extend(apply_card_effect(
@@ -6008,6 +6016,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     target_index=target_index,
                     effect_context=effect_context
                 ))
+                yield logs
+                logs = []
 
             return logs
 
@@ -6057,6 +6067,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
                     target_index=target_index,
                     effect_context=effect_context
                 ))
+                yield logs
+                logs = []
 
                 if game_state.battle_over:
                     break
@@ -6074,6 +6086,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             card=card,
             force_extreme=force_extreme
         ))
+        yield logs
+        logs = []
         return logs
 
     logs.append("未知效果：{}".format(op))
@@ -6236,6 +6250,7 @@ def handle_increase_player_max_hp(game_state, card, effect, target_index, effect
 
 
 @register_effect("play_draw_pile_top_count")
+@resumable()
 def handle_play_draw_pile_top_count(game_state, card, effect, target_index, effect_context):
     player = game_state.player
     logs = []
@@ -6261,6 +6276,13 @@ def handle_play_draw_pile_top_count(game_state, card, effect, target_index, effe
             logs,
             game_state=game_state
         )
+        yield logs
+        logs = []
+        while not player.draw_pile and player.discard_pile:
+            reshuffle_discard_into_draw_if_needed(player, logs, game_state=game_state)
+            yield logs
+            logs = []
+        has_draw_card = bool(player.draw_pile)
 
         if not has_draw_card:
             logs.append("抽牌堆和弃牌堆都为空，【{}】停止结算。".format(card.name))
@@ -6282,6 +6304,8 @@ def handle_play_draw_pile_top_count(game_state, card, effect, target_index, effe
             reason="distilled_chaos",
             force_exhaust=False,
         ))
+        yield logs
+        logs = []
 
     return logs
 
@@ -6329,6 +6353,7 @@ def handle_randomize_hand_costs(game_state, card, effect, target_index, effect_c
 
     return logs
 
+@resumable(text=False)
 def apply_card_effects(game_state, card, target_index, effect_context=None):
     logs = []
 
@@ -6344,8 +6369,7 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         effect_context=effect_context
     )
 
-    # 打出牌时触发一次的 Zone 能力。真实阴 Zone 的反噬仍按“打出牌”触发一次。
-    # 深渊形态视为每次重放都重新结算一次虚拟极阴效果，所以放到重放循环内处理。
+    # 打出牌时触发一次的 Zone 能力，阴 Zone 反噬不随重放重复触发。
     apply_water_zone_regeneration_on_card_play(
         game_state=game_state,
         card=card,
@@ -6382,25 +6406,34 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
             logs.append("战斗已经结束，后续重放不再结算。")
             break
 
+        if play_index > 0:
+            if not get_alive_enemies(game_state):
+                logs.append("没有存活的敌人，后续重放不再结算。")
+                break
+            if (
+                getattr(card, "target", "") in ("enemy", "selected_enemy")
+                and not should_convert_enemy_target_to_all(game_state, card_zone_element, "selected_enemy")
+                and get_target_enemy(game_state, target_index) is None
+            ):
+                logs.append("目标敌人已失效，后续重放不再结算。")
+                break
+
         if total_times > 1:
             logs.append("【{}】第 {}/{} 次结算：".format(
                 card.name,
                 play_index + 1,
                 total_times
             ))
+        from game.watcher import before_resolution as watcher_before_resolution
+        watcher_before_resolution(game_state, card, effect_context)
         from game.defect import before_resolution
         logs.extend(before_resolution(game_state, card, effect_context))
+        yield logs
+        logs = []
         if game_state.battle_over:
             break
         from game.status.status_effects import increment_slow_for_card_play
         increment_slow_for_card_play(game_state, logs)
-        apply_abyssal_form_hp_loss_if_needed(
-            game_state=game_state,
-            card=card,
-            zone_element=card_zone_element,
-            logs=logs
-        )
-
         if game_state.battle_over or not game_state.player.is_alive():
             logs.append("玩家已经倒下，后续结算不再执行。")
             break
@@ -6413,16 +6446,22 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
                 target_index,
                 effect_context=effect_context
             ))
+            yield logs
+            logs = []
             if game_state.battle_over:
                 break
         from game.status.status_effects import flush_pending_malleable_triggers
         logs.extend(flush_pending_malleable_triggers(game_state))
+        yield logs
+        logs = []
         logs.extend(
             trigger_beat_of_death_after_card_resolution(
                 game_state=game_state,
                 card=card
             )
         )
+        yield logs
+        logs = []
         if not game_state.player.is_alive():
             break
     from game.status.status_effects import (
@@ -6433,10 +6472,14 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         game_state=game_state,
         card=card
     ))
+    yield logs
+    logs = []
     logs.extend(resolve_pending_flying_after_card(
         game_state=game_state,
         card=card
     ))
+    yield logs
+    logs = []
     return logs       
 
 
@@ -6751,6 +6794,37 @@ def handle_request_night_terror_card(game_state, card, effect, target_index, eff
 def handle_defect_card(game_state, card, effect, target_index, effect_context):
     from game.defect import effect as apply_defect_effect
     return apply_defect_effect(game_state, card, effect, target_index, effect_context)
+
+
+@register_effect("watcher_card")
+def handle_watcher_card(game_state, card, effect, target_index, effect_context):
+    from game.watcher import effect as watcher_effect
+    return watcher_effect(game_state, card, effect, target_index, effect_context)
+
+
+@register_effect("change_stance")
+def handle_change_stance(game_state, card, effect, target_index, effect_context):
+    from game.stances import change_stance
+    return change_stance(game_state, effect['stance'])
+
+
+@register_effect("scry")
+def handle_scry(game_state, card, effect, target_index, effect_context):
+    from game.scry import request_scry
+    count = resolve_amount(game_state, card, effect.get('amount', 0), effect_context=effect_context)
+    return request_scry(game_state, count, card.name)
+
+
+@register_effect("watcher_potion")
+def handle_watcher_potion(game_state, card, effect, target_index, effect_context):
+    from game.stances import change_stance
+    from game.watcher import generate, request_choice
+    key = effect['action']
+    if key == 'ambrosia':
+        return change_stance(game_state, 'divinity')
+    if key == 'stance':
+        return request_choice(game_state, '姿态药水', 'stance', ['平静', '愤怒'])
+    return generate(game_state, 'miracle', 2 * int(effect_context.get('potion_amount_multiplier', 1)))
 
 
 @register_effect("defect_potion")

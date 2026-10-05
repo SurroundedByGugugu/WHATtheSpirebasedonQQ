@@ -781,7 +781,8 @@ class ExploderEnemy(PatternEnemy):
         self.hp = 0
         self.block = 0
 
-        return ["{} 自爆后死亡。".format(self.name)]
+        from game.event_bus import notify_enemy_removed
+        return ["{} 自爆后死亡。".format(self.name)] + notify_enemy_removed(game_state, self, "self_destruct")
 def create_exploder():
     return ExploderEnemy()
 REPULSOR_A = EnemyIntent(kind="attack", value=11, attack_type="blunt")
@@ -995,7 +996,8 @@ class DaggerEnemy(PatternEnemy):
         if self.is_alive():
             self.hp = 0
             self.block = 0
-            return ["{} 使用致命攻击后死亡。".format(self.name)]
+            from game.event_bus import notify_enemy_removed
+            return ["{} 使用致命攻击后死亡。".format(self.name)] + notify_enemy_removed(game_state, self, "self_destruct")
         return []
 def create_dagger():
     return DaggerEnemy()

@@ -59,7 +59,7 @@ class FlowerInAbyssRelic(RelicTemplate):
         super().__init__(
             relic_id="relic.flower_in_abyss",
             name="渊中花",
-            description="有深渊凝视状态的敌人死亡时，将凝视层数均分至场上其他敌人。",
+            description="有深渊凝视状态的敌人死亡、分裂或自爆时，将凝视层数均分至场上其他敌人（包括分裂产物）。",
             story="被污秽淤染，仿佛氧化血液色彩的花朵。",
             quantity="rare",
             owner_character_id="character.yoirine",
@@ -67,15 +67,20 @@ class FlowerInAbyssRelic(RelicTemplate):
         )
 
     def on_event(self, event_name, context):
-        from game.constants import EVENT_DAMAGE_AFTER
-        if event_name != EVENT_DAMAGE_AFTER:
+        from game.constants import EVENT_DAMAGE_AFTER, EVENT_ENEMY_REMOVED
+        if event_name not in (EVENT_DAMAGE_AFTER, EVENT_ENEMY_REMOVED):
             return []
 
         dead = getattr(context, "target", None)
         if dead is None or not hasattr(dead, "enemy_id"):
             return []
 
-        if not context.extra.get("target_was_alive", False) or not context.extra.get("target_is_dead_after", False):
+        if event_name == EVENT_DAMAGE_AFTER and (
+            not context.extra.get("target_was_alive", False)
+            or not context.extra.get("target_is_dead_after", False)
+        ):
+            return []
+        if dead.is_alive():
             return []
 
         if getattr(dead, "_flower_in_abyss_triggered", False):

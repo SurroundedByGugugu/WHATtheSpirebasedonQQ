@@ -276,6 +276,8 @@ RELIC_REGISTRY = {
 
 from data.relic.defect_relics import DEFECT_RELIC_REGISTRY
 RELIC_REGISTRY.update(DEFECT_RELIC_REGISTRY)
+from data.relic.watcher_relics import WATCHER_RELIC_REGISTRY
+RELIC_REGISTRY.update(WATCHER_RELIC_REGISTRY)
 
 
 def create_relic(relic_id):

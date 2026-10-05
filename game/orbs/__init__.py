@@ -16,6 +16,11 @@ class OrbRack:
     orbs: list = field(default_factory=list)
     next_uid: int = 1
     channeled: dict = field(default_factory=dict)
+    first_channel_slot_available: bool = field(init=False)
+
+    def __post_init__(self):
+        # A character starting without slots can enter the orb system once per battle.
+        self.first_channel_slot_available = self.capacity == 0
 
 def rack(player):
     if not hasattr(player, "orb_rack"):
@@ -119,6 +124,10 @@ def channel(state, player, kind, count=1):
     for _ in range(max(0, count)):
         if state.battle_over:
             break
+        if container.capacity <= 0 and container.first_channel_slot_available:
+            container.capacity = 1
+            container.first_channel_slot_available = False
+            logs.append("首次生成充能球，获得 1 个球槽。")
         if container.capacity <= 0:
             logs.append("没有充能球栏位，无法生成。")
             break
@@ -162,6 +171,8 @@ def set_slots(player, count):
     """Shrinking drops newest excess orbs without evoking them."""
     container = rack(player)
     container.capacity = max(0, int(count))
+    if container.capacity > 0:
+        container.first_channel_slot_available = False
     del container.orbs[container.capacity:]
 
 def format_orbs(player, state=None):

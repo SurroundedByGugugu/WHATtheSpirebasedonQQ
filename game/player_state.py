@@ -1,3 +1,4 @@
+from game.resolution import resumable
 # -*- coding: utf-8 -*-
 
 import random
@@ -37,6 +38,9 @@ class PlayerState:
     exhaust_pile: List[Any] = field(default_factory=list)
     hand: List[Any] = field(default_factory=list)
     orb_rack: OrbRack = field(default_factory=OrbRack)
+    stance: str = "none"
+    divinity_expires_turn: Any = None
+    mantra_total: int = 0
 
     def is_alive(self):
         return self.hp > 0
@@ -59,6 +63,10 @@ class PlayerState:
             logs.append("【冰淇淋】触发：保留上回合剩余 {} 点能量。当前费用：{}/{}。".format(old_cost, self.cost, self.max_cost))
         else:
             self.cost = self.max_cost
+
+        if game_state is not None:
+            from game.stances import expire_divinity
+            logs.extend(expire_divinity(game_state, self))
 
         if game_state is None:
             self.block = 0
@@ -124,15 +132,19 @@ class PlayerState:
     def is_hand_full(self):
         return len(self.hand) >= self.max_hand_size
 
-    def draw_cards(self, count, game_state=None, draw_source="unknown", drawn_cards=None):
+    @resumable(text=False, state_arg=2)
+    def draw_cards(self, count, game_state=None, draw_source="unknown", drawn_cards=None,
+                   required_card_type=None):
         """
         抽牌。
         抽牌堆空时，把弃牌堆洗回抽牌堆。
         手牌达到上限时仍会把牌从抽牌堆抽出，但该牌进入弃牌堆，避免“抽牌效果被手牌满直接中止”。
+        required_card_type 指定时，仅抽取抽牌堆中最靠近牌堆顶的同类型牌；无匹配则停止。
         """
         logs = []
 
-        for _ in range(count):
+        draws_remaining = count
+        while draws_remaining > 0:
             if not self.draw_pile:
                 if self.discard_pile:
                     self.draw_pile = self.discard_pile
@@ -146,11 +158,36 @@ class PlayerState:
                         result = handler(game_state, self)
                         if result:
                             logs.extend(result)
+                            yield logs
+                            logs = []
                 else:
                     logs.append("无牌可抽。")
                     break
 
-            card = self.draw_pile.pop()
+            # A shuffle listener can scry away every card before this draw resumes.
+            if not self.draw_pile:
+                continue
+            wanted_type = required_card_type
+            if wanted_type is None and game_state is not None:
+                from game.defect import transformer_first_draw_type
+                wanted_type = transformer_first_draw_type(game_state)
+            index = len(self.draw_pile) - 1
+            if wanted_type:
+                matching = next((i for i in range(len(self.draw_pile) - 1, -1, -1)
+                                 if self.draw_pile[i].card_type == wanted_type), None)
+                if matching is not None:
+                    index = matching
+                    if required_card_type is None:
+                        logs.append("Transformer：本回合第1张抽牌匹配 {} 类型。".format(wanted_type))
+                elif required_card_type is not None:
+                    logs.append("抽牌堆中没有 {} 类型牌，无法定向抽取。".format(wanted_type))
+                    break
+                else:
+                    logs.append("Transformer：抽牌堆中没有同类型牌，正常抽牌。")
+            card = self.draw_pile.pop(index)
+            draws_remaining -= 1
+            if game_state is not None:
+                game_state.defect_first_draw_turn = game_state.turn_count
 
             if self.is_hand_full():
                 self.discard_pile.append(card)
@@ -199,11 +236,15 @@ class PlayerState:
                     EVENT_DRAW_CARD_AFTER,
                     context
                 ))
+                yield logs
+                logs = []
                 from game.zone.resonance import trigger_resonance_on_draw
                 logs.extend(trigger_resonance_on_draw(
                     game_state=game_state,
                     card=card
                 ))                
+                yield logs
+                logs = []
 
         return logs
 
@@ -256,7 +297,8 @@ class PlayerState:
         )
 
     def status_text(self):
-        return "{} HP：{}/{}；费用：{}/{}；格挡：{}；状态：{}".format(
+        from game.stances import NAMES, stance_of
+        return "姿态：{}；".format(NAMES[stance_of(self)]) + "{} HP：{}/{}；费用：{}/{}；格挡：{}；状态：{}".format(
             self.name,
             self.hp,
             self.max_hp,

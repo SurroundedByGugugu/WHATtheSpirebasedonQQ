@@ -19,6 +19,8 @@ def random_blue(state, kind=None, rarity=None, zero=False):
     choices = [key for key,s in SPECS.items() if s['rarity'] != 'starting' and key != 'self_repair'
                and (kind is None or s['kind'] == kind) and (rarity is None or s['rarity'] == rarity)]
     card = make_card(random.choice(choices))
+    from game.generated_cards import prepare_created_card
+    card = prepare_created_card(card, state)
     if zero:
         card.temporary_cost_override = 0
     logs = []
@@ -26,16 +28,28 @@ def random_blue(state, kind=None, rarity=None, zero=False):
     return logs
 
 
-def request_selection(state, card, mode, count):
-    pile_name = {'seek':'draw_pile','hologram':'discard_pile','recycle':'hand'}[mode]
+def selection_option_text(state, card, mode):
+    text = card.summary_text()
+    if mode == 'convolutional_neural_network':
+        from game.card_cost import get_card_current_cost
+        cost = get_card_current_cost(state, card)
+        effective_cost = max(0, state.player.cost if cost == 'X' else int(cost))
+        text += ' | 本次计入费用：{}'.format(effective_cost)
+    return text
+
+
+def request_selection(state, card, mode, count, context=None):
+    pile_name = {'seek':'draw_pile','hologram':'discard_pile','recycle':'hand',
+                 'convolutional_neural_network':'hand'}[mode]
     options = list(getattr(state.player, pile_name))
     count = min(count, len(options))
     if not count:
         return ['没有可选择的牌。']
     prompt = '{}：选择 {} 张牌，使用 /card pick 编号（从0开始，可空格分隔）。\n'.format(card.name,count)
-    prompt += '\n'.join('[{}] {}'.format(i,c.summary_text()) for i,c in enumerate(options))
+    prompt += '\n'.join('[{}] {}'.format(i,selection_option_text(state,c,mode)) for i,c in enumerate(options))
     enqueue_pending_choice(state, PendingChoice(kind='defect_select', source=card.name, prompt=prompt,
-        options=options, payload=dict(mode=mode, count=count, requested_count=count, pile=pile_name, source_card=card)))
+        options=options, payload=dict(mode=mode, count=count, requested_count=count, pile=pile_name, pause_resolution=True,
+                                     source_card=card, effect_context=dict(context or {}))))
     return [prompt]
 
 
@@ -55,6 +69,22 @@ def choose_cards(state, indices):
     # Remove by identity: two equal dataclass card instances are distinct cards.
     for card in cards:
         index = next(i for i,c in enumerate(pile) if c is card)
+        if choice.payload['mode'] == 'convolutional_neural_network':
+            from game.card_cost import get_card_current_cost
+            from game.effects import apply_card_effect
+            neighbors = pile[max(0, index - 1):index + 2]
+            costs = [get_card_current_cost(state, item) for item in neighbors]
+            total = sum(max(0, player.cost if cost == 'X' else int(cost)) for cost in costs)
+            source_card = choice.payload['source_card']
+            amount = total * source_card.card_vars['multiplier']
+            logs.append('卷积神经网络：{}，费用之和 {}，基础格挡 {}。'.format(
+                '、'.join('【{}】'.format(item.name) for item in neighbors), total, amount))
+            local = dict(choice.payload['effect_context'], convolution_block=amount)
+            logs.extend(apply_card_effect(state, source_card, {
+                'op': 'gain_block', 'target': 'self',
+                'amount': {'context_var': 'convolution_block', 'modifier_profile': 'block'},
+            }, 0, local))
+            continue
         pile.pop(index)
         if choice.payload['mode'] == 'recycle':
             from game.card_cost import get_card_current_cost
@@ -74,11 +104,14 @@ def choose_cards(state, indices):
         next_choice.payload['count'] = min(next_choice.payload['requested_count'],len(next_choice.options))
         if next_choice.payload['count']:
             next_choice.prompt = '{}：选择 {} 张牌，使用 /card pick 编号（从0开始）。\n'.format(next_choice.source,next_choice.payload['count'])
-            next_choice.prompt += '\n'.join('[{}] {}'.format(i,c.summary_text()) for i,c in enumerate(next_choice.options))
+            next_choice.prompt += '\n'.join('[{}] {}'.format(i,selection_option_text(state,c,next_choice.payload['mode']))
+                                             for i,c in enumerate(next_choice.options))
             break
         clear_pending_choice(state,'defect_select')
     if state.pending_choice is not None:
         logs.append(state.pending_choice.prompt)
+    from game.resolution import resume
+    logs.extend(resume(state))
     return '\n'.join(logs)
 
 
@@ -161,6 +194,8 @@ def effect(state, card, spec, target_index, context):
         status('weak', n, 'selected_enemy')
     elif key in ('hologram','seek','recycle'):
         logs.extend(request_selection(state, card, key, n if key == 'seek' else 1))
+    elif key == 'convolutional_neural_network':
+        logs.extend(request_selection(state, card, key, 1, context))
     elif key == 'rebound':
         status('defect_rebound', 1)
     elif key == 'recursion' and rack(player).orbs:
@@ -237,6 +272,12 @@ def effect(state, card, spec, target_index, context):
         status(key, n)
     elif key in ('hello_world','storm','creative_ai','echo_form','machine_learning'):
         status(key, 1)
+    elif key == 'machine_rush':
+        status(key, 1)
+    elif key == 'transformer':
+        if not card.upgraded and player.statuses.get('transformer') <= 0:
+            state.transformer_first_turn = state.turn_count + 1
+        status('transformer_plus' if card.upgraded else 'transformer', 1)
     elif key == 'reinforced_body':
         for _ in range(context.get('x',0)):
             block(v['block'])
@@ -334,6 +375,11 @@ def initialize_battle(state):
     from data.character.AAAregistry import create_character
     from game.orbs import OrbRack
     player = state.player
+    player.stance = 'none'
+    player.divinity_expires_turn = None
+    player.mantra_total = 0
+    player._deva_energy = 0
+    player.blasphemy_due = None
     template = create_character(player.character_id)
     slots = getattr(template,'starting_orb_slots',0)
     if any(r.relic_id == 'relic.runic_capacitor' for r in player.relics):
@@ -347,6 +393,9 @@ def before_card(state, card, context, logs):
         return
     player = state.player
     turn = state.turn_count
+    history = getattr(state, 'defect_last_card_types', {})
+    state.defect_last_card_types = {t: kind for t, kind in history.items() if t >= turn - 1}
+    state.defect_last_card_types[turn] = card.card_type
     if getattr(state,'defect_play_turn',None) != turn:
         state.defect_play_turn = turn
         state.defect_plays = 0
@@ -383,6 +432,15 @@ def on_event(state, event, context):
     player = state.player
     logs = []
     if event == 'turn_start' and not state.battle_over:
+        previous_type = previous_turn_card_type(state)
+        extra_draws = player.statuses.get('transformer_plus')
+        if previous_type and extra_draws:
+            if player.statuses.get('no_draw') > 0:
+                logs.append('无法抽牌：Transformer+ 未能抽牌。')
+            else:
+                logs.append('Transformer+：额外抽取 {} 张 {} 类型牌。'.format(extra_draws, previous_type))
+                logs.extend(player.draw_cards(extra_draws, state, draw_source='transformer_plus',
+                                              required_card_type=previous_type))
         bias = player.statuses.get('bias')
         if bias:
             from game.status.status_gain import format_status_gain_log
@@ -399,6 +457,12 @@ def on_event(state, event, context):
             for _ in range(player.statuses.get(key)):
                 if not state.battle_over:
                     logs.extend(random_blue(state,kind=kind,rarity=rarity))
+    elif event == 'orb_channeled' and context.source is player and not state.battle_over:
+        from game.effects import draw_cards_with_no_draw_check
+        count = player.statuses.get('machine_rush')
+        if count:
+            logs.append('【猛机下山！】触发：抽 {} 张牌。'.format(count))
+            logs.extend(draw_cards_with_no_draw_check(state, count, draw_source='machine_rush'))
     elif event == 'damage_after' and context.target is player and context.extra.get('real_damage',0) > 0:
         if context.extra.get('damage_kind') == 'attack' and player.is_alive():
             logs.extend(channel(state,player,'lightning',player.statuses.get('static_discharge')))
@@ -412,6 +476,20 @@ def on_event(state, event, context):
             logs.extend(heal_player_in_combat(state,amount,'自我修复'))
             player.statuses.remove('self_repair')
     return logs
+
+
+def previous_turn_card_type(state):
+    return getattr(state, 'defect_last_card_types', {}).get(state.turn_count - 1, '')
+
+
+def transformer_first_draw_type(state):
+    if (
+        state.player.statuses.get('transformer') > 0
+        and state.turn_count >= getattr(state, 'transformer_first_turn', 1)
+        and getattr(state, 'defect_first_draw_turn', None) != state.turn_count
+    ):
+        return previous_turn_card_type(state)
+    return ''
 
 
 def preview(state, card, context):

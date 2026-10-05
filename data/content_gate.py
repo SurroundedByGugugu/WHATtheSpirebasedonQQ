@@ -60,7 +60,6 @@ PRIVATE_CARD_IDS = [
     "card.mirror_reflection",
 
     "card.mirage_shadows",
-    "card.deva_form",
     "card.god_in_hand",
     "card.transfer",
     "card.inducing",

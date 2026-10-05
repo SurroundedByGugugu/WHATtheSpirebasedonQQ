@@ -4,6 +4,7 @@ import random
 from game.constants import (
     EVENT_CARD_PLAY_AFTER,
     EVENT_DAMAGE_AFTER,
+    EVENT_DAMAGE_RESOLVED,
     EVENT_DAMAGE_BEFORE,
     EVENT_ENEMY_DEATH,
     EVENT_CARD_EXHAUST,
@@ -115,6 +116,10 @@ def iter_status_entities(game_state):
     entities.extend(game_state.enemies)
     return entities
 
+from game.resolution import resumable
+
+
+@resumable()
 def dispatch_status_event(game_state, event_name, context):
     """
     分发状态事件。
@@ -147,6 +152,8 @@ def dispatch_status_event(game_state, event_name, context):
         )
         if result:
             logs.extend(result)
+            yield logs
+            logs = []
         if event_name == EVENT_BEFORE_ENEMY_ACTIONS:
             from game.orbs import finish_check
             finish_check(game_state, logs)
@@ -339,7 +346,7 @@ def handle_thorns(event_name, context, owner, value):
     当前规则：
     1. 只响应 attack 类型伤害
     2. 荆棘反伤不会继续触发荆棘
-    3. 只要攻击伤害结算值 amount > 0，就触发荆棘
+    3. 执行攻击即触发，包括结算伤害为 0 的攻击
     4. 荆棘伤害可以被攻击者自己的格挡抵消
     """
     logs = []
@@ -351,9 +358,6 @@ def handle_thorns(event_name, context, owner, value):
     if context.extra.get("damage_kind") != "attack":
         return logs
     if context.extra.get("is_reaction_damage"):
-        return logs
-    amount = int(context.extra.get("amount", 0))
-    if amount <= 0:
         return logs
     source = context.source
     if source is None:
@@ -408,7 +412,7 @@ def handle_poison_thorns(event_name, context, owner, value):
     当前规则与荆棘保持一致：
     1. 只响应 attack 类型伤害
     2. 反应伤害不会继续触发毒荆棘
-    3. 只要攻击伤害结算值 amount > 0，就触发毒荆棘
+    3. 执行攻击即触发，包括结算伤害为 0 的攻击
     """
     logs = []
 
@@ -419,9 +423,6 @@ def handle_poison_thorns(event_name, context, owner, value):
     if context.extra.get("damage_kind") != "attack":
         return logs
     if context.extra.get("is_reaction_damage"):
-        return logs
-    amount = int(context.extra.get("amount", 0))
-    if amount <= 0:
         return logs
     source = context.source
     if source is None:
@@ -1322,6 +1323,7 @@ def handle_petal_dance(
             target=target,
             amount=damage,
             damage_kind="attack",
+            stance_applied=True,
             card=source_card,
             attack_element=attack_element,
             zone_element=zone_element,
@@ -2302,12 +2304,12 @@ def handle_deva_form(event_name, context, owner, value):
     if amount <= 0:
         return logs
 
-    owner.max_cost += amount
-    owner.cost += amount
+    owner._deva_energy = getattr(owner, "_deva_energy", 0) + amount
+    owner.cost += owner._deva_energy
 
-    logs.append("{} 的天人形态触发，本场战斗费用上限增加 {}。当前费用：{}/{}。".format(
+    logs.append("{} 的天人形态触发，获得 {}c。当前费用：{}/{}。".format(
         owner.name,
-        amount,
+        owner._deva_energy,
         owner.cost,
         owner.max_cost
     ))
@@ -2744,202 +2746,27 @@ def handle_insatiable_abyss(event_name, context, owner, value):
 
     return logs
 
-def _get_active_zone_element_and_extreme(game_state):
-    zone = getattr(game_state, "active_zone", None)
-    if zone is None:
-        return "", False
-
-    try:
-        if zone.is_expired():
-            return "", False
-    except Exception:
-        pass
-
-    return (
-        str(getattr(zone, "element", "") or "").strip().lower(),
-        bool(getattr(zone, "is_extreme", False))
-    )
-
-
-def _predict_abyss_hunt_plus_damage(game_state, enemy):
-    gaze = int(get_status_value(enemy, "abyss_gaze"))
-    if gaze <= 0:
-        return 0
-
-    value = gaze
-
-    # 深渊凝视自身的阴增伤：每层 +1%。
-    value = int(value * (1.0 + 0.01 * gaze))
-
-    zone_element, _ = _get_active_zone_element_and_extreme(game_state)
-    if zone_element == "shade":
-        from game.zone.zone_utils import apply_zone_amount_modifier
-        value = apply_zone_amount_modifier(
-            value=value,
-            game_state=game_state,
-            zone_element="shade"
-        )
-
-    return int(value)
-
-
-def _select_abyss_hunt_target(game_state, upgraded=False):
-    enemies = [
-        enemy
-        for enemy in getattr(game_state, "enemies", []) or []
-        if enemy.is_alive()
-    ]
-
-    valid = []
-
-    for enemy in enemies:
-        gaze = int(get_status_value(enemy, "abyss_gaze"))
-        if gaze <= 0:
-            continue
-
-        threshold = int(getattr(enemy, "hp", 0)) + int(getattr(enemy, "block", 0))
-
-        if upgraded:
-            check_value = _predict_abyss_hunt_plus_damage(game_state, enemy)
-        else:
-            check_value = gaze
-
-        if check_value > threshold:
-            valid.append((enemy, gaze, check_value, threshold))
-
-    if not valid:
-        return None, 0, 0, 0
-
-    valid.sort(key=lambda item: (
-        -int(get_status_value(item[0], "abyss_gaze")),
-        int(getattr(item[0], "hp", 0)),
-    ))
-
-    return valid[0]
-
-
-def _deal_abyss_hunt_manifestation_damage(game_state, target, upgraded=False):
-    logs = []
-    gaze = int(get_status_value(target, "abyss_gaze"))
-
-    if gaze <= 0:
-        return logs
-
-    if upgraded:
-        damage = _predict_abyss_hunt_plus_damage(game_state, target)
-    else:
-        damage = gaze
-
-    logs.append("【渊猎】触发深渊具现，对 {} 造成 {} 点无来源环境伤害。".format(
-        target.name,
-        damage
-    ))
-
-    from game.damage import deal_damage
-
-    logs.extend(deal_damage(
-        game_state=game_state,
-        source=None,
-        target=target,
-        amount=damage,
-        damage_kind="environment",
-        card=None,
-        is_reaction_damage=True,
-        ignore_block=False,
-        attack_type="",
-        attack_element="",
-        zone_element=""
-    ))
-
-    return logs
-
-
 def handle_abyss_hunt(event_name, context, owner, value):
-    logs = []
-
-    if event_name != EVENT_PLAYER_TURN_END:
-        return logs
-
-    game_state = context.game_state
-    player = getattr(game_state, "player", None)
-
-    if owner is not player or player is None or not player.is_alive():
-        return logs
-
-    upgraded = False
-    target, gaze, check_value, threshold = _select_abyss_hunt_target(
-        game_state,
-        upgraded=upgraded
+    if event_name != EVENT_DAMAGE_RESOLVED or int(value) <= 0:
+        return []
+    player = context.game_state.player
+    target = context.target
+    if owner is not player or context.source is not player:
+        return []
+    if target is None or not hasattr(target, "enemy_id") or not target.is_alive():
+        return []
+    if int(context.extra.get("real_damage", 0)) <= 0:
+        return []
+    from game.relic_logic.combat_relic_utils import apply_status_with_player_relics
+    return apply_status_with_player_relics(
+        game_state=context.game_state, source=player, target=target,
+        status_key="abyss_gaze", amount=int(value),
     )
-
-    if target is None:
-        return logs
-
-    logs.append("【渊猎】判定成功：{} 的深渊凝视 {} > 生命+格挡 {}。".format(
-        target.name,
-        check_value,
-        threshold
-    ))
-
-    logs.extend(_deal_abyss_hunt_manifestation_damage(
-        game_state=game_state,
-        target=target,
-        upgraded=upgraded
-    ))
-
-    if player.is_alive() and int(value) > 0:
-        from game.relic_logic.combat_relic_utils import heal_player_in_combat
-        logs.extend(heal_player_in_combat(
-            game_state,
-            int(value),
-            "渊猎"
-        ))
-
-    return logs
 
 
 def handle_abyss_hunt_plus(event_name, context, owner, value):
-    logs = []
-
-    if event_name != EVENT_PLAYER_TURN_END:
-        return logs
-
-    game_state = context.game_state
-    player = getattr(game_state, "player", None)
-
-    if owner is not player or player is None or not player.is_alive():
-        return logs
-
-    upgraded = True
-    target, gaze, check_value, threshold = _select_abyss_hunt_target(
-        game_state,
-        upgraded=upgraded
-    )
-
-    if target is None:
-        return logs
-
-    logs.append("【渊猎+】判定成功：{} 的预测伤害 {} > 生命+格挡 {}。".format(
-        target.name,
-        check_value,
-        threshold
-    ))
-
-    logs.extend(_deal_abyss_hunt_manifestation_damage(
-        game_state=game_state,
-        target=target,
-        upgraded=upgraded
-    ))
-
-    if player.is_alive() and int(value) > 0:
-        from game.relic_logic.combat_relic_utils import heal_player_in_combat
-        logs.extend(heal_player_in_combat(
-            game_state,
-            int(value),
-            "渊猎+"
-        ))
-
-    return logs
+    # 兼容已有战斗中的升级状态；新卡统一使用 abyss_hunt。
+    return handle_abyss_hunt(event_name, context, owner, value)
 
 
 def handle_abyss_symbiosis(event_name, context, owner, value):
@@ -3291,6 +3118,7 @@ def handle_time_warp(event_name, context, owner, value):
 
     setattr(game_state, "time_warp_card_count", 0)
     setattr(game_state, "force_end_turn_after_card", True)
+    setattr(game_state, "force_end_turn_reason", "时间扭曲")
 
     result = owner.gain_status_with_result("strength", 2)
 

@@ -93,6 +93,8 @@ POTION_REGISTRY = {
 
 from data.potion.defect_potions import DEFECT_POTION_REGISTRY
 POTION_REGISTRY.update(DEFECT_POTION_REGISTRY)
+from data.potion.watcher_potions import WATCHER_POTION_REGISTRY
+POTION_REGISTRY.update(WATCHER_POTION_REGISTRY)
 
 
 def create_potion(potion_id):

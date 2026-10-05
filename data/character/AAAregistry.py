@@ -10,7 +10,10 @@ from data.character.test_character import TestCharacter
 
 from data.character.defect_character import DefectCharacter
 
+from data.character.watcher_character import WatcherCharacter
+
 CHARACTER_REGISTRY = {
+    "character.watcher": WatcherCharacter,
     "character.defect": DefectCharacter,
     "character.test": TestCharacter,
     "character.armored_warrior" : ArmoredWarriorCharacter,

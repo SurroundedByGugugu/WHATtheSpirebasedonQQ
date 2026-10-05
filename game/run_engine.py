@@ -419,6 +419,10 @@ def enter_current_node(run_state, seed=DEBUG_SEED):
     ):
         pre_logs.extend(gain_gold_with_relics(run_state, 12, source="巨口储蓄罐"))
 
+    # 固定事件节点也属于？房间；在分派前统一触发，避免 mystery -> event 重复发放。
+    if node.node_type in ("mystery", "event") and has_run_relic(run_state, "relic.ssserpent_head"):
+        pre_logs.extend(gain_gold_with_relics(run_state, 50, source="蛇的头"))
+
     if node.node_type in ("starting", "normal_enemy", "elite", "boss"):
         result = enter_battle_node(
             run_state,
@@ -499,16 +503,7 @@ def run_has_relic(run_state, relic_id):
 
 
 def enter_mystery_node(run_state, node, seed=DEBUG_SEED):
-    pre_logs = []
-    if run_has_relic(run_state, "relic.ssserpent_head"):
-        pre_logs.extend(gain_gold_with_relics(run_state, 50, source="蛇的头"))
-
     result_type = roll_mystery_result(run_state, node, seed=seed)
-
-    def with_pre_logs(text):
-        if not pre_logs:
-            return text
-        return "\n".join(pre_logs + ["", text])
 
     if result_type == "normal_enemy":
         text = enter_battle_node(
@@ -517,7 +512,7 @@ def enter_mystery_node(run_state, node, seed=DEBUG_SEED):
             seed=seed,
             effective_node_type="normal_enemy"
         )
-        return with_pre_logs("？节点的结果：战斗。\n\n" + text)
+        return "？节点的结果：战斗。\n\n" + text
     if result_type == "elite":
         text = enter_battle_node(
             run_state,
@@ -525,7 +520,7 @@ def enter_mystery_node(run_state, node, seed=DEBUG_SEED):
             seed=seed,
             effective_node_type="elite"
         )
-        return with_pre_logs("？节点的结果：精英战斗。\n\n" + text)
+        return "？节点的结果：精英战斗。\n\n" + text
     if result_type == "shop":
         text = enter_shop_node(
             run_state,
@@ -533,7 +528,7 @@ def enter_mystery_node(run_state, node, seed=DEBUG_SEED):
             seed=seed,
             source_node_type="mystery"
         )
-        return with_pre_logs("？节点的结果：商店。\n\n" + text)
+        return "？节点的结果：商店。\n\n" + text
     if result_type == "event":
         text = enter_event_node(
             run_state,
@@ -541,11 +536,11 @@ def enter_mystery_node(run_state, node, seed=DEBUG_SEED):
             seed=seed,
             source_node_type="mystery"
         )
-        return with_pre_logs("？节点的结果：事件。\n\n" + text)
+        return "？节点的结果：事件。\n\n" + text
     if result_type == "treasure":
         text = enter_treasure_node(run_state, node, seed=seed)
-        return with_pre_logs("？节点的结果：宝箱。\n\n" + text)
-    return with_pre_logs("？节点结果异常：{}。".format(result_type))
+        return "？节点的结果：宝箱。\n\n" + text
+    return "？节点结果异常：{}。".format(result_type)
 
 
 MYSTERY_DIRECT_RESULT_TYPES = ("normal_enemy", "treasure", "shop")

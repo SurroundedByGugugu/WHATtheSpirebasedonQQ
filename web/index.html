@@ -15,26 +15,33 @@
     <div id="error" class="error" role="alert" hidden></div>
     <section id="start" hidden>
       <div class="section-heading"><div><span class="eyebrow">CHOOSE YOUR CHARACTER</span><h1>角色选择</h1></div><p>*本质自娱自乐的oc企划<br>原作向内容为了可玩性进行了基础填充</p></div>
-      <div id="characters" class="characters"></div>
+      <div id="characters" class="character-sections"></div>
       <p class="local-note">游戏在当前标签页内运行。刷新或关闭页面会结束本局。首次载入需要网络。</p>
     </section>
     <section id="game" hidden>
       <div class="run-heading"><div><span id="location" class="eyebrow"></span><h1 id="player-name"></h1></div><button id="new-run">更换角色 / 新一局</button></div>
       <div id="stats" class="stats"></div>
+      <div id="confirmation" class="confirmation" hidden><span>请查看冒险记录中的提示，确认是否继续。</span><button data-command="/card yes" class="primary">确认</button><button data-command="/card no">取消</button></div>
       <div class="workspace">
         <div class="play-area">
-          <section class="panel arena"><div class="panel-heading"><h2 id="arena-title">当前节点</h2><span id="turn-label"></span></div><div id="enemies" class="enemies"></div><p id="player-status" class="status-text"></p><div id="node-view" class="node-view"></div><div id="choices" class="choices"></div></section>
-          <section id="hand-panel" class="panel"><div class="panel-heading"><h2>你的手牌 <span id="hand-count"></span></h2><button data-command="/card end" class="primary">结束回合</button></div><p class="hint">先点选敌人，再点击手牌出牌。特殊选择可在下方输入指令。</p><div id="hand" class="hand"></div><div id="piles" class="piles"></div></section>
+          <section class="panel arena"><div class="panel-heading"><h2 id="arena-title">当前节点</h2><span id="turn-label"></span></div><div id="enemies" class="enemies"></div><div id="node-view" class="node-view"></div><h3 id="action-title" class="action-title"></h3><div id="choices" class="choices"></div></section>
+          <section id="player-panel" class="panel player-panel" aria-labelledby="player-panel-title" hidden>
+            <div class="player-panel-heading"><h2 id="player-panel-title">角色状态</h2><div id="player-vitals" class="player-vitals" aria-label="生命、能量与格挡"></div><span id="stance-badge" class="stance-badge" hidden></span><button id="zone-badge" class="zone-badge" type="button" hidden></button></div>
+            <p id="player-status" class="status-text" aria-live="polite"></p>
+            <div id="orb-panel" class="orb-panel" hidden><p id="orb-label" class="orb-label"></p><div id="orb-slots" class="orb-slots" role="group" aria-label="充能球与球槽，左侧优先激发"></div></div>
+          </section>
+          <section id="selection-panel" class="panel selection-panel" aria-label="待处理选择" hidden><h2 id="selection-title" tabindex="-1"></h2><p id="selection-hint" class="hint"></p><div id="selection-options" class="choices"></div><div id="selection-submit" class="selection-submit"></div></section>
+          <section id="hand-panel" class="panel"><div class="panel-heading"><h2>你的手牌 <span id="hand-count"></span></h2><button data-command="/card end" class="primary">结束回合</button></div><p class="hint">先点选敌人，再点击手牌出牌。需要选牌时，请在上方选择面板中操作。</p><div id="hand" class="hand"></div><div id="piles" class="piles"></div></section>
         </div>
-        <aside class="panel sidebar"><span class="eyebrow">THIS RUN</span><h2>行囊与旅途</h2><div class="quick-actions"><button data-command="/card route">查看地图</button><button data-command="/card deck">完整牌库</button><button data-command="/card status">状态详情</button><button data-command="/card state">场地 / Zone</button><button data-command="/card reward">当前奖励</button><button data-command="/card view">当前状态</button></div><h3>遗物</h3><div id="relics" class="inventory"></div><h3>药水</h3><div id="potions" class="inventory"></div><p id="boss" class="boss"></p><p class="local-note">本局仅保留在当前标签页。</p></aside>
+        <aside class="panel sidebar"><span class="eyebrow">THIS RUN</span><h2>行囊与旅途</h2><div class="quick-actions"><button data-command="/card route">查看地图</button><button data-command="/card deck">完整牌库</button><button data-command="/card status">状态详情</button><button data-command="/card state">场地 / Zone</button><button data-command="/card reward">当前奖励</button><button data-command="/card view">当前状态</button><button data-command="/card sl">回退节点</button><button data-command="/card exit">结束本局</button></div><h3>遗物</h3><div id="relics" class="inventory"></div><h3>药水</h3><div id="potions" class="inventory"></div><p id="boss" class="boss"></p><p class="local-note">本局仅保留在当前标签页。</p></aside>
       </div>
     </section>
     <section id="console" class="panel console" hidden>
       <div class="panel-heading"><h2>冒险记录</h2><span id="connection" role="status">准备就绪</span></div>
-      <div id="confirmation" class="confirmation" hidden><span>请查看下方提示，确认是否继续。</span><button data-command="/card yes" class="primary">确认</button><button data-command="/card no">取消</button></div>
       <div id="log" class="log" role="log" aria-live="polite" aria-relevant="additions"></div>
+      <details id="advanced-commands" class="advanced-commands"><summary>高级操作 · 手动输入指令</summary><p class="hint">常用操作可直接点击按钮；未覆盖的特殊机制仍可在这里输入指令。</p>
       <div id="command-hints" class="command-hints"></div>
-      <form id="command-form"><label for="command">游戏指令</label><div class="command-line"><input id="command" autocomplete="off" spellcheck="false" maxlength="1000" placeholder="例如 /card play 0，或直接输入 play 0"><button type="submit" class="primary">执行</button></div></form>
+      <form id="command-form"><label for="command">游戏指令</label><div class="command-line"><input id="command" autocomplete="off" spellcheck="false" maxlength="1000" placeholder="例如 /card play 0，或直接输入 play 0"><button type="submit" class="primary">执行</button></div></form></details>
     </section>
   </main>
   <footer><span>你管这个叫塔？</span><span>*自娱自乐产物本质oc企划请不要抱有太大期望<br>联系作者：🐧2415066238</span></footer>

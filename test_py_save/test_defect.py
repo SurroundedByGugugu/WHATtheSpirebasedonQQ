@@ -36,6 +36,8 @@ def test_every_card_resolves_and_upgrades(key,up):
     player.discard_pile = [create_card('card.claw')]
     channel(state,player,'frost')
     card, logs = play(state,key,up)
+    if state.pending_choice is not None and state.pending_choice.kind == 'defect_select':
+        logs += choose_cards(state, list(range(state.pending_choice.payload['count'])))
     assert not any(word in logs for word in ('未知效果','未处理','无法打出','未知卡牌','目标敌人无效'))
     assert card.upgraded == up
     if card.card_type == 'power':
@@ -58,7 +60,7 @@ def test_starting_character_and_registry():
     assert rack(player).capacity == 3
     assert [o.kind for o in rack(player).orbs] == ['lightning']
     assert len(player.hand) == 5 and len(player.draw_pile) == 5
-    assert len(SPECS) == 75 and len(DEFECT_REWARD_IDS) == 71
+    assert len(SPECS) == 78 and len(DEFECT_REWARD_IDS) == 74
 
 
 def test_pool_ownership_and_frozen_core_replacement():
@@ -281,7 +283,7 @@ def test_echo_seek_queues_distinct_selections():
     p.statuses.set('echo_form',1)
     p.draw_pile=[create_card('card.claw'),create_card('card.leap'),create_card('card.zap')]
     play(state,'seek')
-    assert len(state.pending_choice_queue) == 1
+    assert not state.pending_choice_queue  # Replay starts after the first choice resolves.
     choose_cards(state,[0])
     assert state.pending_choice is not None and len(state.pending_choice.options) == 2
     choose_cards(state,[0])

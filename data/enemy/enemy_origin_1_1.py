@@ -141,6 +141,8 @@ class SplittingSlimeEnemy(PatternEnemy):
             split_hp,
             split_hp,
         ))
+        from game.event_bus import notify_enemy_removed
+        logs.extend(notify_enemy_removed(game_state, self, "split"))
         return logs
 
 
@@ -1716,6 +1718,8 @@ class SlimeBossEnemy(PatternEnemy):
             split_hp,
             split_hp
         ))
+        from game.event_bus import notify_enemy_removed
+        logs.extend(notify_enemy_removed(game_state, self, "split"))
         return logs
 def create_slime_boss():
     return SlimeBossEnemy()

@@ -676,7 +676,6 @@ CARD_REGISTRY = {
     "card.defend_lumine":create_defendLumine,
     "card.strike_lumine":create_strikeLumine,
     "card.mirage_shadows": create_mirage_shadows,
-    "card.deva_form": create_deva_form,
     "card.god_in_hand": create_god_in_hand,
     "card.transfer": create_transfer,
     "card.inducing": create_inducing,
@@ -700,6 +699,8 @@ CARD_REGISTRY = {
 
 from data.card.character.defect_cards import DEFECT_CARD_REGISTRY
 CARD_REGISTRY.update(DEFECT_CARD_REGISTRY)
+from data.card.character.watcher_cards import WATCHER_CARD_REGISTRY
+CARD_REGISTRY.update(WATCHER_CARD_REGISTRY)
 
 
 def create_card(card_id):
@@ -708,7 +709,8 @@ def create_card(card_id):
     if create_func is None:
         raise ValueError("未知卡牌 ID：{}".format(card_id))
 
-    return create_func()
+    from game.generated_cards import prepare_created_card
+    return prepare_created_card(create_func())
 
 
 def create_deck(card_ids):

@@ -42,7 +42,7 @@ class SsserpentHeadRelic(RelicTemplate):
             self,
             relic_id="relic.ssserpent_head",
             name="蛇的头",
-            description="每次进入？房间时获得 50 金币。",
+            description="每次进入？房间（包括事件节点）时获得 50 金币。",
             story="最幸福的人生当然就是什么东西都能买得起的土豪生活了！",
             quantity="event",
             owner_character_id="",

@@ -227,7 +227,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="abyssal_form",
     name="深渊形态",
-    description="晶属性攻击牌额外视为有极阴 Zone 效果；不会新开或覆盖 Zone。",
+    description="晶、阴属性攻击牌也能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
     category="buff",
     display_mode="stack",
     order=81,
@@ -248,7 +248,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="abyss_hunt",
     name="渊猎",
-    description="玩家回合结束、敌人行动前，若敌人的深渊凝视层数超过其当前生命与格挡之和，触发深渊具现并恢复生命。",
+    description="每次伤害实际扣除敌人生命，给予目标等同于层数的深渊凝视。",
     category="buff",
     display_mode="stack",
     order=80,
@@ -259,7 +259,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="abyss_hunt_plus",
     name="渊猎+",
-    description="玩家回合结束、敌人行动前，若敌人的深渊凝视按凝视增伤与阴 Zone 修正后超过其当前生命与格挡之和，触发深渊具现并恢复生命。",
+    description="每次伤害实际扣除敌人生命，给予目标等同于层数的深渊凝视。",
     category="buff",
     display_mode="stack",
     order=81,
@@ -552,7 +552,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="deva_form",
     name="天人形态",
-    description="每个回合开始时，本场战斗费用上限增加等同于层数的数值。",
+    description="每回合开始获得额外能量，该额外能量每回合增加等同于层数的数值。",
     category="buff",
     display_mode="stack",
     order=90,
@@ -1350,6 +1350,9 @@ for _key, _name, _description in [
     ("creative_ai", "创造性AI", "回合开始按层数生成蓝色能力牌。"),
     ("echo_form", "回响形态", "每回合前若干张牌额外结算一次。"),
     ("machine_learning", "机器学习", "每回合开始按层数额外抽牌。"),
+    ("machine_rush", "猛机下山！", "每生成1个充能球，按层数抽牌。"),
+    ("transformer", "Transformer", "每回合第1张抽牌优先匹配上回合最后打出的牌的类型，不增加抽牌数量。"),
+    ("transformer_plus", "Transformer+", "每回合开始，按层数额外抽取上回合最后打出的牌的同类型牌。"),
     ("defect_rebound", "弹回", "本回合下一张牌放回抽牌堆顶。"),
     ("defect_equilibrium", "均衡", "本回合保留全部手牌，虚无仍生效。"),
 ]:

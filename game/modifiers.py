@@ -44,7 +44,8 @@ def apply_block_modifiers(
         target,
         card=None,
         block_source=None,
-        zone_element=""
+        zone_element="",
+        zone_base_element=None,
     ):
     value = int(value)
     if block_source is None:
@@ -58,7 +59,7 @@ def apply_block_modifiers(
             value = int(value * FRAIL_ENEMY_ACTION_BLOCK_MULT)
     value = int(value * get_zone_base_amount_multiplier(
         game_state=game_state,
-        zone_element=zone_element
+        zone_element=zone_element if zone_base_element is None else zone_base_element
     ))
     if value < 0:
         value = 0
@@ -117,6 +118,8 @@ def get_attack_status_multiplier(source, target, damage_source):
         else:
             multiplier *= 0.5
 
+    from game.stances import attack_multiplier
+    multiplier *= attack_multiplier(source, target)
     return multiplier
 
 
@@ -149,7 +152,8 @@ def apply_attack_damage_modifiers(
         damage_source=None,
         attack_type="",
         attack_element="",
-        zone_element=""
+        zone_element="",
+        zone_base_element=None,
     ):
     """
     攻击伤害通用修正。
@@ -221,7 +225,7 @@ def apply_attack_damage_modifiers(
     environment_multiplier = get_attack_environment_multiplier(
         game_state=game_state,
         attack_element=attack_element,
-        zone_element=zone_element
+        zone_element=zone_element if zone_base_element is None else zone_base_element
     )
     value = int(value * environment_multiplier)
     if (
@@ -253,7 +257,8 @@ def apply_modifier_profile(
         block_source=None,
         attack_type="",
         attack_element="",
-        zone_element=""
+        zone_element="",
+        zone_base_element=None,
     ):
     if modifier_profile is None:
         return int(value)
@@ -267,7 +272,8 @@ def apply_modifier_profile(
             damage_source=damage_source,
             attack_type=attack_type,
             attack_element=attack_element,
-            zone_element=zone_element
+            zone_element=zone_element,
+            zone_base_element=zone_base_element,
         )
     if modifier_profile == "block":
         return apply_block_modifiers(
@@ -277,6 +283,7 @@ def apply_modifier_profile(
             target=target,
             card=card,
             block_source=block_source,
-            zone_element=zone_element
+            zone_element=zone_element,
+            zone_base_element=zone_base_element,
         )
     return int(value)

@@ -267,7 +267,6 @@ CARD_REWARD_POOL = [
     
     #昼
     "card.mirage_shadows",
-    "card.deva_form",
     "card.god_in_hand",
     "card.transfer",
     "card.inducing",
@@ -285,6 +284,8 @@ CARD_REWARD_QUANTITIES = {"common", "uncommon", "rare"}
 
 from data.card.character.defect_cards import DEFECT_REWARD_IDS
 CARD_REWARD_POOL.extend(DEFECT_REWARD_IDS)
+from data.card.character.watcher_cards import WATCHER_REWARD_IDS
+CARD_REWARD_POOL.extend(WATCHER_REWARD_IDS)
 
 COMMON_POTION_POOL=[
     "potion.focus",
@@ -340,6 +341,8 @@ POTION_REWARD_POOL = COMMON_POTION_POOL + UNCOMMON_POTION_POOL + RARE_POTION_POO
 
 
 COMMON_RELIC_POOL = [
+    "relic.damaru",
+
     "relic.data_disk",
 
     "relic.juzu_bracelet",
@@ -381,6 +384,9 @@ COMMON_RELIC_POOL = [
 ]
 
 UNCOMMON_RELIC_POOL = [
+    "relic.duality",
+    "relic.teardrop_locket",
+
     "relic.gold_plated_cables",
     "relic.symbiotic_virus",
 
@@ -423,6 +429,9 @@ UNCOMMON_RELIC_POOL = [
 ]
 
 RARE_RELIC_POOL = [
+    "relic.cloak_clasp",
+    "relic.golden_eye",
+
     "relic.emotion_chip",
 
     "relic.charon_ashes",
@@ -485,6 +494,8 @@ EVENT_RELIC_POOL = [
 ]
 
 SHOP_RELIC_POOL = [
+    "relic.melange",
+
     "relic.runic_capacitor",
 
     "relic.x_potion",
@@ -513,6 +524,9 @@ RELIC_REWARD_POOL = [
 ] + COMMON_RELIC_POOL + UNCOMMON_RELIC_POOL + RARE_RELIC_POOL + EVENT_RELIC_POOL
 
 BOSS_RELIC_POOL = [
+    "relic.holy_water",
+    "relic.violet_lotus",
+
     "relic.inserter",
     "relic.nuclear_battery",
     "relic.frozen_core",
@@ -1058,6 +1072,8 @@ def get_available_boss_relic_ids(run_state):
             continue
         owner = getattr(relic, "owner_character_id", "")
         if owner and owner != current_character_id:
+            continue
+        if relic_id == "relic.holy_water" and "relic.pure_water" not in owned:
             continue
         if relic_id == "relic.frozen_core" and "relic.cracked_core" not in owned:
             continue

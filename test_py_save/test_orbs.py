@@ -268,3 +268,36 @@ def test_ice_cream_retains_then_plasma_adds_energy():
     channel(state, player, 'plasma')
     end_turn(state)
     assert player.cost == 6
+
+
+def test_first_orb_from_borrowed_card_grants_one_slot_once():
+    from data.card.AAAregistry import create_card
+    from game.engine import play_card
+    player = PlayerState('character.armored_warrior', '铁甲战士', 80, 80, 3, 3)
+    enemy = Dummy()
+    enemy.hp = enemy.max_hp = 1000
+    state = GameState('ordinary', 'ordinary', player, [enemy])
+    assert rack(player).capacity == 0
+    channel(state, player, 'lightning', 0)
+    assert rack(player).capacity == 0
+    player.hand = [create_card('card.zap')]
+    play_card(state, 0, 0)
+    assert rack(player).capacity == 1
+    assert [orb.kind for orb in rack(player).orbs] == ['lightning']
+    hp = enemy.hp
+    channel(state, player, 'frost')
+    assert rack(player).capacity == 1
+    assert [orb.kind for orb in rack(player).orbs] == ['frost']
+    assert enemy.hp == hp - 8  # The previous orb evokes normally at full capacity.
+    set_slots(player, 0)
+    channel(state, player, 'dark')
+    assert rack(player).capacity == 0 and not rack(player).orbs
+
+
+def test_battle_over_does_not_grant_first_slot():
+    player = PlayerState('ordinary', '普通角色', 80, 80, 3, 3)
+    state = GameState('ordinary', 'ordinary', player, [Dummy()])
+    state.battle_over = True
+    channel(state, player, 'lightning')
+    assert rack(player).capacity == 0
+    assert rack(player).first_channel_slot_available

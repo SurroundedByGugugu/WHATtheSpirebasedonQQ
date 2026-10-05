@@ -17,6 +17,7 @@ EVENT_CARD_EXHAUST = "card_exhaust"
 
 EVENT_DAMAGE_BEFORE = "damage_before"
 EVENT_DAMAGE_AFTER = "damage_after"
+EVENT_DAMAGE_RESOLVED = "damage_resolved"  # 阴攻击消耗凝视之后，触发伤害附加的新状态。
 
 EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK = "abyss_gaze_cleared_by_shade_attack"
 
@@ -27,6 +28,7 @@ EVENT_DRAW_CARD_BEFORE = "draw_card_before"
 EVENT_DRAW_CARD_AFTER = "draw_card_after"
 
 EVENT_ENEMY_DEATH = "enemy_death"
+EVENT_ENEMY_REMOVED = "enemy_removed"  # 分裂、自爆等未经过伤害入口的退场。
 EVENT_PLAYER_DEATH = "player_death"
 
 

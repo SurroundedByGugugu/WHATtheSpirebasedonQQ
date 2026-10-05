@@ -286,38 +286,8 @@ def create_god_in_hand():
         }
     )
 def create_deva_form():
-    return CardTemplate(
-        card_id="card.deva_form",
-        name="天人形态",
-        card_type="power",
-        cost=3,
-        target="self",
-        description="每回合开始时，本场战斗费用上限增加 1。",
-        quantity="rare",
-        keywords=[KEYWORD_ETHEREAL],
-        owner_character_id="character.lumine",
-        card_vars={
-            "deva_form": 1
-        },
-        effects=[
-            {
-                "op": "gain_status",
-                "target": "self",
-                "status": "deva_form",
-                "amount": {
-                    "var": "deva_form"
-                }
-            }
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "天人形态+",
-            "description": "每回合开始时，本场战斗费用上限增加 1。",
-            "remove_keywords": [
-                KEYWORD_ETHEREAL
-            ],
-        }
-    )
+    from data.card.character.watcher_cards import make_card
+    return make_card("deva_form")
 
 #uncommon
 def create_everyone_gets_hit():

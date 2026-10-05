@@ -1,3 +1,4 @@
+from game.resolution import resumable
 # -*- coding: utf-8 -*-
 
 from game.battle_context import BattleContext
@@ -5,6 +6,7 @@ from game.event_bus import dispatch_event
 from game.constants import (
     EVENT_DAMAGE_BEFORE,
     EVENT_DAMAGE_AFTER,
+    EVENT_DAMAGE_RESOLVED,
     EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK,
     EVENT_ENEMY_DEATH,
 )
@@ -222,6 +224,7 @@ def _apply_unblocked_damage_relics_and_statuses(game_state, source, target, raw_
     )
     return final_damage
 
+@resumable()
 def deal_damage(
     game_state,
     source,
@@ -234,7 +237,8 @@ def deal_damage(
     attack_type="",
     attack_element="",
     zone_element="",
-    count_as_player_self_action_hp_loss=False
+    count_as_player_self_action_hp_loss=False,
+    stance_applied=False
 ):
     """
     统一伤害入口。
@@ -255,6 +259,9 @@ def deal_damage(
     logs = []
 
     amount = int(amount)
+    if damage_kind == 'attack' and not stance_applied:
+        from game.stances import attack_multiplier
+        amount *= attack_multiplier(source, target)
     if (
         game_state is not None
         and damage_kind == "attack"
@@ -272,6 +279,8 @@ def deal_damage(
                 getattr(card, "name", "随机攻击")
             )
         ))    
+        yield logs
+        logs = []
     if (
         game_state is not None
         and source is getattr(game_state, "player", None)
@@ -312,6 +321,8 @@ def deal_damage(
         EVENT_DAMAGE_BEFORE,
         before_context
     ))
+    yield logs
+    logs = []
 
     amount = int(before_context.extra.get("amount", amount))
     if amount < 0:
@@ -323,6 +334,7 @@ def deal_damage(
     old_hp = target.hp
     old_block = target.block
     was_alive = target.is_alive()
+    final_damage = 0
 
     phantom_ignore_block = False
     if (
@@ -379,6 +391,7 @@ def deal_damage(
                 amount=amount,
                 multiplier=wind_block_multiplier
             ))
+            final_damage = max(0, amount - min(amount, int(old_block / wind_block_multiplier)))
         else:
             if amount <= 0:
                 logs.append("{} 没有受到伤害。".format(target.name))
@@ -420,6 +433,8 @@ def deal_damage(
         target=target,
         real_damage=real_damage
     ))
+    yield logs
+    logs = []
     if (
         damage_kind == "attack"
         and source is getattr(game_state, "player", None)
@@ -439,6 +454,8 @@ def deal_damage(
                 status_key="vulnerable",
                 amount=2
             ))
+            yield logs
+            logs = []
         except Exception:
             current = target.gain_status("vulnerable", 2)
             logs.append("{} 获得 2 点易伤。当前易伤：{}。".format(getattr(target, "name", "敌人"), current))
@@ -477,6 +494,7 @@ def deal_damage(
         extra={
             "amount": amount,
             "real_damage": real_damage,
+            "unblocked_damage": final_damage,
             "blocked": blocked,
             "damage_kind": damage_kind,
             "is_reaction_damage": is_reaction_damage,
@@ -491,6 +509,8 @@ def deal_damage(
     )
 
     logs.extend(dispatch_event(game_state, EVENT_DAMAGE_AFTER, context))
+    yield logs
+    logs = []
     if (
         damage_kind == "attack"
         and hasattr(target, "enemy_id")
@@ -531,6 +551,11 @@ def deal_damage(
                 EVENT_ABYSS_GAZE_CLEARED_BY_SHADE_ATTACK,
                 clear_context
                 ))
+            yield logs
+            logs = []
+    logs.extend(dispatch_event(game_state, EVENT_DAMAGE_RESOLVED, context))
+    yield logs
+    logs = []
     if was_alive and not target.is_alive() and hasattr(target, "enemy_id"):
         death_context = BattleContext(
             game_state=game_state,
@@ -541,6 +566,8 @@ def deal_damage(
             extra={"damage_kind": damage_kind, "real_damage": real_damage}
         )
         logs.extend(dispatch_event(game_state, EVENT_ENEMY_DEATH, death_context))
+        yield logs
+        logs = []
         from game.spire_orientation import (
             normalize_spire_orientation_after_enemy_death
         )
@@ -550,6 +577,8 @@ def deal_damage(
                 game_state
             )
         )
+        yield logs
+        logs = []
     if was_alive and not target.is_alive() and not context.extra.get("suppress_death_message", False):
         if hasattr(target, "enemy_id"):
             if getattr(target, "enemy_id", "") == "enemy.bear":
