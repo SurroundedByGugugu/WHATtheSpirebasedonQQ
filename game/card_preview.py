@@ -35,6 +35,12 @@ def _preview_effect(game_state, card, effect, effect_context):
     if op == "defect_card":
         from game.defect import preview
         return preview(game_state, card, effect_context)
+    if op == "conditional_followup":
+        # 基础攻击始终执行；条件仅控制后续抽牌、状态或费用。
+        return "；".join(filter(None, (
+            _preview_effect(game_state, card, child, effect_context)
+            for child in effect.get("effects", [])
+        )))
     attack_type = effect.get("attack_type", getattr(card, "attack_type", ""))
     attack_element = effect.get("attack_element", getattr(card, "attack_element", ""))
 

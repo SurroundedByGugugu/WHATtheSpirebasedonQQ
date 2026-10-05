@@ -2746,6 +2746,22 @@ def handle_insatiable_abyss(event_name, context, owner, value):
 
     return logs
 
+def handle_shadow_crystallization(event_name, context, owner, value):
+    if event_name != EVENT_DAMAGE_AFTER or owner is not context.game_state.player:
+        return []
+    if context.target is not owner or not owner.is_alive() or int(value) <= 0:
+        return []
+    if not context.extra.get("count_as_player_self_action_hp_loss") or context.extra.get("real_damage", 0) <= 0:
+        return []
+    state = context.game_state
+    if getattr(owner, "_shadow_crystallization_turn", None) == state.turn_count:
+        return []
+    owner._shadow_crystallization_turn = state.turn_count
+    return ["【阴影结晶】触发。"] + gain_block_without_modifiers(
+        game_state=state, source=owner, target=owner, amount=int(value), block_source="power",
+    )
+
+
 def handle_abyss_hunt(event_name, context, owner, value):
     if event_name != EVENT_DAMAGE_RESOLVED or int(value) <= 0:
         return []
@@ -3483,6 +3499,7 @@ STATUS_EVENT_HANDLERS = {
     "infinite_blades": handle_infinite_blades,
     "accuracy": handle_accuracy,
     "abyss_hunt": handle_abyss_hunt,
+    "shadow_crystallization": handle_shadow_crystallization,
     "abyss_hunt_plus": handle_abyss_hunt_plus,
     "petal_confusion": handle_petal_confusion,
     "petal_dance": handle_petal_dance,

@@ -225,6 +225,15 @@ register_status_def(StatusDef(
     decay_amount=0,
 ))
 register_status_def(StatusDef(
+    key="shadow_crystallization",
+    name="阴影结晶",
+    description="每回合第一次因自身行动失去生命时，获得等同于层数的格挡。",
+    category="buff",
+    display_mode="stack",
+    order=80,
+))
+
+register_status_def(StatusDef(
     key="abyssal_form",
     name="深渊形态",
     description="晶、阴属性攻击牌也能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",

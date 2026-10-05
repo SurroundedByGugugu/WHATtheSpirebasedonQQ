@@ -29,3 +29,5 @@ class StatusDef:
     # 预留：后续状态自然衰减用
     decay_timing: str = "none"     # none / turn_start / turn_end
     decay_amount: int = 0
+
+    removable: bool = True  # 清创等净化效果是否允许移除此状态。

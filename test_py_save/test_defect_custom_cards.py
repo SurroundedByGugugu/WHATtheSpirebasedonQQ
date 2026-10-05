@@ -8,7 +8,7 @@ from game.defect import choose_cards
 from game.engine import end_turn, play_card
 from game.event_bus import dispatch_event
 from game.game_state import GameState
-from game.orbs import channel, rack
+from game.orbs import channel, rack, set_slots
 from game.player_state import PlayerState
 
 
@@ -16,7 +16,7 @@ def battle():
     player = PlayerState('character.defect', '机器人', 100, 100, 3, 3)
     enemy = PatternEnemy('enemy.test', '目标', 1000, [EnemyIntent(kind='wait')])
     state = GameState('custom-defect', player.character_id, player, [enemy])
-    rack(player).capacity = 3
+    set_slots(player, 3)
     return state, player
 
 

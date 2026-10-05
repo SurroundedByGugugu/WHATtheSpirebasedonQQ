@@ -245,6 +245,12 @@ def resolve_amount(
     if var_name:
         value += int(card_vars.get(var_name, 0))
 
+    conditional = amount_spec.get("conditional_value")
+    if conditional and card_condition_matches(game_state, conditional["condition"], target):
+        if "replace_var" in conditional:
+            value = int(card_vars.get(conditional["replace_var"], 0))
+        value += int(card_vars.get(conditional.get("add_var", ""), 0))
+
     if amount_spec.get("current_block", False):
         value += int(getattr(source, "block", 0))
     if amount_spec.get("draw_pile_count", False):
@@ -862,6 +868,70 @@ def draw_cards_with_no_draw_check(game_state, count, draw_source="card_effect"):
         game_state=game_state,
         draw_source=draw_source
     )
+
+def card_condition_matches(game_state, condition, target=None):
+    kind = condition.get("kind", "")
+    player = game_state.player
+    if kind == "target_intends_attack":
+        return target is not None and target.is_alive() and is_enemy_intent_attack(target.get_current_intent())
+    if kind == "any_enemy_intends_attack":
+        return any_alive_enemy_intends_attack(game_state)
+    if kind == "target_has_block":
+        return target is not None and int(getattr(target, "block", 0)) > 0
+    if kind == "self_has_status":
+        return get_status_value(player, condition["status"]) > 0
+    if kind == "first_card_this_turn":
+        from game.zone.zone_utils import get_player_card_type_played_counts_this_turn
+        return sum(get_player_card_type_played_counts_this_turn(game_state).values()) == 0
+    if kind == "self_action_hp_loss_this_turn":
+        return int(getattr(game_state, "player_self_action_hp_loss_count_this_turn", 0)) > 0
+    if kind == "target_hp_at_most_percent":
+        return target is not None and int(target.hp) * 100 <= int(target.max_hp) * int(condition["percent"])
+    return False
+
+
+@register_effect("conditional_followup")
+def handle_conditional_followup(game_state, card, effect, target_index, effect_context):
+    # 在攻击前锁定条件，破盾、击杀和意图变化不改变本次附加效果。
+    target = get_target_enemy(game_state, target_index)
+    matched = card_condition_matches(game_state, effect["condition"], target)
+    children = list(effect.get("effects", []))
+    if matched:
+        children.extend(effect.get("then", []))
+    logs = []
+    for child in children:
+        if game_state.battle_over or not game_state.player.is_alive():
+            break
+        if child.get("target") == "selected_enemy" and get_target_enemy(game_state, target_index) is None:
+            continue
+        logs.extend(apply_card_effect(game_state, card, child, target_index, effect_context))
+    return logs
+
+
+@register_effect("exhaust_this_play")
+def handle_exhaust_this_play(game_state, card, effect, target_index, effect_context):
+    if not (effect.get("base_only", False) and card.upgraded):
+        card.exhaust_this_play = True
+    return []
+
+
+@register_effect("remove_one_debuff")
+def handle_remove_one_debuff(game_state, card, effect, target_index, effect_context):
+    from game.status.status_defs import get_status_def
+    player = game_state.player
+    candidates = []
+    for key, value in player.statuses.all_active().items():
+        definition = get_status_def(key)
+        if definition is None or not getattr(definition, "removable", True):
+            continue
+        if definition.category == "debuff" or (definition.can_be_negative and value < 0):
+            candidates.append(key)
+    if not candidates:
+        return ["【{}】：没有可移除的负面状态。".format(card.name)]
+    key = random.choice(candidates)
+    player.statuses.remove(key)
+    return ["【{}】移除了{}的{}。".format(card.name, player.name, get_status_name(key))]
+
 
 def is_enemy_intent_attack(intent):
     if intent is None:

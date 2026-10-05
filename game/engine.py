@@ -622,6 +622,11 @@ def move_played_card_to_destination(game_state, card):
         player.draw_pile.insert(random.randrange(len(player.draw_pile)+1), card)
         return ["发泄随机放回抽牌堆。"]
 
+    if getattr(card, "exhaust_this_play", False):
+        delattr(card, "exhaust_this_play")
+        logs.extend(move_card_to_exhaust_pile(game_state, card, reason="card_effect"))
+        return logs
+
     if getattr(card, "force_exhaust_after_play", False):
         logs.extend(move_card_to_exhaust_pile(
             game_state=game_state,

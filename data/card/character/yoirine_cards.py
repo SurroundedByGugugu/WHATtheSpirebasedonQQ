@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from data.card.base_card import CardTemplate
-from game.constants import KEYWORD_EXHAUST,KEYWORD_INNATE
+from game.constants import KEYWORD_EXHAUST,KEYWORD_INNATE,KEYWORD_RETAIN
 
 # 一对私有打防
 def create_strikeYoirine():
@@ -134,6 +134,312 @@ def create_crystal_plating():
     )
 
 #common
+
+def create_silent_slash():
+    return CardTemplate(
+        card_id="card.silent_slash",
+        name="无声斩",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 9 点伤害。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 9
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "无声斩+",
+            "description": "造成 12 点伤害。",
+            "card_vars": {
+                "damage": 12
+            }
+        },
+    )
+
+def create_rising_wind():
+    return CardTemplate(
+        card_id="card.rising_wind",
+        name="起风",
+        card_type="attack",
+        cost=1,
+        target="all_enemies",
+        description="对全体敌人造成 6 点伤害。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 6
+        },
+        effects=[
+            {
+                "op": "deal_damage_all_enemies",
+                "target": "all_enemies",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "起风+",
+            "description": "对全体敌人造成 9 点伤害。",
+            "card_vars": {
+                "damage": 9
+            }
+        },
+    )
+
+def create_intercept():
+    return CardTemplate(
+        card_id="card.intercept",
+        name="截击",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 7 点伤害；目标意图为攻击时额外 +5。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 7,
+            "bonus": 5
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage",
+                    "conditional_value": {
+                        "condition": {
+                            "kind": "target_intends_attack"
+                        },
+                        "add_var": "bonus"
+                    }
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "截击+",
+            "description": "造成 9 点伤害；目标意图为攻击时额外 +7。",
+            "card_vars": {
+                "damage": 9,
+                "bonus": 7
+            }
+        },
+    )
+
+def create_diving_strike():
+    return CardTemplate(
+        card_id="card.diving_strike",
+        name="俯冲",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 8 点伤害；有飞行时额外 +5。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 8,
+            "bonus": 5
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage",
+                    "conditional_value": {
+                        "condition": {
+                            "kind": "self_has_status",
+                            "status": "flying"
+                        },
+                        "add_var": "bonus"
+                    }
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "俯冲+",
+            "description": "造成 10 点伤害；有飞行时额外 +6。",
+            "card_vars": {
+                "damage": 10,
+                "bonus": 6
+            }
+        },
+    )
+
+def create_probing_strike():
+    return CardTemplate(
+        card_id="card.probing_strike",
+        name="试探",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 6 点伤害，抽 1 张牌。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 6
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage"
+                }
+            },
+            {
+                "op": "draw_cards",
+                "amount": 1
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "试探+",
+            "description": "造成 8 点伤害，抽 1 张牌。",
+            "card_vars": {
+                "damage": 8
+            }
+        },
+    )
+
+def create_vigilance_yoirine():
+    return CardTemplate(
+        card_id="card.vigilance_yoirine",
+        name="警戒",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="获得 8 点格挡；若任意敌人的意图是攻击，额外获得 3 点格挡。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 8,
+            "bonus": 3
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "base_var": "block",
+                    "modifier_profile": "block",
+                    "conditional_value": {
+                        "condition": {
+                            "kind": "any_enemy_intends_attack"
+                        },
+                        "add_var": "bonus"
+                    }
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "警戒+",
+            "description": "获得 12 点格挡；若任意敌人的意图是攻击，额外获得 4 点格挡。",
+            "card_vars": {
+                "block": 12,
+                "bonus": 4
+            }
+        },
+    )
+
+def create_sidestep_yoirine():
+    return CardTemplate(
+        card_id="card.sidestep_yoirine",
+        name="闪身",
+        card_type="skill",
+        cost=0,
+        target="self",
+        description="获得 6 点格挡。消耗。",
+        quantity="common",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 6
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "base_var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        keywords=[
+            KEYWORD_EXHAUST
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "闪身+",
+            "description": "获得 8 点格挡。消耗。",
+            "card_vars": {
+                "block": 8
+            }
+        },
+    )
+
+def create_crystal_blade():
+    return CardTemplate(
+        card_id="card.crystal_blade",
+        name="晶刃",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 8 点伤害；目标有格挡时额外 +4。",
+        quantity="common",
+        attack_element="crystal",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 8,
+            "bonus": 4
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage",
+                    "conditional_value": {
+                        "condition": {
+                            "kind": "target_has_block"
+                        },
+                        "add_var": "bonus"
+                    }
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "晶刃+",
+            "description": "造成 11 点伤害；目标有格挡时额外 +5。",
+            "card_vars": {
+                "damage": 11,
+                "bonus": 5
+            }
+        },
+    )
+
 def create_brave_bird():
     return CardTemplate(
         card_id="card.brave_bird",
@@ -642,6 +948,306 @@ def create_flash():
     )
 
 #uncommon
+
+def create_refraction():
+    return CardTemplate(
+        card_id="card.refraction",
+        name="折光",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 8 点伤害；目标意图为攻击时赋予 1 层虚弱。",
+        quantity="uncommon",
+        attack_element="crystal",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 8
+        },
+        effects=[
+            {
+                "op": "conditional_followup",
+                "condition": {
+                    "kind": "target_intends_attack"
+                },
+                "effects": [
+                    {
+                        "op": "deal_damage",
+                        "target": "selected_enemy",
+                        "amount": {
+                            "base_var": "damage",
+                            "modifier_profile": "attack_damage"
+                        }
+                    }
+                ],
+                "then": [
+                    {
+                        "op": "gain_status",
+                        "target": "selected_enemy",
+                        "status": "weak",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "折光+",
+            "description": "造成 11 点伤害；目标意图为攻击时赋予 1 层虚弱。",
+            "card_vars": {
+                "damage": 11
+            }
+        },
+    )
+
+def create_barrier_break():
+    return CardTemplate(
+        card_id="card.barrier_break",
+        name="破障",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 10 点伤害；若攻击前目标有格挡，获得 1 费用。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 10
+        },
+        effects=[
+            {
+                "op": "conditional_followup",
+                "condition": {
+                    "kind": "target_has_block"
+                },
+                "effects": [
+                    {
+                        "op": "deal_damage",
+                        "target": "selected_enemy",
+                        "amount": {
+                            "base_var": "damage",
+                            "modifier_profile": "attack_damage"
+                        }
+                    }
+                ],
+                "then": [
+                    {
+                        "op": "gain_energy",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "破障+",
+            "description": "造成 13 点伤害；若攻击前目标有格挡，获得 1 费用。",
+            "card_vars": {
+                "damage": 13
+            }
+        },
+    )
+
+def create_Uturn():
+    return CardTemplate(
+        card_id="card.Uturn",
+        name="急速折返",
+        card_type="attack",
+        cost=0,
+        target="enemy",
+        description="造成 4 点伤害；有飞行时抽 1 张牌且消耗。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 4
+        },
+        effects=[
+            {
+                "op": "conditional_followup",
+                "condition": {
+                    "kind": "self_has_status",
+                    "status": "flying"
+                },
+                "effects": [
+                    {
+                        "op": "deal_damage",
+                        "target": "selected_enemy",
+                        "amount": {
+                            "base_var": "damage",
+                            "modifier_profile": "attack_damage"
+                        }
+                    }
+                ],
+                "then": [
+                    {
+                        "op": "draw_cards",
+                        "amount": 1
+                    },
+                    {
+                        "op": "exhaust_this_play",
+                        "base_only": True
+                    }
+                ]
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "急速折返+",
+            "description": "造成 6 点伤害；有飞行时抽 1 张牌。",
+            "card_vars": {
+                "damage": 6
+            }
+        },
+    )
+
+def create_debride():
+    return CardTemplate(
+        card_id="card.debride",
+        name="清创",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="移除自身 1 种可移除负面状态，获得 5 点格挡。消耗。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 5
+        },
+        effects=[
+            {
+                "op": "remove_one_debuff"
+            },
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "base_var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        keywords=[
+            KEYWORD_EXHAUST
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "清创+",
+            "description": "移除自身 1 种可移除负面状态，获得 8 点格挡。消耗。",
+            "card_vars": {
+                "block": 8
+            }
+        },
+    )
+
+def create_shadow_crystallization():
+    return CardTemplate(
+        card_id="card.shadow_crystallization",
+        name="阴影结晶",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="每回合第一次因自身行动失去生命时，获得 4 点格挡。",
+        quantity="uncommon",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 4
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "shadow_crystallization",
+                "amount": {
+                    "var": "block"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "阴影结晶+",
+            "description": "每回合第一次因自身行动失去生命时，获得 6 点格挡。",
+            "card_vars": {
+                "block": 6
+            }
+        },
+    )
+
+def create_retreat_yoirine():
+    return CardTemplate(
+        card_id="card.retreat_yoirine",
+        name="退路",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="保留。获得 7 点格挡。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 7
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "base_var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        keywords=[
+            KEYWORD_RETAIN
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "退路+",
+            "description": "保留。获得 10 点格挡。",
+            "card_vars": {
+                "block": 10
+            }
+        },
+    )
+
+def create_reverse_blood():
+    return CardTemplate(
+        card_id="card.reverse_blood",
+        name="逆血",
+        card_type="attack",
+        cost=1,
+        target="enemy",
+        description="造成 8 点伤害；本回合若因自身行动失去过生命，改为 15。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 8,
+            "enhanced_damage": 15
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage",
+                    "conditional_value": {
+                        "condition": {
+                            "kind": "self_action_hp_loss_this_turn"
+                        },
+                        "replace_var": "enhanced_damage"
+                    }
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "逆血+",
+            "description": "造成 10 点伤害；本回合若因自身行动失去过生命，改为 18。",
+            "card_vars": {
+                "damage": 10,
+                "enhanced_damage": 18
+            }
+        },
+    )
+
 def create_abyssal_erosion():
     return CardTemplate(
         card_id="card.abyssal_erosion",
@@ -1188,6 +1794,90 @@ def create_phantom_form():
     )
 
 #rare
+
+def create_surprise_assault():
+    return CardTemplate(
+        card_id="card.surprise_assault",
+        name="奇袭",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="造成 22 点伤害；若是本回合打出的第一张牌，改为 30。",
+        quantity="rare",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 22,
+            "enhanced_damage": 30
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage",
+                    "conditional_value": {
+                        "condition": {
+                            "kind": "first_card_this_turn"
+                        },
+                        "replace_var": "enhanced_damage"
+                    }
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "奇袭+",
+            "description": "造成 26 点伤害；若是本回合打出的第一张牌，改为 36。",
+            "card_vars": {
+                "damage": 26,
+                "enhanced_damage": 36
+            }
+        },
+    )
+
+def create_silent_execution():
+    return CardTemplate(
+        card_id="card.silent_execution",
+        name="无声处决",
+        card_type="attack",
+        cost=2,
+        target="enemy",
+        description="造成 20 点伤害；目标生命不超过最大生命的 25% 时，改为 40。",
+        quantity="rare",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "damage": 20,
+            "enhanced_damage": 40
+        },
+        effects=[
+            {
+                "op": "deal_damage",
+                "target": "selected_enemy",
+                "amount": {
+                    "base_var": "damage",
+                    "modifier_profile": "attack_damage",
+                    "conditional_value": {
+                        "condition": {
+                            "kind": "target_hp_at_most_percent",
+                            "percent": 25
+                        },
+                        "replace_var": "enhanced_damage"
+                    }
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "无声处决+",
+            "description": "造成 24 点伤害；目标生命不超过最大生命的 25% 时，改为 48。",
+            "card_vars": {
+                "damage": 24,
+                "enhanced_damage": 48
+            }
+        },
+    )
+
 def create_to_your_tranquility():
     return CardTemplate(
         card_id="card.to_your_tranquility",
