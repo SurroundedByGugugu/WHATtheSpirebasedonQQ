@@ -13,7 +13,8 @@ from game.run_engine import get_run_view
 from game.status.status_display import get_status_display_text
 from game.node.node_rest import get_rest_options, is_action_available, get_upgradable_cards
 from game.node.node_shop import get_effective_remove_price, get_effective_random_remove_price
-from game.relic_logic.run_relic_utils import has_run_relic
+from game.relic_logic.run_relic_utils import has_run_relic, get_pending_orrery_state
+from game.relic_logic.relic_counters import relic_counter_text
 from data.card.upgrade_rules import upgrade_card
 from game.engine import get_pending_player_choice_hint
 from game.relic_logic.bottle_utils import get_bottle_candidates
@@ -144,10 +145,15 @@ def run_selection(run):
             return dict(title=title, command=f"/card {command}", multiple=True,
                         minimum=count, maximum=count, options=options)
     if getattr(run, "pending_orrery_selection", False):
-        groups = run.pending_orrery_groups
-        index = run.pending_orrery_index
-        cards = groups[index] if index < len(groups) else []
-        return dict(title=f"星系仪：第 {index + 1} 组选牌", options=card_actions(cards, "orrery"))
+        groups, index, results = get_pending_orrery_state(run)
+        if 0 <= index < len(groups) and results[index] == "pending":
+            options = card_actions(groups[index], "orrery")
+            options.extend([action("返回奖励总览", "/card orrery back"), action("跳过本组", "/card orrery skip")])
+            return dict(title=f"星系仪：第 {index + 1} 组选牌", hint="选择一张加入牌组，也可以返回查看其他组。", options=options)
+        labels = {"pending": "打开查看", "claimed": "已领取", "skipped": "已跳过"}
+        return dict(title="星系仪：五组卡牌奖励", hint="每组可选择一张或跳过。打开查看不会领取奖励。",
+                    options=[action(f"第 {i + 1} 组 · {labels[result]}", f"/card orrery open {i}", disabled=result != "pending")
+                             for i, result in enumerate(results)])
     if getattr(run, "pending_dollys_mirror_selection", False):
         return dict(title="多利之镜：选择复制的牌", options=card_actions(run.master_deck, "mirror"))
     return None
@@ -287,6 +293,7 @@ def snapshot(reply=""):
         "relics": [getattr(item, "name", "遗物") for item in player.relics],
         "relicDetails": [{
             "name": getattr(item, "name", "遗物"),
+            "counter": relic_counter_text(item, battle, run),
             "info": getattr(item, "description", "") or "暂无效果说明。",
             "story": getattr(item, "story", "") or "暂无故事。",
         } for item in player.relics],

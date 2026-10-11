@@ -46,6 +46,7 @@ from game.relic_logic.run_relic_utils import (
     format_pending_astrolabe, has_pending_astrolabe_selection,
     format_pending_empty_cage, has_pending_empty_cage_selection,
     format_pending_orrery, has_pending_orrery_selection, choose_pending_orrery_card,
+    open_pending_orrery_group, skip_pending_orrery_group,
     format_pending_dollys_mirror, has_pending_dollys_mirror_selection, choose_pending_dollys_mirror_card,
 )
 
@@ -512,6 +513,14 @@ class GameService(object):
         if command in ("orrery", "星系仪"):
             if len(parts) < 3:
                 return format_pending_orrery(run_state)
+            if parts[2] in ("back", "返回"):
+                return open_pending_orrery_group(run_state, -1)
+            if parts[2] in ("skip", "跳过"):
+                return skip_pending_orrery_group(run_state)
+            if parts[2] in ("open", "打开"):
+                if len(parts) < 4 or not parts[3].isdigit():
+                    return "请使用 /card orrery open 0 打开对应组。"
+                return open_pending_orrery_group(run_state, int(parts[3]))
             try:
                 choice_index = int(parts[2])
             except ValueError:

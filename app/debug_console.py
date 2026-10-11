@@ -501,7 +501,8 @@ def handle_go_floor(run_state, args):
     run_state.pending_empty_cage_selections = []
     run_state.pending_orrery_selection = False
     run_state.pending_orrery_groups = []
-    run_state.pending_orrery_index = 0
+    run_state.pending_orrery_index = -1
+    run_state.pending_orrery_results = []
     run_state.pending_dollys_mirror_selection = False
     run_state.pending_reward_injections = []
     run_state.clear_pending_nodes()

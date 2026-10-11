@@ -340,8 +340,8 @@ function render(data) {
     const relic = typeof value === "string"
       ? { name: value, info: "此遗物暂无效果说明，请重新加载以获取最新数据。", story: "暂无故事。" }
       : { name: value?.name || "遗物", info: value?.info || value?.description || "暂无效果说明。",
-          story: value?.story || "暂无故事。" };
-    const item = el("button", relic.name, "relic-button");
+          story: value?.story || "暂无故事。", counter: value?.counter || "" };
+    const item = el("button", relic.name + (relic.counter ? `（${relic.counter}）` : ""), "relic-button");
     item.type = "button";
     item.title = relic.info;
     item.setAttribute("aria-description", relic.info);

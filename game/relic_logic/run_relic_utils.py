@@ -415,39 +415,93 @@ def start_pending_orrery_selection(run_state):
         groups.append(_make_orrery_card_group(run_state, rng))
     run_state.pending_orrery_selection = True
     run_state.pending_orrery_groups = groups
-    run_state.pending_orrery_index = 0
+    run_state.pending_orrery_index = -1
+    run_state.pending_orrery_results = ["pending"] * len(groups)
 
 
 def has_pending_orrery_selection(run_state):
     return bool(getattr(run_state, "pending_orrery_selection", False))
 
 
+def get_pending_orrery_state(run_state):
+    groups = getattr(run_state, "pending_orrery_groups", []) or []
+    index = int(getattr(run_state, "pending_orrery_index", -1))
+    results = getattr(run_state, "pending_orrery_results", None)
+    if results is None:
+        results = ["claimed" if i < index else "pending" for i in range(len(groups))]
+    return groups, index, results
+
+
 def format_pending_orrery(run_state):
     if not has_pending_orrery_selection(run_state):
         return "当前没有需要处理的【星系仪】选择。"
     groups = getattr(run_state, "pending_orrery_groups", []) or []
-    index = int(getattr(run_state, "pending_orrery_index", 0) or 0)
-    if index >= len(groups):
-        return "【星系仪】选择已完成。"
+    index = int(getattr(run_state, "pending_orrery_index", -1))
+    results = getattr(run_state, "pending_orrery_results", None)
+    if results is None:
+        results = ["claimed" if i < index else "pending" for i in range(len(groups))]
+    if not (0 <= index < len(groups)) or results[index] != "pending":
+        labels = {"pending": "待选择", "claimed": "已领取", "skipped": "已跳过"}
+        lines = ["=== 星系仪：卡牌奖励 ===", "可逐组打开查看，返回后再决定；每组可选择 1 张牌或跳过。", ""]
+        lines.extend("[{}] 第 {} 组：{}".format(i, i + 1, labels[result]) for i, result in enumerate(results))
+        lines.append("使用 /card orrery open 0 打开对应组。")
+        return "\n".join(lines)
     cards = groups[index]
-    lines = ["=== 星系仪：第 {}/{} 组 ===".format(index + 1, len(groups)), "选择 1 张牌加入牌组。", ""]
+    lines = ["=== 星系仪：第 {}/{} 组 ===".format(index + 1, len(groups)), "选择 1 张牌加入牌组，也可以返回后再决定或跳过本组。", ""]
     from game.reward import format_card_reward_summary
     for i, card in enumerate(cards):
         lines.append("[{}] {}".format(i, format_card_reward_summary(card)))
     lines.append("")
     lines.append("使用 /card orrery 0 选择。")
+    lines.append("使用 /card orrery back 返回总览；/card orrery skip 跳过本组。")
     return "\n".join(lines)
+
+
+def open_pending_orrery_group(run_state, group_index):
+    if not has_pending_orrery_selection(run_state):
+        return "当前没有需要处理的【星系仪】选择。"
+    groups = getattr(run_state, "pending_orrery_groups", []) or []
+    results = getattr(run_state, "pending_orrery_results", ["pending"] * len(groups))
+    if group_index < -1 or group_index >= len(groups):
+        return "星系仪组编号无效。"
+    if group_index >= 0 and results[group_index] != "pending":
+        return "这一组奖励已经处理。"
+    run_state.pending_orrery_index = group_index
+    return format_pending_orrery(run_state)
+
+
+def _finish_orrery_group(run_state, index, result, logs):
+    groups = getattr(run_state, "pending_orrery_groups", []) or []
+    results = list(getattr(run_state, "pending_orrery_results", ["pending"] * len(groups)))
+    results[index] = result
+    run_state.pending_orrery_results = results
+    run_state.pending_orrery_index = -1
+    if "pending" not in results:
+        run_state.pending_orrery_selection = False
+        run_state.pending_orrery_groups = []
+        run_state.pending_orrery_results = []
+        logs.append("【星系仪】选择完成。")
+    else:
+        logs.extend(["", format_pending_orrery(run_state)])
+    return "\n".join(logs)
+
+
+def skip_pending_orrery_group(run_state):
+    if not has_pending_orrery_selection(run_state):
+        return "当前没有需要处理的【星系仪】选择。"
+    groups, index, results = get_pending_orrery_state(run_state)
+    if not (0 <= index < len(groups)) or results[index] != "pending":
+        return "请先打开一组星系仪奖励。"
+    return _finish_orrery_group(run_state, index, "skipped", ["【星系仪】跳过第 {}/{} 组奖励。".format(index + 1, len(groups))])
 
 
 def choose_pending_orrery_card(run_state, choice_index):
     import copy
     if not has_pending_orrery_selection(run_state):
         return "当前没有需要处理的【星系仪】选择。"
-    groups = getattr(run_state, "pending_orrery_groups", []) or []
-    index = int(getattr(run_state, "pending_orrery_index", 0) or 0)
-    if index < 0 or index >= len(groups):
-        run_state.pending_orrery_selection = False
-        return "【星系仪】选择状态异常，已取消。"
+    groups, index, results = get_pending_orrery_state(run_state)
+    if not (0 <= index < len(groups)) or results[index] != "pending":
+        return "请先打开一组星系仪奖励。"
     cards = groups[index]
     if choice_index < 0 or choice_index >= len(cards):
         return "卡牌编号无效。"
@@ -455,17 +509,7 @@ def choose_pending_orrery_card(run_state, choice_index):
     logs = []
     logs.append("【星系仪】第 {}/{} 组选择【{}】。".format(index + 1, len(groups), getattr(card, "name", "未知卡牌")))
     logs.extend(add_card_to_master_deck_with_relics(run_state, card, source="星系仪"))
-    index += 1
-    run_state.pending_orrery_index = index
-    if index >= len(groups):
-        run_state.pending_orrery_selection = False
-        run_state.pending_orrery_groups = []
-        run_state.pending_orrery_index = 0
-        logs.append("【星系仪】选择完成。")
-    else:
-        logs.append("")
-        logs.append(format_pending_orrery(run_state))
-    return "\n".join(logs)
+    return _finish_orrery_group(run_state, index, "claimed", logs)
 
 
 def start_pending_dollys_mirror_selection(run_state):
