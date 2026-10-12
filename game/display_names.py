@@ -27,6 +27,10 @@ def format_card_display_name(card_or_name, card_type=None):
     if card_type is None and not isinstance(card_or_name, str):
         card_type = getattr(card_or_name, "card_type", "")
         name = getattr(card_or_name, "name", "未知卡牌")
+        from game.lizhou import card_state_text
+        state_text = card_state_text(card_or_name)
+        if state_text:
+            name += '·' + state_text
     else:
         name = card_or_name
     return wrap_display_name(name, get_card_type_brackets(card_type))

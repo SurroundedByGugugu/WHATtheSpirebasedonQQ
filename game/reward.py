@@ -303,6 +303,8 @@ from data.card.character.defect_cards import DEFECT_REWARD_IDS
 CARD_REWARD_POOL.extend(DEFECT_REWARD_IDS)
 from data.card.character.watcher_cards import WATCHER_REWARD_IDS
 CARD_REWARD_POOL.extend(WATCHER_REWARD_IDS)
+from data.card.character.lizhou_cards import LIZHOU_REWARD_IDS
+CARD_REWARD_POOL.extend(LIZHOU_REWARD_IDS)
 
 COMMON_POTION_POOL=[
     "potion.focus",

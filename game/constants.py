@@ -13,6 +13,7 @@ EVENT_BEFORE_ENEMY_ACTIONS = "before_enemy_actions"
 
 EVENT_CARD_PLAY_BEFORE = "card_play_before"
 EVENT_CARD_PLAY_AFTER = "card_play_after"
+EVENT_CARD_RESOLUTION_AFTER = "card_resolution_after"  # Includes each replay.
 EVENT_CARD_EXHAUST = "card_exhaust"
 
 EVENT_DAMAGE_BEFORE = "damage_before"

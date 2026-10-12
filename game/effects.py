@@ -98,6 +98,8 @@ def move_specific_draw_card_to_hand_or_discard(game_state, card, logs, draw_sour
         index_plus = get_card_enchantment_stacks(card, "index_shade_plus")
         if index_plus > 0:
             player.cost += index_plus
+            from game.lizhou import energy_gained
+            logs.extend(energy_gained(game_state, index_plus))
             logs.append("【索引·阴+】触发：抽到【{}】，获得 {} 点费用。当前费用：{}。".format(
                 card.name,
                 index_plus,
@@ -235,7 +237,7 @@ def resolve_amount(
     if card_vars is None:
         card_vars = getattr(card, "effect_vars", {})
 
-    value = 0
+    value = int(amount_spec.get('base', 0))
 
     base_var = amount_spec.get("base_var")
     if base_var:
@@ -749,6 +751,8 @@ def play_card_from_effect_and_exhaust(
                 played_card.name
             ))
     from game.engine import apply_next_card_replay_statuses
+    from game.lizhou import prepare_play
+    logs.extend(prepare_play(game_state, played_card, effect_context, automatic=True))
     apply_next_card_replay_statuses(
         game_state=game_state,
         card=played_card,
@@ -792,6 +796,12 @@ def play_card_from_effect_and_exhaust(
         ) if force_exhaust else move_played_card_to_destination(game_state, played_card))
     yield logs
     logs = []
+
+    if force_exhaust or defer_destination:
+        from game.lizhou import finish_play
+        logs.extend(finish_play(game_state, played_card))
+        yield logs
+        logs = []
 
     return logs
 
@@ -1165,6 +1175,9 @@ def handle_gain_energy(game_state, card, effect, target_index, effect_context):
 
     game_state.player.cost += amount
 
+    from game.lizhou import energy_gained
+    logs.extend(energy_gained(game_state, amount))
+
     logs.append("{} 获得 {} 点费用。当前费用：{}。".format(
         game_state.player.name,
         amount,
@@ -1423,6 +1436,8 @@ def handle_draw_gain_energy_if_player_lost_hp_this_battle(game_state, card, effe
 
     if energy > 0:
         player.cost += energy
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(game_state, energy))
         logs.append("{} 获得 {} 点费用。当前费用：{}。".format(
             player.name,
             energy,
@@ -1633,6 +1648,8 @@ def handle_abyss_mire_damage_by_gaze(game_state, card, effect, target_index, eff
     if total_real_damage <= 0:
         energy_gain = int(effect.get("energy_if_no_damage", 2) or 2)
         player.cost += energy_gain
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(game_state, energy_gain))
 
         logs.append("【{}】没有造成实际生命伤害，获得 {} 点费用。当前费用：{}。".format(
             card.name,
@@ -3229,6 +3246,8 @@ def handle_consume_status_gain_energy_if_present(game_state, card, effect, targe
 
     if energy > 0:
         player.cost += energy
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(game_state, energy))
         logs.append("{} 获得 {} 点费用。当前费用：{}。".format(
             player.name,
             energy,
@@ -5012,6 +5031,8 @@ def apply_card_effect(game_state, card, effect, target_index, effect_context=Non
             return logs
 
         game_state.player.cost += amount
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(game_state, amount))
 
         logs.append("本回合已丢弃过牌，【{}】获得 {} 点费用。当前费用：{}。".format(
             card.name,
@@ -6477,6 +6498,9 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
             break
 
         if play_index > 0:
+            if getattr(game_state, "force_end_turn_after_card", False):
+                logs.append("回合已被强制结束，后续重放不再结算。")
+                break
             if not get_alive_enemies(game_state):
                 logs.append("没有存活的敌人，后续重放不再结算。")
                 break
@@ -6534,6 +6558,15 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         logs = []
         if not game_state.player.is_alive():
             break
+        from game.event_bus import dispatch_event
+        from game.battle_context import BattleContext
+        from game.constants import EVENT_CARD_RESOLUTION_AFTER
+        logs.extend(dispatch_event(game_state, EVENT_CARD_RESOLUTION_AFTER, BattleContext(
+            game_state=game_state, player=game_state.player,
+            source=game_state.player, card=card,
+        )))
+        yield logs
+        logs = []
     from game.status.status_effects import (
         resolve_pending_curl_up_after_card,
         resolve_pending_flying_after_card,
@@ -6864,6 +6897,12 @@ def handle_request_night_terror_card(game_state, card, effect, target_index, eff
 def handle_defect_card(game_state, card, effect, target_index, effect_context):
     from game.defect import effect as apply_defect_effect
     return apply_defect_effect(game_state, card, effect, target_index, effect_context)
+
+
+@register_effect("lizhou_card")
+def handle_lizhou_card(game_state, card, effect, target_index, effect_context):
+    from game.lizhou import effect as lizhou_effect
+    return lizhou_effect(game_state, card, effect, target_index, effect_context)
 
 
 @register_effect("watcher_card")

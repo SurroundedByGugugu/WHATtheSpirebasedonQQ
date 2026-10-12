@@ -74,6 +74,7 @@ def create_fruit_juice():
 def create_ghost_in_a_jar():
     return PotionTemplate(
         potion_id="potion.ghost_in_a_jar",
+        owner_character_id="character.silent_huntress",
         name="罐装幽灵",
         description="获得 1 层无实体。",
         target="self",
@@ -93,6 +94,7 @@ def create_ghost_in_a_jar():
 def create_heart_of_iron():
     return PotionTemplate(
         potion_id="potion.heart_of_iron",
+        owner_character_id="character.armored_warrior",
         name="铁之心",
         description="获得 6 层金属化。",
         target="self",

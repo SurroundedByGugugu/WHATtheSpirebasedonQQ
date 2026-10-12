@@ -39,7 +39,7 @@ class TwistedFunnelRelic(RelicTemplate):
             description="在每场战斗开始时，给予所有敌人 4 层中毒。",
             story="“个人建议不要用这个来喝东西。”",
             quantity="shop",
-            owner_character_id="",
+            owner_character_id="character.silent_huntress",
             allow_duplicate=False
         )
 
@@ -383,7 +383,7 @@ class BrimstoneRelic(RelicTemplate):
             description="在你的每个回合开始时，你获得 2 点力量，所有敌人也获得 1 点力量。",
             story="散发出地狱般的高热。",
             quantity="shop",
-            owner_character_id="",
+            owner_character_id="character.armored_warrior",
             allow_duplicate=False
         )
 

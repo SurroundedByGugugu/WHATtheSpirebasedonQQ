@@ -3,6 +3,7 @@
 import random
 from game.constants import (
     EVENT_CARD_PLAY_AFTER,
+    EVENT_CARD_RESOLUTION_AFTER,
     EVENT_DAMAGE_AFTER,
     EVENT_DAMAGE_RESOLVED,
     EVENT_DAMAGE_BEFORE,
@@ -1831,6 +1832,8 @@ def handle_next_turn_energy(event_name, context, owner, value):
         return logs
 
     owner.cost += amount
+    from game.lizhou import energy_gained
+    logs.extend(energy_gained(context.game_state, amount))
 
     if hasattr(owner, "statuses"):
         owner.statuses.remove("next_turn_energy")
@@ -2306,6 +2309,8 @@ def handle_deva_form(event_name, context, owner, value):
 
     owner._deva_energy = getattr(owner, "_deva_energy", 0) + amount
     owner.cost += owner._deva_energy
+    from game.lizhou import energy_gained
+    logs.extend(energy_gained(context.game_state, owner._deva_energy))
 
     logs.append("{} 的天人形态触发，获得 {}c。当前费用：{}/{}。".format(
         owner.name,
@@ -3112,7 +3117,7 @@ def handle_curious(event_name, context, owner, value):
 def handle_time_warp(event_name, context, owner, value):
     logs = []
 
-    if event_name != EVENT_CARD_PLAY_AFTER:
+    if event_name != EVENT_CARD_RESOLUTION_AFTER:
         return logs
 
     game_state = context.game_state

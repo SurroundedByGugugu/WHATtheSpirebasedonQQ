@@ -19,6 +19,7 @@ CHARACTER_CHOICES = [
     ("2", "character.lumine", "昼·里辛塔法"),
     ("3", "character.yoirine", "Yoirine"),
     ("4", "character.suzuri", "Suzuri"),
+    ("7", "character.lizhou", "李昼"),
 ]
 
 MAX_PLAYERS = 6
@@ -61,6 +62,7 @@ class MultiRoomService(object):
             "/card multi view             查看房间",
             "/card multi play 手牌编号 [敌人编号]",
             "/card multi end              结束当前行动者回合",
+            "/card multi pick 编号...     李昼卡牌选择；/card multi skip 跳过可选项",
             "/card multi reward           查看奖励",
             "/card multi relic 编号|skip  选择遗物，冲突时 d100 小者获得",
             "/card multi close            关闭当前多人房间",
@@ -103,6 +105,17 @@ class MultiRoomService(object):
 
         if action == "play":
             return self.handle_play(session_id, user_id, parts)
+
+        if action in ('pick', 'skip'):
+            room = self.get_room(session_id)
+            if room is None or room.battle is None:
+                return '当前没有多人战斗。'
+            from game.multiplayer.lizhou_adapter import choose
+            try:
+                indices = [] if action == 'skip' else [int(i) for i in parts[3:]]
+            except ValueError:
+                return '选择编号必须是数字。'
+            return choose(room, user_id, indices)
 
         if action == "end":
             room = self.get_room(session_id)

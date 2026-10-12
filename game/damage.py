@@ -299,6 +299,22 @@ def deal_damage(
                     old_amount,
                     amount
                 ))
+    from game.lizhou import powers, status as lizhou_status
+    if damage_kind == 'attack' and source is game_state.player and target is not source and powers(game_state, 'void_world'):
+        if target.block == 0:
+            logs.extend(lizhou_status(game_state, 'lizhou_double_hurt', 1, target))
+            yield logs
+            logs = []
+        target.block = 0
+    if damage_kind not in ('hp_loss', 'lose_hp', 'self_hp_loss'):
+        factor = 1.0
+        if _get_status_value(source, 'lizhou_fortify'):
+            factor *= 1.25
+        if _get_status_value(target, 'lizhou_counterbalance'):
+            factor *= 0.5
+        if _get_status_value(target, 'lizhou_double_hurt'):
+            factor *= 2
+        amount = int(amount * factor)
     before_context = BattleContext(
         game_state=game_state,
         player=game_state.player,

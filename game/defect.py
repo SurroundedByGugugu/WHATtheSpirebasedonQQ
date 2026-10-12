@@ -93,6 +93,8 @@ def choose_cards(state, indices):
             energy = player.cost if cost == 'X' else max(0, int(cost))
             logs.extend(move_card_to_exhaust_pile(state, card, reason='recycle'))
             player.cost += energy
+            from game.lizhou import energy_gained
+            logs.extend(energy_gained(state, energy))
             logs.append('回收获得 {} 能量。'.format(energy))
         else:
             put_in_hand(state, card, logs)
@@ -161,6 +163,8 @@ def effect(state, card, spec, target_index, context):
             damage(damage_amount, times, card.target == 'all_enemies', card.target == 'random_enemy')
         if key == 'sunder' and alive_before and not target.is_alive():
             player.cost += 3
+            from game.lizhou import energy_gained
+            logs.extend(energy_gained(state, 3))
             logs.append('分离击杀：获得3能量。')
         if state.battle_over:
             return logs
@@ -217,11 +221,15 @@ def effect(state, card, spec, target_index, context):
     elif key in ('turbo','overclock'):
         if key == 'turbo':
             player.cost += n
+            from game.lizhou import energy_gained
+            logs.extend(energy_gained(state, n))
         else:
             draw(n)
         player.discard_pile.append(create_card('card.status.void' if key == 'turbo' else 'card.status.burn_i'))
     elif key == 'aggregate':
         player.cost += len(player.draw_pile) // n
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(state, len(player.draw_pile) // n))
     elif key == 'auto_shields' and player.block == 0:
         block(v['block'])
     elif key == 'blizzard':
@@ -333,6 +341,8 @@ def effect(state, card, spec, target_index, context):
             removed += 1
         if not state.battle_over:
             player.cost += removed
+            from game.lizhou import energy_gained
+            logs.extend(energy_gained(state, removed))
             draw(removed)
     elif key == 'hyperbeam':
         status('focus',-3)
@@ -344,10 +354,14 @@ def effect(state, card, spec, target_index, context):
         for kind in ('lightning','frost','dark'):
             generate(kind)
     elif key == 'reboot':
+        moved_hand = list(player.hand)
         player.draw_pile.extend(player.hand)
         player.draw_pile.extend(player.discard_pile)
         player.hand.clear()
         player.discard_pile.clear()
+        from game.lizhou import escaped_flower
+        for moved in moved_hand:
+            logs.extend(escaped_flower(state, moved))
         random.shuffle(player.draw_pile)
         for relic in player.relics:
             handler = getattr(relic,'on_shuffle',None)

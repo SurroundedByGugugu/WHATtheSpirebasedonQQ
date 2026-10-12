@@ -96,7 +96,7 @@ class StalactiteRelic(RelicTemplate):
             description="战斗开始时，获得等于当前阶段数的岩层。若被饱和碳酸钙溶液强化，则额外增加对应层数。",
             story="“一种锥形的岩溶生成物……”",
             quantity="common",
-            owner_character_id="",
+            owner_character_id="character.suzuri",
             allow_duplicate=False,
         )
         self.extra_rock_layer = 0

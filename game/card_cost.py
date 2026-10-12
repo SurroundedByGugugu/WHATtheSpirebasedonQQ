@@ -13,6 +13,11 @@ def get_card_current_cost(game_state, card):
     if is_x_cost_card(card):
         return card.cost
 
+    if game_state is not None:
+        from game.lizhou import free
+        if free(game_state, card):
+            return 0
+
     # 蓝蜡烛允许打出的诅咒牌按 0 费处理。
     # 医药箱只开放状态牌的打出权限，不改变状态牌自身费用。
     if game_state is not None:
@@ -85,6 +90,7 @@ def get_card_current_cost(game_state, card):
         min_cost = min(min_cost, -1)
         current_cost -= 1
 
+    current_cost -= int(getattr(card, 'lizhou_discount', 0))
     if current_cost < min_cost:
         current_cost = min_cost
 
@@ -138,6 +144,9 @@ def get_x_cost_spent_cost(game_state, card, raw_x):
     - X = 0
     - 若诱语生效，实际消耗 -1，等效恢复 1 费
     """
+    from game.lizhou import free
+    if game_state is not None and free(game_state, card):
+        return 0
     raw_x = int(raw_x)
 
     if game_state is not None and card.card_type == "attack" and game_state.player.statuses.get("w_swivel"):

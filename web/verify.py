@@ -17,6 +17,37 @@ class WebChecks(unittest.TestCase):
     def send(self, text):
         return json.loads(bridge.dispatch(text))
 
+    def test_lizhou_character_and_selection_panel(self):
+        result = self.send('/card new 7')
+        self.assertEqual(result['run']['name'], '李昼')
+        self.send('/card testroom battle')
+        from data.card.AAAregistry import create_card
+        from game.lizhou import anchor
+        run = bridge.service.get_run(bridge.SESSION)
+        battle = run.current_battle
+        target = create_card('card.lizhou.defend')
+        battle.player.hand = [create_card('card.lizhou.anchoring'), target]
+        battle.player.cost = 3
+        selection = self.send('/card play 0')['run']['selection']
+        self.assertEqual(selection['minimum'], 1)
+        self.assertEqual(selection['maximum'], 1)
+        self.send('/card pick 0')
+        self.assertEqual(target.lizhou_anchor, 2)
+        preview = self.send('/card view')['run']['hand'][0]['preview']
+        self.assertIn('锚定2', preview)
+
+    def test_lizhou_zodiac_relic_panel(self):
+        self.send('/card new 7')
+        from data.card.AAAregistry import create_card
+        from game.relic_logic.run_relic_utils import add_card_to_master_deck_with_relics
+        run = bridge.service.get_run(bridge.SESSION)
+        for _ in range(2):
+            add_card_to_master_deck_with_relics(run, create_card('card.lizhou.aries'))
+        selection = self.send('/card view')['run']['selection']
+        self.assertIn('十二星座', selection['title'])
+        self.send('/card zodiac skip')
+        self.assertFalse(getattr(run, 'lizhou_zodiac_choices', []))
+
     def test_five_characters_and_confirmations(self):
         for index in range(5):
             bridge.service = GameService()

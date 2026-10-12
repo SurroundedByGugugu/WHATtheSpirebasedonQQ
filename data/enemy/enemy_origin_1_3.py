@@ -787,7 +787,7 @@ def create_exploder():
     return ExploderEnemy()
 REPULSOR_A = EnemyIntent(kind="attack", value=11, attack_type="blunt")
 REPULSOR_A._action_key = "a"
-REPULSOR_B = EnemyIntent(kind="add_card_to_draw", card_id="card.status.dazed", count=2)
+REPULSOR_B = EnemyIntent(kind="add_card_to_draw", card_id="card.status.dazed", count=2, shuffle_draw_pile=True)
 REPULSOR_B._action_key = "b"
 class RepulsorEnemy(PatternEnemy):
     def __init__(self, max_hp=None):

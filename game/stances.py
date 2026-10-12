@@ -24,11 +24,15 @@ def change_stance(state, new_stance, player=None):
     if old == 'calm':
         energy = 3 if any(r.relic_id == 'relic.violet_lotus' for r in player.relics) else 2
         player.cost += energy
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(state, energy))
         logs.append('离开平静，获得 {}c。'.format(energy))
     player.stance = new_stance
     player.divinity_expires_turn = state.turn_count + 1 if new_stance == 'divinity' else None
     if new_stance == 'divinity':
         player.cost += 3
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(state, 3))
         logs.append('进入神格，获得 3c。')
     logs.append('姿态：{} → {}。'.format(NAMES[old], NAMES[new_stance]))
     logs.extend(dispatch_event(state, 'stance_changed', BattleContext(

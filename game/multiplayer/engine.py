@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import random
+import copy
 
 from data.card.AAAregistry import create_card, create_deck
 from data.character.AAAregistry import create_character
@@ -72,7 +73,7 @@ def _make_player_state(slot):
         relics=slot.relics,
         max_potion_slots=slot.max_potion_slots,
         potions=slot.potions,
-        draw_pile=list(slot.master_deck),
+        draw_pile=copy.deepcopy(slot.master_deck),
         discard_pile=[],
         exhaust_pile=[],
         hand=[],
@@ -124,7 +125,8 @@ def start_test_battle(room):
     for slot in room.players:
         player = _make_player_state(slot)
         rng.shuffle(player.draw_pile)
-        player.draw_cards(5, game_state=None, draw_source="multi_opening")
+        if slot.character_id != 'character.lizhou':
+            player.draw_cards(5, game_state=None, draw_source="multi_opening")
         slot.player_state = player
         slot.ended_turn = False
 
@@ -137,6 +139,11 @@ def start_test_battle(room):
     )
     room.battle = battle
     room.status = ROOM_STATUS_BATTLE
+
+    for slot in room.players:
+        if slot.character_id == 'character.lizhou':
+            from game.multiplayer.lizhou_adapter import combat, open_turn
+            open_turn(combat(room, slot), opening=True)
 
     return "\n".join([
         "多人测试房间开战。",
@@ -230,6 +237,12 @@ def _deal_damage(source, target, amount):
     amount = max(0, int(amount))
     if target is None:
         return "伤害目标无效。"
+    if _status_value(source, 'lizhou_fortify'):
+        amount = int(amount * 1.25)
+    if _status_value(target, 'lizhou_counterbalance'):
+        amount = int(amount * 0.5)
+    if _status_value(target, 'lizhou_double_hurt'):
+        amount *= 2
     return target.take_damage(amount)
 
 
@@ -322,6 +335,10 @@ def play_card(room, user_id, hand_index, target_index=None):
     if hand_index < 0 or hand_index >= len(player.hand):
         return "手牌编号无效。"
 
+    if slot.character_id == 'character.lizhou':
+        from game.multiplayer.lizhou_adapter import play
+        return play(room, slot, hand_index, target_index)
+
     card = player.hand[hand_index]
     cost = _card_cost(player, card)
     if cost > int(getattr(player, "cost", 0) or 0):
@@ -387,7 +404,7 @@ def _start_player_turn(slot):
     return logs
 
 
-def end_player_turn(room, user_id):
+def end_player_turn(room, user_id, _lizhou_cleaned=False):
     if room.status != ROOM_STATUS_BATTLE or room.battle is None:
         return "当前多人房间不在战斗中。"
     battle = room.battle
@@ -396,7 +413,10 @@ def end_player_turn(room, user_id):
         return "还没轮到你结束回合。当前行动者：{}。".format(battle.active_user_id)
     player = slot.player_state
     logs = ["{} 结束回合。".format(slot.label())]
-    if player is not None:
+    if slot.character_id == 'character.lizhou' and not _lizhou_cleaned:
+        from game.multiplayer.lizhou_adapter import end
+        return end(room, slot)
+    if player is not None and not _lizhou_cleaned:
         logs.append(player.discard_hand())
     slot.ended_turn = True
     _sync_slot_from_player(slot)
@@ -421,7 +441,11 @@ def end_player_turn(room, user_id):
     for player_slot in room.players:
         if player_slot.is_alive():
             player_slot.ended_turn = False
-            logs.extend(_start_player_turn(player_slot))
+            if player_slot.character_id == 'character.lizhou':
+                from game.multiplayer.lizhou_adapter import next_round
+                logs.extend(next_round(room, player_slot))
+            else:
+                logs.extend(_start_player_turn(player_slot))
             _sync_slot_from_player(player_slot)
     next_slot = _next_living_unended_slot(room)
     if next_slot is not None:
@@ -460,6 +484,12 @@ def _process_enemy_action(room, enemy, action):
         for slot in room.living_players():
             player = slot.player_state
             amount = _enemy_attack_amount(enemy, player, base_damage)
+            if slot.character_id == 'character.lizhou':
+                from game.multiplayer.lizhou_adapter import combat
+                from game.damage import deal_damage
+                logs.extend(deal_damage(combat(room, slot), enemy, player, amount))
+                _sync_slot_from_player(slot)
+                continue
             logs.append("{} -> {}：{}".format(
                 enemy.name,
                 slot.label(),
@@ -538,12 +568,21 @@ def _process_enemy_turn(room):
     for enemy in list(battle.enemies):
         if not enemy.is_alive():
             continue
+        if enemy.statuses.get('stun') > 0:
+            enemy.statuses.add('stun', -1)
+            logs.append('{}被晕眩，跳过行动。'.format(enemy.name))
+            continue
         old_block = enemy.clear_block()
         if old_block > 0:
             logs.append("{} 的 {} 点格挡消失。".format(enemy.name, old_block))
         action_result = enemy.act()
         logs.extend(action_result.logs)
         logs.extend(_process_enemy_action(room, enemy, action_result.action))
+    if any(slot.character_id == 'character.lizhou' for slot in room.players):
+        for enemy in battle.enemies:
+            for status_key in ('lizhou_double_hurt', 'lizhou_fortify', 'lizhou_counterbalance', 'lizhou_tenacity'):
+                if enemy.statuses.get(status_key):
+                    enemy.statuses.add(status_key, -1)
     return logs
 
 

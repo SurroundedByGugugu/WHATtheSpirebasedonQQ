@@ -124,7 +124,8 @@ CHARACTER_CHOICES = [
         "name": "Suzuri"
     },
     {"index": 5, "character_id": "character.defect", "name": "故障机器人"},
-    {"index": 6, "character_id": "character.watcher", "name": "观者"}
+    {"index": 6, "character_id": "character.watcher", "name": "观者"},
+    {"index": 7, "character_id": "character.lizhou", "name": "李昼"}
 ]
 
 class GameService(object):
@@ -394,6 +395,19 @@ class GameService(object):
         if self.is_owned_by_other_user(session_id, user_id):
             return self.SAME_GROUP_SINGLE_GAME_MESSAGE
 
+        from game.lizhou_relic import options as zodiac_options, choose as choose_zodiac, format_choice as zodiac_prompt
+        if zodiac_options(run_state):
+            if command == 'zodiac':
+                raw = parts[2] if len(parts) > 2 else ''
+                if raw in ('skip', '跳过'):
+                    return choose_zodiac(run_state)
+                try:
+                    return choose_zodiac(run_state, int(raw))
+                except ValueError:
+                    return zodiac_prompt(run_state)
+            if command not in ('hand', 'view', 'run', 'info', 'deck', 'relics', 'status', 'exit'):
+                return zodiac_prompt(run_state)
+
         if command in ("yes", "y", "确认", "是"):
             return self.handle_yes(session_id, run_state)
 
@@ -428,6 +442,9 @@ class GameService(object):
             return format_route_text(run_state)
         
         if command in ("reward", "rewards", "奖励", "查看奖励"):
+            if len(parts) > 2 and parts[2].lower() in ("back", "返回"):
+                if run_state.pending_reward is not None:
+                    run_state.pending_reward.active_card_option_index = -1
             return get_reward_view(run_state)
 
         if command in ("chest", "treasure", "宝箱", "查看宝箱"):
@@ -550,6 +567,15 @@ class GameService(object):
                 format_pending_dollys_mirror(run_state)
             ])
         
+        if pending_choice_is(run_state.current_battle, 'lizhou_select') and command in ('pick', 'choose', 'skip'):
+            from game.lizhou import choose_cards
+            try:
+                raw = ' '.join(parts[2:]).replace(',', ' ').replace('，', ' ')
+                indices = [] if command == 'skip' or raw.strip() == 'skip' else [int(i) for i in raw.split()]
+            except ValueError:
+                return '选择编号必须是数字。'
+            return self.append_run_progress_after_battle(session_id, run_state, choose_cards(run_state.current_battle, indices))
+
         if command in ("scry", "预见", "pick", "choose", "skip") and (
             pending_choice_is(run_state.current_battle, "scry") or pending_choice_is(run_state.current_battle, "watcher_select")
         ):

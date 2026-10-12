@@ -97,6 +97,10 @@ PRIVATE_RELIC_IDS = [
 ]
 PRIVATE_EVENT_IDS = []
 
+from data.card.character.lizhou_cards import LIZHOU_CARD_REGISTRY
+PRIVATE_CARD_IDS.extend(LIZHOU_CARD_REGISTRY)
+PRIVATE_RELIC_IDS.extend(['relic.anchored_eye', 'relic.twelve_zodiacs'])
+
 PRIVATE_ENCOUNTER_IDS = [
     "encounter.test_dummy",
     "encounter.corsoal_single",

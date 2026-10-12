@@ -192,6 +192,8 @@ class HappyFlowerRelic(RelicTemplate):
         if self.turn_counter % 3 != 0:
             return []
         context.player.cost += 1
+        from game.lizhou import energy_gained
+        context.logs.extend(energy_gained(context.game_state, 1))
         return ["【{}】触发：第 {} 个回合，获得 1 点能量。当前费用：{}/{}。".format(
             self.name, self.turn_counter, context.player.cost, context.player.max_cost
         )]
@@ -211,6 +213,8 @@ class LanternRelic(RelicTemplate):
         if event_name != EVENT_TURN_START or int(getattr(context.game_state, "turn_count", 1)) != 1:
             return []
         context.player.cost += 1
+        from game.lizhou import energy_gained
+        context.logs.extend(energy_gained(context.game_state, 1))
         return ["【{}】触发：第一回合获得 1 点能量。当前费用：{}/{}。".format(
             self.name, context.player.cost, context.player.max_cost
         )]
@@ -360,6 +364,7 @@ class SnakeSkullRelic(RelicTemplate):
             description="每当你给予敌人中毒状态时，额外给予 1 层中毒。",
             story="保存完好的异蛇头骨，十分离奇地非常干净和光滑，任何灰尘和污垢都无法沾上它，这是为什么呢。",
             quantity="common",
+            owner_character_id="character.silent_huntress",
         )
 
 
@@ -459,6 +464,8 @@ class NunchakuRelic(RelicTemplate):
         if self.attack_count % 10 != 0:
             return []
         context.player.cost += 1
+        from game.lizhou import energy_gained
+        context.logs.extend(energy_gained(context.game_state, 1))
         return ["【{}】触发：打出第 {} 张攻击牌，获得 1 点能量。当前费用：{}/{}。".format(
             self.name, self.attack_count, context.player.cost, context.player.max_cost
         )]
@@ -593,6 +600,8 @@ class AncientTeaSetRelic(RelicTemplate):
             return []
         run_state.ancient_tea_set_ready = False
         context.player.cost += 2
+        from game.lizhou import energy_gained
+        context.logs.extend(energy_gained(context.game_state, 2))
         return ["【{}】触发：休息处后的下一场战斗第一回合获得 2 点能量。当前费用：{}/{}。".format(
             self.name, context.player.cost, context.player.max_cost
         )]
@@ -614,6 +623,8 @@ class ArtOfWarRelic(RelicTemplate):
             if self.next_turn_bonus:
                 self.next_turn_bonus = False
                 context.player.cost += 1
+                from game.lizhou import energy_gained
+                context.logs.extend(energy_gained(context.game_state, 1))
                 return ["【{}】触发：本回合获得 1 点额外能量。当前费用：{}/{}。".format(
                     self.name, context.player.cost, context.player.max_cost
                 )]

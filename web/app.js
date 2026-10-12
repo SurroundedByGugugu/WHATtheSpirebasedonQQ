@@ -8,7 +8,7 @@ const originalCharacterIds = [
 const characterCodes = {
   "character.armored_warrior": "IRONCLAD", "character.silent_huntress": "THE SILENT",
   "character.defect": "DEFECT", "character.watcher": "WATCHER",
-  "character.lumine": "LUMINE", "character.yoirine": "YOIRINE", "character.suzuri": "SUZURI"
+  "character.lumine": "LUMINE", "character.yoirine": "YOIRINE", "character.suzuri": "SUZURI", "character.lizhou": "LIZHOU"
 };
 function el(tag, text, className) {
   const node = document.createElement(tag);
@@ -74,6 +74,29 @@ function actionDialog(title, description = "", closeLabel = "取消") {
   if (!dialog.open) dialog.showModal();
   return dialog;
 }
+function appendCardBadges(node, card) {
+  if (card.rarity) {
+    const rarity = ["rare", "uncommon"].includes(card.rarity) ? card.rarity : "common";
+    node.classList.add("rarity-" + rarity);
+    const label = {rare: "稀有", uncommon: "罕见", common: "普通", starting: "初始", myth: "神话", status: "状态", curse: "诅咒", event: "事件"}[card.rarity] || card.rarity;
+    const badges = el("div", undefined, "card-badges");
+    badges.append(el("span", label, "card-badge rarity-label"));
+    for (const tag of card.tags || []) badges.append(el("span", tag, "card-badge element-tag"));
+    for (const keyword of card.keywords || []) badges.append(el("span", keyword, "card-badge keyword-tag"));
+    node.append(badges);
+  }
+}
+function showAcquired(items) {
+  if (!items?.length) return;
+  const dialog = actionDialog("获得奖励", "", "继续");
+  for (const item of items) {
+    const entry = el("article", undefined, "acquired-item");
+    entry.append(el("h3", `${item.kind} · ${item.name}`));
+    appendCardBadges(entry, item);
+    entry.append(el("p", item.description, "action-description"));
+    dialog.append(entry);
+  }
+}
 function actionNode(choice) {
   const row = el("div", undefined, "action-row");
   const node = choice.options
@@ -86,6 +109,7 @@ function actionNode(choice) {
       }, "choice")
     : button("", choice.command, "choice");
   node.append(el("strong", choice.name));
+  appendCardBadges(node, choice);
   if (choice.description) node.append(el("span", choice.description, "action-description"));
   if (choice.reason) node.append(el("span", choice.reason, "action-reason"));
   blockButton(node, choice.disabled);
@@ -133,7 +157,9 @@ function renderSelection(selection) {
       if (selected.has(index)) selected.delete(index); else selected.add(index);
       update();
     }, "choice");
-    node.append(el("strong", option.name), el("span", option.description, "action-description"));
+    node.append(el("strong", option.name));
+    appendCardBadges(node, option);
+    node.append(el("span", option.description, "action-description"));
     $("selection-options").append(node);
   });
   $("selection-submit").append(submit);
@@ -298,6 +324,7 @@ function render(data) {
     hp.setAttribute("aria-label", enemy.name + "生命");
     card.append(hp);
     if (enemy.status) card.append(el("p", enemy.status, "status-text"));
+    if (enemy.capturedCard) card.append(el("p", "夺取中：" + enemy.capturedCard + " · 击败后取回", "captured-card"));
     card.dataset.uiAction = "true";
     card.disabled = busy || !ready;
     card.onclick = () => {
@@ -325,6 +352,7 @@ function render(data) {
     blockButton(node, Boolean(run.selection));
     node.append(el("span", String(card.cost), "card-cost"), el("span", ({attack:"攻击",skill:"技能",power:"能力",status:"状态",curse:"诅咒"})[card.type] || card.type, "card-type"),
       el("h3", card.name), el("p", card.description, "card-description"));
+    appendCardBadges(node, card);
     if (card.preview) node.append(el("p", card.preview, "card-preview"));
     node.append(el("span", "#" + card.index + (run.selection ? " · 请先完成上方选择" : " · 点击出牌"), "card-index"));
     $("hand").append(node);
@@ -393,6 +421,7 @@ function start() {
       $("console").hidden = false;
       setBusy(false);
       render(data.result);
+      showAcquired(data.result.acquired);
       if (data.result.run?.selection && /^\/card\s+play\b/.test(activeCommand)) {
         $("selection-title").focus({ preventScroll: true });
         $("selection-panel").scrollIntoView({ block: "nearest" });

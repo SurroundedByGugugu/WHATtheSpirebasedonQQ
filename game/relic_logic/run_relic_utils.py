@@ -184,6 +184,8 @@ def add_card_to_master_deck_with_relics(run_state, card, source="获得卡牌", 
 
     card = assign_new_card_master_uid(run_state, card)
     run_state.master_deck.append(card)
+    from game.lizhou_relic import check_gain
+    logs.extend(check_gain(run_state, card))
     
     logs.append("{}：【{}】加入牌组。".format(source, getattr(card, "name", "未知卡牌")))
 

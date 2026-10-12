@@ -75,6 +75,8 @@ class PlayerState:
         from game.modifiers import get_status_value
 
         if get_status_value(self, "barricade") > 0:
+            from game.lizhou import energy_gained
+            logs.extend(energy_gained(game_state, self.max_cost))
             logs.append("{} 的壁垒生效，回合开始时保留 {} 点格挡。".format(
                 self.name,
                 old_block
@@ -82,6 +84,8 @@ class PlayerState:
             return logs
 
         if get_status_value(self, "blur") > 0:
+            from game.lizhou import energy_gained
+            logs.extend(energy_gained(game_state, self.max_cost))
             self.statuses.add("blur", -1)
             logs.append("{} 的残影生效，回合开始时保留 {} 点格挡。".format(
                 self.name,
@@ -113,6 +117,9 @@ class PlayerState:
             new_block = 0
 
         self.block = new_block
+
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(game_state, self.max_cost))
 
         if old_block > 0:
             if new_block > 0:
@@ -204,6 +211,8 @@ class PlayerState:
                 index_plus = get_card_enchantment_stacks(card, "index_shade_plus")
                 if index_plus > 0:
                     self.cost += index_plus
+                    from game.lizhou import energy_gained
+                    logs.extend(energy_gained(game_state, index_plus))
                     logs.append("【索引·阴+】触发：抽到【{}】，获得 {} 点费用。当前费用：{}。".format(
                         card.name,
                         index_plus,

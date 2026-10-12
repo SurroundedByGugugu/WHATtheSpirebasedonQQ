@@ -30,9 +30,29 @@ def action(name, command=None, description="", **extra):
     return dict(name=name, command=command, description=description, **extra)
 
 
+def card_metadata(card):
+    from data.card.keyword_rules import get_sorted_keywords, get_keyword_display_name
+    from data.card.enchantment_rules import get_card_enchantment_display_text
+    tags = []
+    names = {"slash": "斩击", "piercing": "穿刺", "blunt": "钝击", "magic": "魔法",
+             "fire": "火", "earth": "地", "wind": "风", "water": "水",
+             "thunder": "雷", "shade": "阴", "crystal": "晶"}
+    for value in (getattr(card, "attack_type", ""), getattr(card, "attack_element", "")):
+        if value:
+            tags.append(names.get(value, value))
+    keywords = [get_keyword_display_name(key) for key in get_sorted_keywords(card)]
+    if getattr(card, "temporary_retain_once", False) and "保留" not in keywords:
+        keywords.append("保留（本回合）")
+    enchantment = get_card_enchantment_display_text(card)
+    if enchantment:
+        keywords.append(enchantment)
+    return dict(rarity=getattr(card, "quantity", "common"), tags=tags, keywords=keywords)
+
+
 def card_actions(cards, command):
     return [action(format_card_display_name(card) if hasattr(card, "name") else str(card),
-                   f"/card {command} {index}", card.summary_text() if hasattr(card, "summary_text") else "") for index, card in enumerate(cards)]
+                   f"/card {command} {index}", card.summary_text() if hasattr(card, "summary_text") else "",
+                   **card_metadata(card)) for index, card in enumerate(cards)]
 
 
 def pile_card_actions(options, command):
@@ -41,7 +61,7 @@ def pile_card_actions(options, command):
     for index, item in enumerate(options):
         card = item["card"]
         choices.append(action(f"{item['pile_label']} · {format_card_display_name(card)}",
-                              f"/card {command} {index}", card.summary_text()))
+                              f"/card {command} {index}", card.summary_text(), **card_metadata(card)))
     return choices
 
 
@@ -69,14 +89,14 @@ def battle_selection(battle):
                         hint="每消耗一张手牌获得一层岩层，也可以不选择直接继续。",
                         command="/card fossil", multiple=True, minimum=0,
                         maximum=len(pending.options), emptyValue="none",
-                        options=[action(format_card_display_name(card), f"/card fossil {index}", card.summary_text())
+                        options=[action(format_card_display_name(card), f"/card fossil {index}", card.summary_text(), **card_metadata(card))
                                  for index, card in pending.options])
-        if pending.kind in {"scry", "defect_select", "watcher_select"}:
+        if pending.kind in {"scry", "defect_select", "watcher_select", "lizhou_select"}:
             scry = pending.kind == "scry"
             count = pending.payload.get("count", len(pending.options))
             command = "scry" if scry else "pick"
             return dict(title=(pending.source or "选牌") + ("：选择放入弃牌堆的牌" if scry else "：选择卡牌或效果"),
-                        command=f"/card {command}", multiple=True, minimum=0 if scry else count,
+                        command=f"/card {command}", multiple=True, minimum=0 if scry else pending.payload.get('minimum', count),
                         maximum=len(pending.options) if scry else count, emptyValue="skip",
                         options=card_actions(pending.options, command))
         if pending.kind in {"retain_hand", "well_laid_plans"}:
@@ -119,12 +139,17 @@ def battle_selection(battle):
     if battle.pending_elixir_selection:
         return dict(title="万灵药水：选择要消耗的手牌", command="/card elixir", multiple=True,
                     minimum=0, maximum=battle.pending_elixir_max_count or None,
-                    options=[action(format_card_display_name(card), f"/card elixir {index}", card.description)
+                    options=[action(format_card_display_name(card), f"/card elixir {index}", card.description, **card_metadata(card))
                              for index, card in battle.pending_elixir_options])
     return None
 
 
 def run_selection(run):
+    from game.lizhou_relic import options as zodiac_options
+    zodiac_cards = zodiac_options(run)
+    if zodiac_cards:
+        return dict(title='十二星座卡牌：选择重复牌随机转换',
+                    options=card_actions(zodiac_cards, 'zodiac')+[action('放弃转换', '/card zodiac skip')])
     queue = run.pending_bottle_selections
     if queue:
         cards = [card for _, card in get_bottle_candidates(run, queue[0]["required_card_type"])]
@@ -168,6 +193,7 @@ def node_actions(run):
             current = reward.options[active]
             if current.option_type == "card":
                 options.extend(card_actions(current.payload.get("cards", []), "pick"))
+                options.append(action("返回奖励列表", "/card reward back"))
                 if has_run_relic(run, "relic.singing_bowl"):
                     options.append(action("颂钵：最大生命 +2", "/card bowl"))
         else:
@@ -196,7 +222,8 @@ def node_actions(run):
             reason = "已售罄" if item.sold else "金币不足" if item.price > run.gold else ""
             options.append(action(f"{item.title} · {item.price} 金币", f"/card buy {index}",
                 getattr(value, "description", ""), disabled=bool(reason), reason=reason,
-                detailCommand=f"/card item {index}"))
+                detailCommand=f"/card item {index}",
+                **(card_metadata(value) if item.item_type == "card" else {})))
         if not shop.remove_used:
             price = get_effective_remove_price(run)
             options.append(action(f"定向删牌 · {price} 金币", options=card_actions(run.master_deck, "remove"),
@@ -215,7 +242,7 @@ def node_actions(run):
             if key == "smith":
                 item["command"] = None
                 item["options"] = [action(format_card_display_name(card), f"/card smith {i}",
-                    f"当前：{card.summary_text()}\n升级：{upgrade_card(card).summary_text()}")
+                    f"当前：{card.summary_text()}\n升级：{upgrade_card(card).summary_text()}", **card_metadata(card))
                     for i, (_, card) in enumerate(get_upgradable_cards(run))]
             elif key == "pipe":
                 item["command"] = None
@@ -311,6 +338,7 @@ def snapshot(reply=""):
                 "cost": get_card_current_cost(battle, card), "type": card.card_type,
                 "description": card.description, "summary": card.summary_text(),
                 "preview": format_card_actual_preview(battle, card),
+                **card_metadata(card),
             })
         for index, enemy in enumerate(battle.enemies):
             if enemy.is_alive():
@@ -319,6 +347,7 @@ def snapshot(reply=""):
                     "maxHp": enemy.max_hp, "block": enemy.block,
                     "intent": format_enemy_intent_text(battle, enemy),
                     "status": get_status_display_text(enemy.statuses),
+                    "capturedCard": format_card_display_name(enemy._captured_card) if getattr(enemy, "_captured_card", None) else "",
                 })
         state["piles"] = {"draw": len(player.draw_pile),
                           "discard": len(player.discard_pile), "exhaust": len(player.exhaust_pile)}
@@ -333,6 +362,13 @@ def snapshot(reply=""):
     return result
 
 
+def owned_reward_objects(run):
+    if run is None:
+        return []
+    return [(kind, item) for kind, items in (("卡牌", run.master_deck),
+            ("遗物", run.relics), ("药水", run.potions)) for item in items]
+
+
 def dispatch(command=""):
     command = str(command).strip()
     parts = command.split()
@@ -342,9 +378,20 @@ def dispatch(command=""):
     if parts and parts[0].lstrip("/.。").lower() == "card" and (len(parts) == 1 or parts[1].lower() in {"help", "帮助"}):
         return json.dumps(snapshot(WEB_HELP), ensure_ascii=False)
     with private_content_session(SESSION):
+        previous_run = service.get_run(SESSION)
+        previous_objects = owned_reward_objects(previous_run)
+        previous_ids = {id(item) for _, item in previous_objects}
         reply = service.handle_message(SESSION, USER, command) if command else ""
-        return json.dumps(snapshot(reply or ("未识别命令，输入 /card help 查看帮助。" if command else "")),
-                          ensure_ascii=False)
+        result = snapshot(reply or ("未识别命令，输入 /card help 查看帮助。" if command else ""))
+        current_run = service.get_run(SESSION)
+        result["acquired"] = []
+        if previous_run is not None and previous_run is current_run:
+            for kind, item in owned_reward_objects(current_run):
+                if id(item) not in previous_ids:
+                    result["acquired"].append(dict(kind=kind, name=item.name,
+                        description=item.summary_text() if kind == "卡牌" else item.description,
+                        **(card_metadata(item) if kind == "卡牌" else {})))
+        return json.dumps(result, ensure_ascii=False)
 
 WEB_HELP = """单人冒险指令（编号从 0 开始）
 /card new 0  选角色开局（0 铁甲战士 / 1 静默猎手 / 2 昼 / 3 Yoirine / 4 Suzuri）

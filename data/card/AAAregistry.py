@@ -736,6 +736,8 @@ from data.card.character.defect_cards import DEFECT_CARD_REGISTRY
 CARD_REGISTRY.update(DEFECT_CARD_REGISTRY)
 from data.card.character.watcher_cards import WATCHER_CARD_REGISTRY
 CARD_REGISTRY.update(WATCHER_CARD_REGISTRY)
+from data.card.character.lizhou_cards import LIZHOU_CARD_REGISTRY
+CARD_REGISTRY.update(LIZHOU_CARD_REGISTRY)
 
 
 def create_card(card_id):

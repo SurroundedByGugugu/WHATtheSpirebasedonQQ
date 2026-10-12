@@ -65,6 +65,10 @@ def dispatch_event(game_state, event_name, context=None):
     if finished():
         return logs + context.logs
     from game.watcher import on_event as watcher_event
+    from game.lizhou import on_event as lizhou_event
+    logs.extend(lizhou_event(game_state, event_name, context))
+    yield logs
+    logs = []
     logs.extend(watcher_event(game_state, event_name, context))
     yield logs
     logs = []

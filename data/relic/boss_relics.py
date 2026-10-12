@@ -25,6 +25,8 @@ class _EnergyBossRelic(RelicTemplate):
         if not self._should_gain_energy(context):
             return []
         context.player.cost += 1
+        from game.lizhou import energy_gained
+        context.logs.extend(energy_gained(context.game_state, 1))
         return ["【{}】触发：回合开始获得 1 点能量。当前费用：{}/{}。".format(
             self.name, context.player.cost, context.player.max_cost
         )]
@@ -387,7 +389,7 @@ class HoveringKiteRelic(RelicTemplate):
     def __init__(self):
         RelicTemplate.__init__(self, relic_id="relic.hovering_kite", name="悬浮风筝",
             description="你在每回合第一次弃牌时，获得 1 点能量。",
-            story="风筝在战斗中飘浮在你的身旁，不知是何种神秘的力量让它能浮在空中。", quantity="boss", owner_character_id="", allow_duplicate=False)
+            story="风筝在战斗中飘浮在你的身旁，不知是何种神秘的力量让它能浮在空中。", quantity="boss", owner_character_id="character.silent_huntress", allow_duplicate=False)
         self.used_this_turn = False
 
     def on_event(self, event_name, context):
@@ -401,14 +403,15 @@ class HoveringKiteRelic(RelicTemplate):
             return []
         self.used_this_turn = True
         player.cost += 1
-        return ["【{}】触发：本回合第一次弃牌，获得 1 点能量。当前费用：{}/{}。".format(self.name, player.cost, player.max_cost)]
+        from game.lizhou import energy_gained
+        return energy_gained(game_state, 1) + ["【{}】触发：本回合第一次弃牌，获得 1 点能量。当前费用：{}/{}。".format(self.name, player.cost, player.max_cost)]
 
 
 class WristBladeRelic(RelicTemplate):
     def __init__(self):
         RelicTemplate.__init__(self, relic_id="relic.wrist_blade", name="袖剑",
             description="费用为 0 的攻击牌额外造成 4 点伤害。",
-            story="实用的暗杀工具。", quantity="boss", owner_character_id="", allow_duplicate=False)
+            story="实用的暗杀工具。", quantity="boss", owner_character_id="character.silent_huntress", allow_duplicate=False)
 
 
 class SacredBarkRelic(RelicTemplate):

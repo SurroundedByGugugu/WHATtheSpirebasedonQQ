@@ -394,7 +394,7 @@ class TurnipRelic(RelicTemplate):
         RelicTemplate.__init__(self, relic_id="relic.turnip", name="萝卜",
             description="你不会再被脆弱。", 
             story="与生姜搭配尤为适合",
-            quantity="rare", owner_character_id="character.defect", allow_duplicate=False)
+            quantity="rare", owner_character_id="", allow_duplicate=False)
 
 
 class CabbageRelic(RelicTemplate):
@@ -507,7 +507,7 @@ class TheSpecimenRelic(RelicTemplate):
         RelicTemplate.__init__(self, relic_id="relic.the_specimen", name="生物样本",
             description="每当有敌人死去时，将其身上的中毒层数移到一名随机敌人身上。", 
             story="“有意思！我发现了一个有着惊人毒性的变异生物，先采集份样本以后再仔细研究吧。”——兰伟德",
-            quantity="rare", owner_character_id="", allow_duplicate=False)
+            quantity="rare", owner_character_id="character.silent_huntress", allow_duplicate=False)
 
     def on_event(self, event_name, context):
         from game.constants import EVENT_DAMAGE_AFTER
@@ -557,7 +557,7 @@ class TingshaRelic(RelicTemplate):
         RelicTemplate.__init__(self, relic_id="relic.tingsha", name="铜钹",
             description="你每在你的回合丢弃一张牌，就对一名随机敌人造成 3 点伤害。", 
             story="这件乐器发出的响声似乎能回荡到让人耳朵发痛。",
-            quantity="rare", owner_character_id="", allow_duplicate=False)
+            quantity="rare", owner_character_id="character.silent_huntress", allow_duplicate=False)
 
     def on_card_discard(self, game_state, player, card, reason):
         alive = [e for e in getattr(game_state, "enemies", []) or [] if e.is_alive()]
@@ -584,7 +584,7 @@ class ToughBandagesRelic(RelicTemplate):
         RelicTemplate.__init__(self, relic_id="relic.tough_bandages", name="结实绷带",
             description="你每在你的回合丢弃一张牌，就获得 3 点格挡。", 
             story="失去给人带来力量",
-            quantity="rare", owner_character_id="", allow_duplicate=False)
+            quantity="rare", owner_character_id="character.silent_huntress", allow_duplicate=False)
 
     def on_card_discard(self, game_state, player, card, reason):
         from game.block import gain_block_without_modifiers

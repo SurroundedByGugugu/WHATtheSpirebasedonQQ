@@ -268,6 +268,8 @@ class GremlinHornRelic(RelicTemplate):
         setattr(target, "_gremlin_horn_triggered", True)
         player = context.player
         player.cost += 1
+        from game.lizhou import energy_gained
+        context.logs.extend(energy_gained(context.game_state, 1))
         logs = ["【{}】触发：敌人【{}】死亡，获得 1 点能量并抽 1 张牌。当前费用：{}/{}。".format(
             self.name, getattr(target, "name", "敌人"), player.cost, player.max_cost
         )]
@@ -523,7 +525,7 @@ class NinjaScrollRelic(RelicTemplate):
             description="每场战斗开始时，手牌中增加 3 张小刀。",
             story="暗杀秘术尽在其中。",
             quantity="uncommon",
-            owner_character_id="",
+            owner_character_id="character.silent_huntress",
             allow_duplicate=False
         )
 
@@ -580,7 +582,7 @@ class PaperCraneRelic(RelicTemplate):
             description="有虚弱状态的敌人造成的伤害降低 40% 而非 25%。",
             story="某种过去时代生物的折纸。",
             quantity="uncommon",
-            owner_character_id="",
+            owner_character_id="character.silent_huntress",
             allow_duplicate=False
         )
 
@@ -740,6 +742,7 @@ class SundialRelic(RelicTemplate):
         if self.shuffle_count % 3 != 0:
             return []
         player.cost += 2
-        return ["【{}】触发：第 {} 次洗牌，获得 2 点能量。当前费用：{}/{}。".format(
+        from game.lizhou import energy_gained
+        return energy_gained(game_state, 2) + ["【{}】触发：第 {} 次洗牌，获得 2 点能量。当前费用：{}/{}。".format(
             self.name, self.shuffle_count, player.cost, player.max_cost
         )]

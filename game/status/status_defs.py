@@ -5,6 +5,7 @@ from dataclasses import dataclass
 # 导入后触发通用状态注册
 import data.status.common_statuses  # noqa: F401
 import data.status.watcher_statuses  # noqa: F401
+import data.status.lizhou_statuses  # noqa: F401
 
 from data.status.AAAregistry import (
     get_status_def,

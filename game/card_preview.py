@@ -29,6 +29,19 @@ def _alive_enemy_parts(game_state, card, amount_spec, effect_context, attack_typ
 
 def _preview_effect(game_state, card, effect, effect_context):
     op = effect.get("op")
+    if op == 'lizhou_card':
+        from game.lizhou import key, free, order_cost
+        parts = []
+        if 'order' in card.card_vars:
+            price = order_cost(game_state, card)
+            parts.append('免费触发调序效果' if free(game_state, card) else '调序{}，当前{}'.format(
+                price, game_state.player.statuses.get('lizhou_order')))
+        if key(card) == 'tiny_annihilation':
+            parts.append('本次实际降费差{}'.format(max(0, 92-get_card_current_cost(game_state, card))))
+        if key(card) == 'spinning_stardust':
+            count = getattr(card, 'lizhou_spins', 0) if getattr(card, 'lizhou_spin_turn', -1) == game_state.turn_count else 0
+            parts.append('攻击{}次'.format(1+count//card.card_vars['interval']))
+        return '；'.join(parts)
     if op == "watcher_card":
         from game.watcher import preview
         return preview(game_state, card, effect_context)
@@ -146,7 +159,8 @@ def format_card_actual_preview(game_state, card):
             "spent_cost": game_state.player.cost,
         }
 
-    parts = []
+    from game.lizhou import card_state_text
+    parts = [card_state_text(card)] if card_state_text(card) else []
     if not is_x_cost_card(card):
         current_cost = get_card_current_cost(game_state, card)
         try:

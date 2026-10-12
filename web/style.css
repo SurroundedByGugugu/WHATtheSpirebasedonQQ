@@ -81,3 +81,21 @@ button:disabled{cursor:not-allowed}.node-view{max-height:280px}.character-5{--ac
 .player-vital>span{font-size:.8rem;color:#c1c5d0}.player-vital>strong{font-size:1.15rem;line-height:1.4;font-weight:600;font-variant-numeric:tabular-nums}
 .vital-hp>strong{color:#ffabae}.vital-energy>strong{color:#f5d18f}.vital-block>strong{color:#aedcff}
 @media(max-width:780px){.player-vitals{order:3;flex-basis:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin:.35rem 0 .15rem}.player-vital{display:block}.player-vital>span{display:block;font-size:.75rem}.player-vital>strong{font-size:1.1rem}}
+
+/* Rarity stays visible on hand, reward, shop and multi-select cards. */
+.rarity-common { border-color: #9298a1; }
+.rarity-uncommon { border-color: #4d9fea; }
+.rarity-rare { border-color: #d8af48; }
+.choice.rarity-common, .playing-card.rarity-common { border-color: #9298a1; border-top-width: 3px; }
+.choice.rarity-uncommon, .playing-card.rarity-uncommon { border-color: #4d9fea; border-top-width: 3px; }
+.choice.rarity-rare, .playing-card.rarity-rare { border-color: #d8af48; border-top-width: 3px; }
+.card-badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0; }
+.card-badge { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 12px; line-height: 1.5; background: #ede9df; color: #38414b; }
+.keyword-tag { background: #e7e0f1; color: #503a6e; }
+.element-tag { background: #dae9e5; color: #24544a; }
+.rarity-rare .rarity-label { background: #f1dfaa; color: #684a04; }
+.rarity-uncommon .rarity-label { background: #d9eafb; color: #245785; }
+.captured-card { color: #e0b677; font-weight: 700; }
+.acquired-item { border-left: 3px solid #aaa; padding: 4px 14px; margin: 14px 0; }
+.acquired-item.rarity-rare { border-color: #d8af48; }
+.acquired-item.rarity-uncommon { border-color: #4d9fea; }

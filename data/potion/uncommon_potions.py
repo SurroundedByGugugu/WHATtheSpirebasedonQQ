@@ -40,6 +40,7 @@ def create_liquid_memories():
 def create_cunning_potion():
     return PotionTemplate(
         potion_id="potion.cunning",
+        owner_character_id="character.silent_huntress",
         name="狡诈药水",
         description="增加 3 张小刀+ 到你的手牌。神圣树皮：改为 6 张。",
         target="self",

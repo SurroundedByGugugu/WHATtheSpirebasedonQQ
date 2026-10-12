@@ -77,6 +77,8 @@ def trigger(state, player, orb, evoke=False):
         orb.value += amount
     elif orb.kind == "plasma":
         player.cost += amount
+        from game.lizhou import energy_gained
+        logs.extend(energy_gained(state, amount))
     elif orb.kind == "frost":
         logs.extend(gain_block_without_modifiers(state, player, player, amount, block_source="orb"))
         if element == "water" and not finish_check(state, logs):

@@ -308,7 +308,8 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
     from game.orbs import rack, format_orbs
     if rack(player).capacity or player.statuses.get("focus"):
         logs.append(format_orbs(player, game_state))
-    opening_draw_count = 5 + get_opening_draw_bonus(game_state) - len(player.hand)
+    opening_draw_count = 5 + get_opening_draw_bonus(game_state) - sum(
+        not getattr(card, "created_in_battle", False) for card in player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
     logs.extend(player.draw_cards(
@@ -374,7 +375,8 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
     from game.orbs import rack, format_orbs
     if rack(player).capacity or player.statuses.get("focus"):
         logs.append(format_orbs(player, game_state))
-    opening_draw_count = 5 + get_opening_draw_bonus(game_state) - len(player.hand)
+    opening_draw_count = 5 + get_opening_draw_bonus(game_state) - sum(
+        not getattr(card, "created_in_battle", False) for card in player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
     logs.extend(player.draw_cards(
@@ -506,6 +508,8 @@ def move_card_to_exhaust_pile(game_state, card, reason="after_play"):
 
             if game_state.battle_over:
                 break
+    from game.lizhou import escaped_flower
+    logs.extend(escaped_flower(game_state, card))
     if getattr(card, "card_id", "") == "card.curse.necronomicurse":
         try:
             player.exhaust_pile.remove(card)
@@ -614,7 +618,15 @@ def resolve_abyss_index_after_shade_card_play(game_state, played_card):
 
     return logs
 
+@resumable(text=False)
 def move_played_card_to_destination(game_state, card):
+    from game.lizhou import destination_override, finish_play
+    override = destination_override(game_state, card)
+    yield _move_played_card_to_destination(game_state, card) if override is None else override
+    yield finish_play(game_state, card)
+
+
+def _move_played_card_to_destination(game_state, card):
     logs = []
     player = game_state.player
 
@@ -768,6 +780,8 @@ def resolve_discarded_card(game_state, card, reason="丢弃", trigger_clever=Fal
     player.discard_pile.append(card)
     logs.append("【{}】被{}，进入弃牌堆。".format(card.name, reason))
     logs.extend(apply_card_discard_relics(game_state, card, reason=reason))
+    from game.lizhou import escaped_flower
+    logs.extend(escaped_flower(game_state, card))
     yield logs
     logs = []
     return logs
@@ -1006,6 +1020,10 @@ def choose_pending_discard_to_draw_top(game_state, choice_index):
 
     clear_pending_discard_to_draw_top(game_state)
 
+    from game.lizhou import escaped_flower
+    escape_logs = escaped_flower(game_state, chosen_card)
+    if escape_logs:
+        return '\n'.join(escape_logs)
     return "【{}】选择了【{}】，将其放到抽牌堆顶。它会成为下一张抽到的牌。".format(
         source,
         chosen_card.name
@@ -1224,6 +1242,10 @@ def choose_pending_hand_to_draw_top(game_state, choice_index):
 
     clear_pending_hand_to_draw_top_selection(game_state)
 
+    from game.lizhou import escaped_flower
+    escape_logs = escaped_flower(game_state, chosen_card)
+    if escape_logs:
+        return '\n'.join(escape_logs)
     if destination == "bottom":
         return "【{}】选择了【{}】，将其放到抽牌堆底，并使其耗能变为 0。".format(
             source,
@@ -2571,6 +2593,10 @@ def play_card(game_state, hand_index, target_index=None):
             "spent_cost": spent_cost
         }
     effect_context["card_first_play_this_battle"] = is_card_first_play_this_battle(game_state, card)
+    from game.lizhou import prepare_play
+    logs.extend(prepare_play(game_state, card, effect_context, paid=spent_cost))
+    yield logs
+    logs = []
 
     apply_next_card_virtual_zone_statuses(
         game_state=game_state,
@@ -2630,7 +2656,8 @@ def play_card(game_state, hand_index, target_index=None):
         if not game_state.battle_over:
             logs.append("")
             logs.append("{}结束了你的回合。".format(reason))
-            logs.append(end_turn(game_state))
+            external_end = getattr(game_state, 'external_end_turn', None)
+            logs.append(external_end() if external_end is not None else end_turn(game_state))
             return "\n".join(logs)
         
     result = check_battle_result(game_state)
@@ -4838,7 +4865,14 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
         logs.append(result)
         return "\n".join(logs)
 
+    from game.lizhou import before_cleanup, after_cleanup
+    logs.extend(before_cleanup(game_state))
+    yield logs
+    logs = []
     logs.extend(end_player_turn_hand_cleanup(game_state))
+    yield logs
+    logs = []
+    logs.extend(after_cleanup(game_state))
     yield logs
     logs = []
     result = check_battle_result(game_state)
@@ -4867,6 +4901,9 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
 
     # 使用快照遍历，避免史莱姆分裂后新生成的小史莱姆在同一轮立刻行动。
     skip_enemies = bool(getattr(game_state, "watcher_skip_enemy_actions", False))
+    if getattr(player, 'lizhou_extra_turns', 0) > 0:
+        player.lizhou_extra_turns -= 1
+        skip_enemies = True
     game_state.watcher_skip_enemy_actions = False
     for enemy in ([] if skip_enemies else list(game_state.enemies)):
         if enemy not in game_state.enemies:

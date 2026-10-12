@@ -105,19 +105,50 @@ def get_shop_price_multiplier(run_state):
 
 def apply_shop_price_modifiers(run_state, items):
     multiplier = get_shop_price_multiplier(run_state)
-    if multiplier >= 0.999:
-        return
     for item in items:
-        old_price = int(item.price)
-        item.price = max(1, int(old_price * multiplier))
-        tags = []
-        if has_membership_card(run_state):
-            tags.append("会员卡")
-        if has_courier(run_state):
-            tags.append("送货员")
-        tag_text = "+".join(tags)
-        if tag_text and tag_text not in item.title:
-            item.title = item.title + "（{}折扣）".format(tag_text)
+        if getattr(item, "base_price", None) is None:
+            item.base_price = int(item.price)
+        item.price = max(1, int(item.base_price * multiplier))
+
+
+def restock_shop_item(run_state, item):
+    """Replace a purchased slot; never sell the same relic instance twice."""
+    item.sold = True
+    if not has_courier(run_state):
+        return []
+    rng = random.Random()
+    replacement = None
+    if item.item_type == "card":
+        card = item.payload["card"]
+        if getattr(card, "owner_character_id", ""):
+            replacement = create_colored_card_shop_item(
+                rng, run_state.character_id, card.card_type, run_state=run_state)
+        else:
+            replacement = create_colorless_card_shop_item(
+                rng, card.quantity, run_state=run_state)
+    elif item.item_type == "relic":
+        displayed = {slot.payload["relic"].relic_id for slot in run_state.pending_shop.items
+                     if slot.item_type == "relic" and not slot.sold}
+        candidates = [rid for rid in get_available_relic_ids(run_state)
+                      if rid not in displayed and getattr(create_relic(rid), "can_appear_in_shop", True)
+                      and is_relic_available_by_floor(run_state, create_relic(rid))]
+        if candidates:
+            relic = create_relic(pick_relic_id_by_weighted_rarity(rng, candidates))
+            replacement = ShopItem("relic", "遗物：" + format_relic_display_name(relic),
+                                   get_relic_shop_price(relic, rng), {"relic": relic})
+    elif item.item_type == "potion":
+        potion_id = pick_potion_id_by_weighted_rarity(rng, run_state=run_state)
+        if potion_id:
+            potion = create_potion(potion_id)
+            replacement = ShopItem("potion", "药水：" + format_potion_display_name(potion),
+                                   get_potion_shop_price(potion, rng), {"potion": potion})
+    if replacement is None:
+        return ["【送货员】暂无可补充的商品。"]
+    apply_shop_price_modifiers(run_state, [replacement])
+    slots = run_state.pending_shop.items
+    index = next(i for i, slot in enumerate(slots) if slot is item)
+    slots[index] = replacement
+    return ["【送货员】补货：{}。".format(replacement.title)]
 
 
 def get_effective_remove_price(run_state):
@@ -143,6 +174,7 @@ class ShopItem:
     price: int
     payload: Any = None
     sold: bool = False
+    base_price: Any = None
 
 
 @dataclass
@@ -753,6 +785,7 @@ def buy_shop_item(run_state, item_index):
     if item_index < 0 or item_index >= len(shop_state.items):
         return "商品编号无效。"
 
+    apply_shop_price_modifiers(run_state, shop_state.items)
     item = shop_state.items[item_index]
 
     if item.sold:
@@ -772,8 +805,7 @@ def buy_shop_item(run_state, item_index):
         logs.append("购买卡牌：【{}】。当前金币：{}。".format(card.name, run_state.gold))
         logs.extend(spend_gold_in_shop(run_state, item.price))
         logs.extend(add_card_to_master_deck_with_relics(run_state, card, source="购买卡牌"))
-        if has_courier(run_state):
-            logs.append("【送货员】使该商品没有售罄。")
+        logs.extend(restock_shop_item(run_state, item))
         return "\n".join(logs)
 
     if item.item_type == "relic":
@@ -791,8 +823,8 @@ def buy_shop_item(run_state, item_index):
 
         if hasattr(relic, "on_obtained"):
             logs.extend(relic.on_obtained(run_state))
-        if has_courier(run_state):
-            logs.append("【送货员】使该商品没有售罄。")
+        apply_shop_price_modifiers(run_state, shop_state.items)
+        logs.extend(restock_shop_item(run_state, item))
 
         return "\n".join(logs)
 
@@ -816,8 +848,7 @@ def buy_shop_item(run_state, item_index):
         logs.append("购买药水：【{}】。当前金币：{}。".format(potion.name, run_state.gold))
         logs.extend(spend_gold_in_shop(run_state, item.price))
         logs.extend(try_gain_potion_with_relics(run_state, potion, source="购买药水"))
-        if has_courier(run_state):
-            logs.append("【送货员】使该商品没有售罄。")
+        logs.extend(restock_shop_item(run_state, item))
         return "\n".join(logs)
 
     return "未知商品类型：{}。".format(item.item_type)

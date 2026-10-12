@@ -27,6 +27,8 @@ def gain_block_without_modifiers(
     logs = []
 
     amount = int(amount)
+    if target.statuses.get('lizhou_tenacity'):
+        amount = int(amount * 1.25)
     if amount < 0:
         amount = 0
 
