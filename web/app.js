@@ -2,6 +2,74 @@ window.spireStarted = true;
 const $ = (id) => document.getElementById(id);
 let worker, ready = false, busy = true, state = null, target = null, requestId = 0;
 let watchdog, loadingStarted, currentStage = "准备游戏";
+let catalog = null, catalogPage = 0;
+const catalogPageSize = 24;
+const rarityNames = { starting: "初始", common: "普通", uncommon: "罕见", rare: "稀有", myth: "神话", status: "状态", curse: "诅咒", event: "事件", shop: "商店", boss: "首领", special: "特殊", test: "测试", ENDER: "终末" };
+const cardTypeNames = { attack: "攻击", skill: "技能", power: "能力", status: "状态", curse: "诅咒" };
+
+function catalogOptions(id, entries, label) {
+  const select = $(id);
+  const previous = select.value;
+  select.replaceChildren();
+  for (const [value, name] of [["*", label], ...entries]) {
+    const option = el("option", name);
+    option.value = value;
+    select.append(option);
+  }
+  if ([...select.options].some((item) => item.value === previous)) select.value = previous;
+}
+function updateCatalogFilters() {
+  const entries = catalog[$("catalog-kind").value];
+  const names = new Map(state.characters.map((character) => [character.character_id, character.name]));
+  catalogOptions("catalog-owner", [...new Set(entries.map((item) => item.owner))].map((owner) =>
+    [owner, owner ? names.get(owner) || owner : "通用 / 无所属"]), "全部角色");
+  catalogOptions("catalog-rarity", [...new Set(entries.map((item) => item.rarity))].map((rarity) =>
+    [rarity, rarityNames[rarity] || rarity]), "全部稀有度");
+  catalogPage = 0;
+  renderCatalog();
+}
+function showCatalogEntry(entry) {
+  const dialog = actionDialog(entry.name, "", "返回图鉴");
+  dialog.append(el("p", entry.id, "hint"));
+  const describe = (card, title) => {
+    const section = el("section", undefined, "catalog-detail");
+    section.append(el("h3", title));
+    if (card.cardType) section.append(el("p", `${cardTypeNames[card.cardType] || card.cardType} · 费用 ${card.cost}`, "hint"));
+    appendCardBadges(section, card);
+    section.append(el("p", card.description, "relic-info"));
+    dialog.append(section);
+  };
+  describe(entry, entry.cardType ? "基础卡牌" : "效果说明");
+  if (entry.upgrade) describe(entry.upgrade, "升级后（一次升级）");
+  else if (entry.cardType) dialog.append(el("p", "此卡牌没有可用升级。", "hint"));
+  dialog.append(el("h3", "小故事"), el("p", entry.story || "这段故事还未写下。", "relic-story"));
+}
+function renderCatalog() {
+  const kind = $("catalog-kind").value;
+  const query = $("catalog-search").value.trim().toLocaleLowerCase();
+  const owner = $("catalog-owner").value, rarity = $("catalog-rarity").value;
+  const entries = catalog[kind].filter((entry) =>
+    (owner === "*" || entry.owner === owner) && (rarity === "*" || entry.rarity === rarity) &&
+    [entry.name, entry.id, entry.description, ...(entry.keywords || []), ...(entry.tags || [])].join(" ").toLocaleLowerCase().includes(query));
+  const pages = Math.max(1, Math.ceil(entries.length / catalogPageSize));
+  catalogPage = Math.min(catalogPage, pages - 1);
+  $("catalog-count").textContent = `找到 ${entries.length} / ${catalog[kind].length} ${kind === "cards" ? "张卡牌" : "件遗物"} · 点击查看详情与故事`;
+  $("catalog-items").replaceChildren();
+  for (const entry of entries.slice(catalogPage * catalogPageSize, (catalogPage + 1) * catalogPageSize)) {
+    const node = el("button", undefined, "catalog-entry");
+    node.type = "button";
+    node.append(el("strong", entry.name));
+    if (entry.cardType) node.append(el("span", `${cardTypeNames[entry.cardType] || entry.cardType} · 费用 ${entry.cost}`, "hint"));
+    appendCardBadges(node, entry);
+    node.append(el("span", entry.description, "action-description"));
+    node.onclick = () => showCatalogEntry(entry);
+    $("catalog-items").append(node);
+  }
+  if (!entries.length) $("catalog-items").append(el("p", "没有找到匹配内容，试试其他搜索词或筛选条件。", "hint"));
+  $("catalog-page").textContent = `${catalogPage + 1} / ${pages}`;
+  $("catalog-prev").disabled = catalogPage === 0;
+  $("catalog-next").disabled = catalogPage + 1 >= pages;
+}
 const originalCharacterIds = [
   "character.armored_warrior", "character.silent_huntress", "character.defect", "character.watcher"
 ];
@@ -78,7 +146,7 @@ function appendCardBadges(node, card) {
   if (card.rarity) {
     const rarity = ["rare", "uncommon"].includes(card.rarity) ? card.rarity : "common";
     node.classList.add("rarity-" + rarity);
-    const label = {rare: "稀有", uncommon: "罕见", common: "普通", starting: "初始", myth: "神话", status: "状态", curse: "诅咒", event: "事件"}[card.rarity] || card.rarity;
+    const label = rarityNames[card.rarity] || card.rarity;
     const badges = el("div", undefined, "card-badges");
     badges.append(el("span", label, "card-badge rarity-label"));
     for (const tag of card.tags || []) badges.append(el("span", tag, "card-badge element-tag"));
@@ -292,6 +360,11 @@ function renderCombatStatus(run) {
 }
 function render(data) {
   state = data;
+  if (data.compendium) {
+    catalog = data.compendium;
+    $("open-compendium").disabled = false;
+    updateCatalogFilters();
+  }
   $("confirmation").hidden = !data.confirmation;
   renderCharacters(data.characters);
   const run = data.run;
@@ -457,4 +530,12 @@ $("new-run").onclick = () => {
 window.addEventListener("beforeunload", (event) => {
   if (state?.run) { event.preventDefault(); event.returnValue = ""; }
 });
+$("open-compendium").onclick = () => $("compendium-dialog").showModal();
+$("close-compendium").onclick = () => $("compendium-dialog").close();
+$("catalog-kind").onchange = updateCatalogFilters;
+for (const id of ["catalog-search", "catalog-owner", "catalog-rarity"]) {
+  $(id).addEventListener(id === "catalog-search" ? "input" : "change", () => { catalogPage = 0; renderCatalog(); });
+}
+$("catalog-prev").onclick = () => { catalogPage--; renderCatalog(); };
+$("catalog-next").onclick = () => { catalogPage++; renderCatalog(); };
 start();

@@ -17,6 +17,28 @@ class WebChecks(unittest.TestCase):
     def send(self, text):
         return json.loads(bridge.dispatch(text))
 
+    def test_compendium_coverage_stories_and_run_isolation(self):
+        from data.card.AAAregistry import CARD_REGISTRY
+        from data.relic.AAAregistry import RELIC_REGISTRY, create_relic
+        from data.compendium_stories import CARD_STORIES, RELIC_STORIES
+        from unittest.mock import patch
+        self.send('/card new 0')
+        before = bridge.snapshot()
+        with patch.dict(CARD_STORIES, {'card.strike': '故事\n第二段'}), patch.dict(RELIC_STORIES, {'relic.burning_blood': '遗物故事'}):
+            result = self.send('')
+        catalog = result['compendium']
+        self.assertEqual({item['id'] for item in catalog['cards']}, set(CARD_REGISTRY))
+        self.assertEqual({item['id'] for item in catalog['relics']}, set(RELIC_REGISTRY))
+        strike = next(item for item in catalog['cards'] if item['id'] == 'card.strike')
+        self.assertEqual(strike['story'], '故事\n第二段')
+        self.assertIsNotNone(strike['upgrade'])
+        self.assertNotEqual(strike['description'], strike['upgrade']['description'])
+        relics = {item['id']: item for item in catalog['relics']}
+        self.assertEqual(relics['relic.burning_blood']['story'], '遗物故事')
+        self.assertEqual(relics['relic.black_blood']['story'], create_relic('relic.black_blood').story)
+        self.assertEqual(bridge.snapshot(), before)
+        self.assertNotIn('compendium', self.send('/card view'))
+
     def test_lizhou_character_and_selection_panel(self):
         result = self.send('/card new 7')
         self.assertEqual(result['run']['name'], '李昼')

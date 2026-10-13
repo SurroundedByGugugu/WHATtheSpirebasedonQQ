@@ -1,6 +1,23 @@
 # 私货之塔 · 浏览器单人版
 
-所有新增代码在 web/，现有 main.py、app/、data/、game/、storage/ 不需要修改。浏览器通过 Pyodide 执行现有 Python 引擎，无需服务器运行 Python。当前只提供单人玩法，没有多人或 PVP 服务。
+网页版界面和适配代码位于 web/，图鉴故事扩展位于 data/compendium_stories.py。浏览器通过 Pyodide 执行现有 Python 引擎，无需服务器运行 Python。当前只提供单人玩法，没有多人或 PVP 服务。
+
+## 图鉴与小故事
+
+点击页面上方“高塔图鉴”即可查看所有已注册卡牌和遗物，不需要开局；冒险中也可随时打开，关闭后继续本局。支持搜索、角色和稀有度筛选、分页，以及卡牌一次升级后的效果预览。包括衍生和测试内容，图鉴收录不代表可以从奖励池获得。
+
+在 `data/compendium_stories.py` 的字典中按注册表 ID 填写故事：
+
+```python
+CARD_STORIES: dict[str, str] = {
+    "card.strike": "第一段故事。\n\n第二段故事。",
+}
+RELIC_STORIES: dict[str, str] = {
+    "relic.burning_blood": "这里填写遗物故事。",
+}
+```
+
+详情页展示条目 ID，可直接复制。故事以纯文本展示，支持换行。未配置的遗物沿用模板的 `story`，未配置的卡牌显示待填写提示。修改后运行 `python -B web/build.py` 重新生成部署包即可生效。新增卡牌或遗物只需注册到原有注册表，图鉴自动收录。
 
 ## 本地打开
 

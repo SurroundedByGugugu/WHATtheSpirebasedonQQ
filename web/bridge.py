@@ -297,6 +297,32 @@ def combat_status(battle):
     }
 
 
+def compendium():
+    """Create independent templates; browsing never touches the active run."""
+    from data.card.AAAregistry import CARD_REGISTRY, create_card
+    from data.relic.AAAregistry import RELIC_REGISTRY, create_relic
+    from data.card.upgrade_rules import has_upgrade
+    from data.compendium_stories import CARD_STORIES, RELIC_STORIES
+
+    def card_entry(card):
+        return dict(name=format_card_display_name(card), description=card.summary_text(),
+                    cost=card.cost, cardType=card.card_type, **card_metadata(card))
+
+    cards, relics = [], []
+    for entry_id in CARD_REGISTRY:
+        card = create_card(entry_id)
+        entry = dict(id=entry_id, owner=card.owner_character_id,
+                     story=CARD_STORIES.get(entry_id, ""), **card_entry(card))
+        entry["upgrade"] = card_entry(upgrade_card(card)) if has_upgrade(card) else None
+        cards.append(entry)
+    for entry_id in RELIC_REGISTRY:
+        relic = create_relic(entry_id)
+        relics.append(dict(id=entry_id, name=relic.name, description=relic.description,
+                           rarity=relic.quantity, owner=relic.owner_character_id,
+                           story=RELIC_STORIES.get(entry_id, relic.story)))
+    return dict(cards=cards, relics=relics)
+
+
 def snapshot(reply=""):
     run = service.get_run(SESSION)
     result = {"reply": reply, "characters": character_choices(), "run": None,
@@ -383,6 +409,8 @@ def dispatch(command=""):
         previous_ids = {id(item) for _, item in previous_objects}
         reply = service.handle_message(SESSION, USER, command) if command else ""
         result = snapshot(reply or ("未识别命令，输入 /card help 查看帮助。" if command else ""))
+        if not command:
+            result["compendium"] = compendium()
         current_run = service.get_run(SESSION)
         result["acquired"] = []
         if previous_run is not None and previous_run is current_run:

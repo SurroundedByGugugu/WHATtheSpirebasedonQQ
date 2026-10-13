@@ -134,7 +134,6 @@ def create_crystal_plating():
     )
 
 #common
-
 def create_silent_slash():
     return CardTemplate(
         card_id="card.silent_slash",
@@ -167,7 +166,6 @@ def create_silent_slash():
             }
         },
     )
-
 def create_rising_wind():
     return CardTemplate(
         card_id="card.rising_wind",
@@ -200,7 +198,6 @@ def create_rising_wind():
             }
         },
     )
-
 def create_intercept():
     return CardTemplate(
         card_id="card.intercept",
@@ -241,7 +238,6 @@ def create_intercept():
             }
         },
     )
-
 def create_diving_strike():
     return CardTemplate(
         card_id="card.diving_strike",
@@ -283,7 +279,6 @@ def create_diving_strike():
             }
         },
     )
-
 def create_probing_strike():
     return CardTemplate(
         card_id="card.probing_strike",
@@ -320,7 +315,6 @@ def create_probing_strike():
             }
         },
     )
-
 def create_vigilance_yoirine():
     return CardTemplate(
         card_id="card.vigilance_yoirine",
@@ -361,7 +355,6 @@ def create_vigilance_yoirine():
             }
         },
     )
-
 def create_sidestep_yoirine():
     return CardTemplate(
         card_id="card.sidestep_yoirine",
@@ -397,7 +390,6 @@ def create_sidestep_yoirine():
             }
         },
     )
-
 def create_crystal_blade():
     return CardTemplate(
         card_id="card.crystal_blade",
@@ -439,7 +431,6 @@ def create_crystal_blade():
             }
         },
     )
-
 def create_brave_bird():
     return CardTemplate(
         card_id="card.brave_bird",
@@ -675,7 +666,7 @@ def create_crystal_curtain_strike():
 def create_crystal_thorns():
     return CardTemplate(
         card_id="card.crystal_thorns",
-        name="辉晶之棘",
+        name="晶棘",
         card_type="skill",
         cost=1,
         target="self",
@@ -708,7 +699,7 @@ def create_crystal_thorns():
         ],
         upgraded=False,
         upgrade_patch={
-            "name": "辉晶之棘+",
+            "name": "晶棘+",
             "description": "获得 8 点格挡。获得等量临时荆棘。",
             "card_vars": {
                 "block": 8,
@@ -923,7 +914,6 @@ def create_flash():
         target="none",
         description="如果有敌人的意图是攻击，赋予全体敌人 1 层虚弱。",
         quantity="common",
-        attack_element="crystal",
         owner_character_id="character.yoirine",
         card_vars={
             "weak": 1
@@ -948,7 +938,6 @@ def create_flash():
     )
 
 #uncommon
-
 def create_refraction():
     return CardTemplate(
         card_id="card.refraction",
@@ -998,7 +987,6 @@ def create_refraction():
             }
         },
     )
-
 def create_barrier_break():
     return CardTemplate(
         card_id="card.barrier_break",
@@ -1045,7 +1033,6 @@ def create_barrier_break():
             }
         },
     )
-
 def create_Uturn():
     return CardTemplate(
         card_id="card.Uturn",
@@ -1097,116 +1084,6 @@ def create_Uturn():
             }
         },
     )
-
-def create_debride():
-    return CardTemplate(
-        card_id="card.debride",
-        name="清创",
-        card_type="skill",
-        cost=1,
-        target="self",
-        description="移除自身 1 种可移除负面状态，获得 5 点格挡。消耗。",
-        quantity="uncommon",
-        owner_character_id="character.yoirine",
-        card_vars={
-            "block": 5
-        },
-        effects=[
-            {
-                "op": "remove_one_debuff"
-            },
-            {
-                "op": "gain_block",
-                "target": "self",
-                "amount": {
-                    "base_var": "block",
-                    "modifier_profile": "block"
-                }
-            }
-        ],
-        keywords=[
-            KEYWORD_EXHAUST
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "清创+",
-            "description": "移除自身 1 种可移除负面状态，获得 8 点格挡。消耗。",
-            "card_vars": {
-                "block": 8
-            }
-        },
-    )
-
-def create_shadow_crystallization():
-    return CardTemplate(
-        card_id="card.shadow_crystallization",
-        name="阴影结晶",
-        card_type="power",
-        cost=1,
-        target="self",
-        description="每回合第一次因自身行动失去生命时，获得 4 点格挡。",
-        quantity="uncommon",
-        attack_element="shade",
-        owner_character_id="character.yoirine",
-        card_vars={
-            "block": 4
-        },
-        effects=[
-            {
-                "op": "gain_status",
-                "target": "self",
-                "status": "shadow_crystallization",
-                "amount": {
-                    "var": "block"
-                }
-            }
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "阴影结晶+",
-            "description": "每回合第一次因自身行动失去生命时，获得 6 点格挡。",
-            "card_vars": {
-                "block": 6
-            }
-        },
-    )
-
-def create_retreat_yoirine():
-    return CardTemplate(
-        card_id="card.retreat_yoirine",
-        name="退路",
-        card_type="skill",
-        cost=1,
-        target="self",
-        description="保留。获得 7 点格挡。",
-        quantity="uncommon",
-        owner_character_id="character.yoirine",
-        card_vars={
-            "block": 7
-        },
-        effects=[
-            {
-                "op": "gain_block",
-                "target": "self",
-                "amount": {
-                    "base_var": "block",
-                    "modifier_profile": "block"
-                }
-            }
-        ],
-        keywords=[
-            KEYWORD_RETAIN
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "退路+",
-            "description": "保留。获得 10 点格挡。",
-            "card_vars": {
-                "block": 10
-            }
-        },
-    )
-
 def create_reverse_blood():
     return CardTemplate(
         card_id="card.reverse_blood",
@@ -1247,7 +1124,6 @@ def create_reverse_blood():
             }
         },
     )
-
 def create_abyssal_erosion():
     return CardTemplate(
         card_id="card.abyssal_erosion",
@@ -1728,6 +1604,79 @@ def create_crystal_reflection():
             }
         }
     )
+def create_debride():
+    return CardTemplate(
+        card_id="card.debride",
+        name="清创",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="移除自身 1 种可移除负面状态，获得 5 点格挡。消耗。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 5
+        },
+        effects=[
+            {
+                "op": "remove_one_debuff"
+            },
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "base_var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        keywords=[
+            KEYWORD_EXHAUST
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "清创+",
+            "description": "移除自身 1 种可移除负面状态，获得 8 点格挡。消耗。",
+            "card_vars": {
+                "block": 8
+            }
+        },
+    )
+def create_retreat_yoirine():
+    return CardTemplate(
+        card_id="card.retreat_yoirine",
+        name="退路",
+        card_type="skill",
+        cost=1,
+        target="self",
+        description="保留。获得 7 点格挡。",
+        quantity="uncommon",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 7
+        },
+        effects=[
+            {
+                "op": "gain_block",
+                "target": "self",
+                "amount": {
+                    "base_var": "block",
+                    "modifier_profile": "block"
+                }
+            }
+        ],
+        keywords=[
+            KEYWORD_RETAIN
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "退路+",
+            "description": "保留。获得 10 点格挡。",
+            "card_vars": {
+                "block": 10
+            }
+        },
+    )
 
 def create_reminiscence():
     return CardTemplate(
@@ -1792,9 +1741,41 @@ def create_phantom_form():
             "description": "攻击牌无视格挡。",
         }
     )
+def create_shadow_crystallization():
+    return CardTemplate(
+        card_id="card.shadow_crystallization",
+        name="阴影结晶",
+        card_type="power",
+        cost=1,
+        target="self",
+        description="每回合第一次因自身行动失去生命时，获得 4 点格挡。",
+        quantity="uncommon",
+        attack_element="shade",
+        owner_character_id="character.yoirine",
+        card_vars={
+            "block": 4
+        },
+        effects=[
+            {
+                "op": "gain_status",
+                "target": "self",
+                "status": "shadow_crystallization",
+                "amount": {
+                    "var": "block"
+                }
+            }
+        ],
+        upgraded=False,
+        upgrade_patch={
+            "name": "阴影结晶+",
+            "description": "每回合第一次因自身行动失去生命时，获得 6 点格挡。",
+            "card_vars": {
+                "block": 6
+            }
+        },
+    )
 
 #rare
-
 def create_surprise_assault():
     return CardTemplate(
         card_id="card.surprise_assault",
@@ -1835,7 +1816,6 @@ def create_surprise_assault():
             }
         },
     )
-
 def create_silent_execution():
     return CardTemplate(
         card_id="card.silent_execution",
@@ -1877,7 +1857,6 @@ def create_silent_execution():
             }
         },
     )
-
 def create_to_your_tranquility():
     return CardTemplate(
         card_id="card.to_your_tranquility",
@@ -2167,7 +2146,6 @@ def create_abyss_hunt():
             "description": "每次伤害实际扣除敌人生命，给予目标 2 层深渊凝视。",
         },
     )
-
 def create_abyss_symbiosis():
     return CardTemplate(
         card_id="card.abyss_symbiosis",
@@ -2209,7 +2187,7 @@ def create_abyssal_form():
         card_type="power",
         cost=3,
         target="self",
-        description="晶、阴属性攻击牌也能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
+        description="晶、阴属性攻击牌在同属性 Zone下能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
         quantity="rare",
         attack_element="shade",
         skip_auto_zone_hp_loss=True,
@@ -2232,6 +2210,6 @@ def create_abyssal_form():
         upgrade_patch={
             "name": "深渊形态+",
             "cost": 2,
-            "description": "晶、阴属性攻击牌也能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
+            "description": "晶、阴属性攻击牌在同属性 Zone下能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
         }
     )
