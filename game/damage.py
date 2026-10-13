@@ -259,6 +259,8 @@ def deal_damage(
     logs = []
 
     amount = int(amount)
+    if damage_kind == 'attack' and target is game_state.player and target.is_alive():
+        game_state.player_attacked_turn = game_state.turn_count
     if damage_kind == 'attack' and not stance_applied:
         from game.stances import attack_multiplier
         amount *= attack_multiplier(source, target)

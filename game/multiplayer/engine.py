@@ -24,7 +24,7 @@ from game.reward import (
     roll_gold_reward,
     roll_potion_id_by_rarity,
 )
-from game.relic_logic.run_relic_utils import is_relic_available_by_floor
+from game.relic_logic.run_relic_utils import is_relic_available_by_floor, is_relic_allowed_for_character
 from game.multiplayer.state import (
     MultiBattleState,
     MultiPlayerSlot,
@@ -647,6 +647,8 @@ def _multi_relic_candidates(room):
             continue
         if not is_relic_available_by_floor(fake, relic):
             continue
+        if not any(is_relic_allowed_for_character(cid, relic) for cid in character_counts):
+            continue
         owner = getattr(relic, "owner_character_id", "")
         if owner and owner not in character_counts:
             continue
@@ -714,6 +716,8 @@ def choose_relic(room, user_id, choice_index):
     if choice_index is not None:
         if choice_index < 0 or choice_index >= len(reward.relic_options):
             return "遗物编号无效。"
+        if not is_relic_allowed_for_character(slot.character_id, reward.relic_options[choice_index]):
+            return "该遗物不适用于李昼，请选择其他遗物或跳过。"
     reward.relic_choices[str(user_id)] = choice_index
 
     living_user_ids = [slot.user_id for slot in room.living_players()]

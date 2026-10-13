@@ -312,6 +312,8 @@ def start_battle(session_id, character_id="character.test", enemy_ids=None, seed
         not getattr(card, "created_in_battle", False) for card in player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
+    from game.lizhou import opening_flower_draws
+    logs.extend(opening_flower_draws(game_state))
     logs.extend(player.draw_cards(
         opening_draw_count,
         game_state=game_state,
@@ -379,6 +381,8 @@ def start_battle_with_player(session_id, character_id, player, enemy_ids=None, s
         not getattr(card, "created_in_battle", False) for card in player.hand)
     if opening_draw_count < 0:
         opening_draw_count = 0
+    from game.lizhou import opening_flower_draws
+    logs.extend(opening_flower_draws(game_state))
     logs.extend(player.draw_cards(
         opening_draw_count,
         game_state=game_state,
@@ -4917,6 +4921,14 @@ def continue_end_turn_after_player_turn_end(game_state, logs=None):
         if result:
             logs.append(result)
             return "\n".join(logs)
+
+    from game.yoirine import after_enemy_actions
+    logs.extend(after_enemy_actions(game_state))
+    yield logs
+    logs = []
+    result = check_battle_result(game_state)
+    if result:
+        return result
 
     turn_end_context = BattleContext(
         game_state=game_state,

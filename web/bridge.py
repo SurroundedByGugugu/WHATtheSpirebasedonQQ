@@ -372,7 +372,7 @@ def snapshot(reply=""):
                     "index": index, "name": enemy.name, "hp": enemy.hp,
                     "maxHp": enemy.max_hp, "block": enemy.block,
                     "intent": format_enemy_intent_text(battle, enemy),
-                    "status": get_status_display_text(enemy.statuses),
+                    "status": get_status_display_text(enemy.statuses, battle),
                     "capturedCard": format_card_display_name(enemy._captured_card) if getattr(enemy, "_captured_card", None) else "",
                 })
         state["piles"] = {"draw": len(player.draw_pile),

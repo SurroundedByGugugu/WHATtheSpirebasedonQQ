@@ -252,9 +252,12 @@ def build_masked_bandits_event(run_state, rng=None, seed=None, source_node_type=
 
 
 def build_joust_event(run_state, rng=None, seed=None, source_node_type="event"):
+    rng = rng if rng is not None else random.Random(seed)
+    winner = "murderer" if rng.random() < 0.70 else "owner"
     return EventState(
         title="长枪决斗",
         event_id=EVENT_JOUST,
+        data={"joust_winner": winner},
         description=(
             "你在巨大的建筑物间穿行时，遇见了一条长长的窄桥，两头似乎都有一名骑士彼此对望着。\n"
             "“决斗的见证者啊，你为什么不赌一赌最后谁会获得胜利呢？”"

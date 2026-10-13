@@ -2506,6 +2506,35 @@ def handle_request_synchronization_choice(game_state, card, effect, target_index
 
     return logs
 
+@register_effect("arm_crystal_reflection")
+def handle_arm_crystal_reflection(game_state, card, effect, target_index, effect_context):
+    game_state.crystal_reflection_turn = game_state.turn_count
+    return []
+
+
+@register_effect("phase_plating")
+@resumable()
+def handle_phase_plating(game_state, card, effect, target_index, effect_context):
+    zone = getattr(game_state, "active_zone", None)
+    element = getattr(zone, "element", "")
+    if (zone is None or zone.is_expired() or getattr(zone, "is_virtual_mist_zone", False)
+            or element not in ("crystal", "shade")):
+        yield apply_card_effect(game_state, card, {
+            "op": "gain_block", "target": "self",
+            "amount": {"var": "block", "modifier_profile": "block"},
+        }, target_index, effect_context)
+        return []
+    yield deal_damage(game_state, game_state.player, game_state.player,
+                      card.card_vars["self_damage"], damage_kind="effect", card=card,
+                      count_as_player_self_action_hp_loss=True)
+    if game_state.battle_over or not game_state.player.is_alive():
+        return []
+    yield handle_choose_hand_attack_without_element_apply_plating(game_state, card, {
+        "element": element,
+        "allowed_card_types": ["attack", "skill"] if element == "crystal" else ["attack"],
+    }, target_index, effect_context)
+
+
 @register_effect("precipitate_zone_to_plating")
 def handle_precipitate_zone_to_plating(game_state, card, effect, target_index, effect_context):
     logs = []
@@ -2513,7 +2542,7 @@ def handle_precipitate_zone_to_plating(game_state, card, effect, target_index, e
 
     zone = getattr(game_state, "active_zone", None)
     if zone is None:
-        logs.append("【{}】没有已展开的晶或阴 Zone，无法析出。".format(card.name))
+        logs.append("【{}】没有已展开的真实 Zone，无法析出。".format(card.name))
         return logs
 
     try:
@@ -2524,12 +2553,11 @@ def handle_precipitate_zone_to_plating(game_state, card, effect, target_index, e
         pass
 
     element = str(getattr(zone, "element", "") or "").strip().lower()
+    if getattr(zone, "is_virtual_mist_zone", False):
+        return ["当前没有真实 Zone，无法析出。"]
     if element not in ("crystal", "shade"):
-        logs.append("【{}】只能破坏晶或阴 Zone，当前 Zone 为 {}。".format(
-            card.name,
-            element or "无"
-        ))
-        return logs
+        game_state.active_zone = None
+        return ["【{}】破坏了当前 Zone：{}。".format(card.name, zone.name)]
 
     is_extreme = bool(getattr(zone, "is_extreme", False))
     zone_name = getattr(zone, "name", "Zone")
@@ -6480,8 +6508,10 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
     replay_extra = int(getattr(card, "replay_extra", 0))
     replay_extra += int(effect_context.get("replay_extra", 0))
 
+    zone_replays = 0
     if not bool(getattr(card, "ignore_zone_replay", False)):
-        replay_extra += get_zone_replay_extra(game_state, card_zone_element)
+        zone_replays = get_zone_replay_extra(game_state, card_zone_element)
+        replay_extra += zone_replays
     total_times = 1 + replay_extra
     if total_times < 1:
         total_times = 1
@@ -6544,6 +6574,11 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
             logs = []
             if game_state.battle_over:
                 break
+        if play_index > 0 and zone_replays > 0 and card_zone_element == "crystal":
+            from game.yoirine import after_crystal_replay
+            logs.extend(after_crystal_replay(game_state))
+            yield logs
+            logs = []
         from game.status.status_effects import flush_pending_malleable_triggers
         logs.extend(flush_pending_malleable_triggers(game_state))
         yield logs

@@ -945,6 +945,17 @@ register_status_def(StatusDef(
 ))
 
 register_status_def(StatusDef(
+    key="crystal_dust",
+    name="结晶微尘",
+    description="每回合第一次有牌因晶效果重放后，获得等同层数的格挡。",
+    category="buff",
+    display_mode="stack",
+    order=75,
+    decay_timing="none",
+    decay_amount=0,
+))
+
+register_status_def(StatusDef(
     key="crystal_mist",
     name="结晶薄雾",
     description="没有真实场地 Zone 时，接下来每层使 1 张打出的牌视为在晶 Zone 下。无属性牌也会消耗层数。",

@@ -30,7 +30,7 @@ def format_status(key, value):
     return "{}({})".format(name, value)
 
 
-def get_status_display_text(status_container):
+def get_status_display_text(status_container, game_state=None):
     active = status_container.all_active()
 
     if not active:
@@ -43,7 +43,11 @@ def get_status_display_text(status_container):
         value = active.get(key, 0)
 
         if value != 0:
-            parts.append(format_status(key, value))
+            if key == "time_warp" and game_state is not None:
+                count = int(getattr(game_state, "time_warp_card_count", 0) or 0)
+                parts.append("{}({}/{})".format(status_def.name, count, max(1, int(value))))
+            else:
+                parts.append(format_status(key, value))
 
     for key, value in active.items():
         if get_status_def(key) is None:

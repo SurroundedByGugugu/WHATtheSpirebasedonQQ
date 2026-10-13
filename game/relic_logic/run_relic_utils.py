@@ -103,7 +103,16 @@ def get_current_floor(run_state):
     return len(getattr(run_state, "completed_node_ids", []) or []) + 1
 
 
+def is_relic_allowed_for_character(character_id, relic):
+    return not (character_id == "character.lizhou"
+                and getattr(relic, "relic_id", "") in {
+                    "relic.runic_pyramid", "relic.ink_bottle", "relic.letter_opener"})
+
+
 def is_relic_available_by_floor(run_state, relic):
+    # All reward/shop paths already share this eligibility gate.
+    if not is_relic_allowed_for_character(getattr(run_state, "character_id", ""), relic):
+        return False
     max_floor = getattr(relic, "max_reward_floor", None)
     if max_floor is None:
         return True

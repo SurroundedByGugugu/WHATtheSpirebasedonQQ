@@ -2040,12 +2040,15 @@ def choose_event_option(run_state, choice_index, seed=None):
 
         run_state.gold -= cost
 
-        if effect == "joust_murderer":
-            win = rng.random() < 0.70
-            prize = 100
-        else:
-            win = rng.random() < 0.30
-            prize = 250
+        winner = state.data.get("joust_winner")
+        if winner not in ("murderer", "owner"):
+            # Compatibility for event snapshots created before the winner was
+            # stored. Failed choices must not change the outcome after SL.
+            legacy_rng = random.Random(int(seed or 0) + 17)
+            winner = "murderer" if legacy_rng.random() < 0.70 else "owner"
+            state.data["joust_winner"] = winner
+        win = effect == "joust_" + winner
+        prize = 100 if effect == "joust_murderer" else 250
 
         logs = [
             "失去 {} 金币。当前金币：{}。".format(cost, run_state.gold),

@@ -13,5 +13,5 @@ for key, name, description, category in [
 
 from data.card.character.lizhou_cards import SPECS
 for key, spec in SPECS.items():
-    if spec['kind'] == 'power' and key not in ('time_master', 'intuition_luck'):
+    if spec['kind'] == 'power' and key != 'time_master':
         register_status_def(StatusDef('lizhou_power_'+key, spec['name'], spec['text'], category='buff'))

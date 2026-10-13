@@ -1,7 +1,7 @@
 """李昼的资源、实体牌状态、可恢复选择与星座结算。
 
-回合末分前后两个插槽：投刃/幻魔/远见在弃牌前按施放顺序；无限与虚无在弃牌后。
-锚定之眼、浮动衰减、锚定保留选择位于两个插槽之间，顺序见 before_cleanup。
+回合末分前后两个插槽：投刃/幻魔在弃牌前按施放顺序；无限与虚无在弃牌后。
+锚定之眼、浮动衰减、锚定保留及直觉弃牌选择位于两个插槽之间，顺序见 before_cleanup。
 """
 import copy
 import random
@@ -110,6 +110,8 @@ def order(state, amount, *, spend=False):
 
 
 def anchor(state, card, amount=1):
+    foresights = powers(state, 'astronomic_foresight') if amount > 0 else []
+    amount += len(foresights)
     card.lizhou_anchor = max(0, getattr(card, 'lizhou_anchor', 0)+amount)
     logs = ['【{}】锚定{}。'.format(card.name, card.lizhou_anchor)]
     if amount > 0:
@@ -118,6 +120,9 @@ def anchor(state, card, amount=1):
             logs.extend(passive_block(state, p['card'].card_vars['amount'], p['card']))
         for _ in powers(state, 'ever_changing'):
             logs.extend(energy(state, 1))
+    for power in foresights:
+        if power['card'].upgraded:
+            logs.extend(order(state, 1))
     return logs
 
 
@@ -193,9 +198,12 @@ def put_hand(state, card):
     return ['【{}】加入{}。'.format(card.name, '弃牌堆（手牌已满）' if pile is state.player.discard_pile else '手牌')]
 
 
-def create_zodiac(state, *, exhaust=False, ethereal=False, free_battle=False, free_turn=False, zero=None):
+def create_zodiac(state, *, exhaust=False, ethereal=False, free_battle=False, free_turn=False, zero=None, upgraded=False):
     from data.card.AAAregistry import create_card
     card = create_card(PREFIX+random.choice(ZODIACS))
+    if upgraded:
+        from data.card.upgrade_rules import upgrade_card
+        card = upgrade_card(card)
     card.temporary = card.created_in_battle = True
     for enabled, keyword in ((exhaust, 'exhaust'), (ethereal, 'ethereal')):
         if enabled and keyword not in card.keywords:
@@ -226,6 +234,11 @@ def selected_effect(state, choice, selected):
             if any(c is card for c in state.player.hand) and getattr(card, 'lizhou_anchor', 0) > 0:
                 card.lizhou_anchor -= 1
                 card.temporary_retain_once = True
+                card.lizhou_paid_retain_turn = state.turn_count
+        elif mode == 'discard_retained':
+            if remove(state.player.hand, card):
+                from game.engine import resolve_discarded_card
+                yield resolve_discarded_card(state, card, reason=choice.source, trigger_clever=True)
         elif mode == 'exhaust':
             if remove(state.player.hand, card):
                 yield move_card_to_exhaust_pile(state, card, reason=choice.source)
@@ -479,16 +492,14 @@ def effect(state, card, effect_spec, target_index, context):
             if p.statuses.get('lizhou_order') < gate:
                 return ['调序不足，略过【{}】的调序效果。'.format(card.name)]
             yield order(state, -gate, spend=True)
-        if k == 'intuition_luck':
-            yield heal(state, v['amount'])
-        elif k == 'time_master':
+        if k == 'time_master':
             p.lizhou_extra_turns = getattr(p, 'lizhou_extra_turns', 0)+v['count']
             state.force_end_turn_after_card = True
             state.force_end_turn_reason = card.name
         else:
             if not hasattr(p, 'lizhou_powers'):
                 p.lizhou_powers = []
-            if k not in ('moonlight', 'floating_tide', 'infinity_void', 'void_world') or not powers(state, k):
+            if k not in ('moonlight', 'floating_tide', 'infinity_void', 'void_world', 'intuition_luck') or not powers(state, k):
                 p.lizhou_powers.append({'key': k, 'card': card, 'counter': 0})
                 p.statuses.add('lizhou_power_'+k, 1)
                 yield ['【{}】能力生效。'.format(card.name)]
@@ -506,7 +517,7 @@ def effect(state, card, effect_spec, target_index, context):
         yield order(state, -p.statuses.get('lizhou_order'))
         yield hit(state, card, damage, target_index)
     elif k == 'star_warning':
-        yield request(state, card.name, 'retain', list(reversed(p.draw_pile[-v['inspect']:])), v['count'])
+        yield request(state, card.name, 'retain', list(reversed(p.draw_pile[-v['inspect']:])), v['count'], minimum=0)
         yield status(state, 'lizhou_counterbalance', 1)
         yield hit(state, card, damage, target_index)
     elif k == 'gliding_punishment':
@@ -591,7 +602,10 @@ def effect(state, card, effect_spec, target_index, context):
             if card.upgraded:
                 yield anchor(state, card, 2)
     elif k in ('align_stars', 'star_order', 'stellar_rotation', 'colonize_orbit'):
-        yield order(state, v['amount'])
+        if k == 'star_order':
+            yield draw(state, v['amount'])
+        else:
+            yield order(state, v['amount'])
         if 'block' in v:
             yield block(state, v['block'], card)
     elif k == 'anchoring':
@@ -601,7 +615,7 @@ def effect(state, card, effect_spec, target_index, context):
             yield request(state, card.name, 'floating', p.hand, v['count'])
         yield energy(state, 2)
     elif k == 'swallow_star':
-        yield request(state, card.name, 'exhaust', p.hand)
+        yield request(state, card.name, 'exhaust', p.hand, 2)
         yield block(state, v['block'], card)
     elif k in ('fingertip_cosmos', 'paint_sky', 'decorate_stars'):
         names = {'fingertip_cosmos': ('lizhou_fortify', 'lizhou_tenacity', 'lizhou_counterbalance'),
@@ -615,7 +629,7 @@ def effect(state, card, effect_spec, target_index, context):
             if remove(p.hand, c):
                 yield move_card_to_exhaust_pile(state, c)
         for _ in cards:
-            yield create_zodiac(state, exhaust=True, free_battle=card.upgraded, free_turn=not card.upgraded)
+            yield create_zodiac(state, free_turn=True, upgraded=card.upgraded)
     elif k == 'collision':
         for name in ('weak', 'vulnerable'):
             yield debuff(state, name, 3, target_index, everyone=True)
@@ -634,6 +648,9 @@ def effect(state, card, effect_spec, target_index, context):
             p.lizhou_powers.append({'key': k, 'card': card, 'turn': state.turn_count})
     elif k == 'key':
         yield request(state, card.name, 'key', p.draw_pile, 3)
+        for pile in (p.discard_pile, p.exhaust_pile):
+            p.draw_pile.extend(pile)
+            pile.clear()
         random.shuffle(p.draw_pile)
     # Optional order clauses follow all base effects, including draws and choices.
     if k in ('blunt_bullet', 'sharp_bullet', 'dust_wave', 'twinkle'):
@@ -662,11 +679,6 @@ def before_cleanup(state):
             yield request(state, c.name, 'anchor', p.hand, c.card_vars['count'], minimum=0)
         elif k == 'phantasm' and power['turn'] == state.turn_count:
             yield request(state, c.name, 'exhaust', [h for h in p.hand if getattr(h, 'lizhou_anchor', 0)], len(p.hand), minimum=0)
-        elif k == 'astronomic_foresight':
-            from data.card.upgrade_rules import upgrade_card
-            for h in p.hand:
-                upgraded = upgrade_card(h)
-                h.__dict__.update(upgraded.__dict__)
     if any(getattr(r, 'relic_id', '') == 'relic.anchored_eye' for r in p.relics):
         for c in list(p.hand):
             if 'retain' in c.keywords:
@@ -676,6 +688,13 @@ def before_cleanup(state):
         c.lizhou_anchored_before_cleanup = getattr(c, 'lizhou_anchor', 0) > 0
     candidates = [c for c in p.hand if getattr(c, 'lizhou_anchor', 0) > 0 and 'retain' not in c.keywords and 'ethereal' not in c.keywords]
     yield request(state, '锚定保留', 'paid_retain', candidates, len(candidates), minimum=0)
+    if powers(state, 'intuition_luck'):
+        from data.card.keyword_rules import should_retain_at_turn_end
+        candidates = [c for c in p.hand
+                      if (should_retain_at_turn_end(c) or p.statuses.get('defect_equilibrium') > 0)
+                      and 'ethereal' not in c.keywords
+                      and getattr(c, 'lizhou_paid_retain_turn', -1) != state.turn_count]
+        yield request(state, '直觉与幸运', 'discard_retained', candidates, len(candidates), minimum=0)
 
 
 @resumable()
@@ -719,8 +738,8 @@ def on_event(state, event, context):
         for power in list(powers(state)):
             k, c = power['key'], power['card']
             if k == 'human_dream':
-                yield status(state, 'strength', 2)
-                yield status(state, 'dexterity', 2)
+                yield status(state, 'strength', 3 if c.upgraded else 2)
+                yield status(state, 'dexterity', 3 if c.upgraded else 2)
             elif k in ELEMENTS:
                 from data.card.character.lizhou_cards import create_lizhou_card
                 yield request(state, c.name, 'constellation', [create_lizhou_card(z) for z in ELEMENTS[k]])
@@ -730,6 +749,16 @@ def on_event(state, event, context):
                 yield request(state, c.name, 'anchor', p.hand, len(p.hand), minimum=0)
             elif k == 'anchor_sail' and p.statuses.get('lizhou_order') < 6:
                 yield order(state, 6)
+
+
+@resumable()
+def opening_flower_draws(state):
+    # Innate/bottled opening cards bypass draw_cards; reserve the normal opening
+    # draw count before this bonus so it is not swallowed by hand-size counting.
+    flowers = [c for c in state.player.hand if key(c) == 'star_flower']
+    for c in flowers:
+        yield ['【{}】进入起始手牌，触发额外抽1张牌。'.format(c.name)]
+        yield draw(state, 1)
 
 
 def card_state_text(card):

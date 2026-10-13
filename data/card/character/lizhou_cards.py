@@ -16,12 +16,12 @@ define('meteor_fall', '流星坠击', 'attack', 'common', 1, '造成10点伤害�
 define('stellar_impact', '星辰冲击', 'attack', 'common', 1, '给予1层易伤，造成12点伤害。', '给予2层易伤，造成12点伤害。', target='enemy', damage=12, amount=(1, 2))
 define('dust_wave', '气尘海浪', 'attack', 'common', 1, '调序1：对所有敌人造成8点伤害，每攻击到1个敌人，获得1调序。', '调序0：对所有敌人造成8点伤害，每攻击到1个敌人，获得1调序。', target='all_enemies', damage=8, order=(1, 0))
 define('broken_hope', '奢望破灭', 'attack', 'common', 2, '失去所有调序。造成16点伤害。', '失去所有调序。造成20点伤害。', target='enemy', damage=(16, 20))
-define('star_warning', '星之预警', 'attack', 'common', 1, '检视抽牌堆顶部3张牌，选择2张获得保留。获得1层抗衡，造成6点伤害。', '检视抽牌堆顶部5张牌，选择3张获得保留。获得1层抗衡，造成6点伤害。', target='enemy', damage=6, inspect=(3, 5), count=(2, 3))
+define('star_warning', '星之预警', 'attack', 'common', 1, '检视抽牌堆顶部3张牌，选择最多2张获得保留。获得1层抗衡，造成6点伤害。', '检视抽牌堆顶部5张牌，选择最多3张获得保留。获得1层抗衡，造成6点伤害。', target='enemy', damage=6, inspect=(3, 5), count=(2, 3))
 define('gliding_punishment', '滑行惩戒', 'attack', 'uncommon', 1, '对所有敌人造成4点伤害，抽2张牌。', '对所有敌人造成4点伤害，抽3张牌。', target='all_enemies', damage=4, count=(2, 3))
 define('diamond_dust', '钻石尘', 'attack', 'uncommon', 1, '手牌中所有牌获得2浮动、2锚定。对所有敌人造成12点伤害。', '手牌中所有牌获得1浮动、2锚定。对所有敌人造成12点伤害。', target='all_enemies', damage=12, floating=(2, 1))
 define('wandering_star', '浮游之星', 'attack', 'uncommon', 3, '弃牌堆所有牌获得1浮动。造成26点伤害，从抽牌堆随机免费打出2张牌。', '弃牌堆所有牌获得1浮动。造成36点伤害，从抽牌堆随机免费打出2张牌。', target='enemy', damage=(26, 36))
 define('rusted_thing', '锈蚀之物', 'attack', 'uncommon', 1, '手牌中所有牌失去保留和所有锚定。每移除一张牌的保留或锚定，随机攻击1次，每次9点伤害。', '手牌中所有牌失去保留和所有锚定。每移除一张牌的保留或锚定，随机攻击2次，每次9点伤害。', target='random_enemy', damage=9, amount=(1, 2))
-define('spinning_stardust', '旋转星尘', 'attack', 'uncommon', 1, '保留。造成8点伤害。本牌本回合每已打出2次，多攻击1次。返回手牌。', '保留。造成8点伤害。本牌本回合每已打出1次，多攻击1次。返回手牌。', target='enemy', keywords=('retain',), damage=8, interval=(2, 1))
+define('spinning_stardust', '旋转星尘', 'attack', 'uncommon', 1, '造成8点伤害。本牌本回合每已打出2次，多攻击1次。返回手牌。', '造成8点伤害。本牌本回合每已打出1次，多攻击1次。返回手牌。', target='enemy', damage=8, interval=(2, 1))
 define('dark_sky', '晦暗的星空', 'attack', 'uncommon', 0, '获得1层固强，给予1层易伤，造成4点伤害。', '获得2层固强，给予2层易伤，造成4点伤害。', target='enemy', damage=4, amount=(1, 2))
 define('star_memory', '星的记忆体', 'attack', 'uncommon', 1, '对所有敌人造成3点伤害。选择消耗牌堆中的1张牌加入手牌。', '对所有敌人造成6点伤害。选择消耗牌堆中的1张牌加入手牌。', target='all_enemies', damage=(3, 6))
 define('curtain_fall', '结界落幕', 'attack', 'uncommon', (3, 2), '失去所有调序，所有牌的锚定和浮动清零。对所有敌人造成20点伤害，消耗至多4张手牌。', '失去所有调序，所有牌的锚定和浮动清零。对所有敌人造成20点伤害，消耗至多4张手牌。', target='all_enemies', damage=20)
@@ -34,14 +34,14 @@ define('self_destroying_sun', '自灭的西太阳', 'attack', 'rare', 4, '失去
 
 define('defend', '防御', 'skill', 'starting', 1, '获得5点格挡。', '获得8点格挡。', block=(5, 8))
 define('star_flower', '绽放的星之花', 'skill', 'starting', 0, '固有。保留。抽到时抽1张牌。清空本牌锚定，获得等量能量。无法逃脱。返回手牌。失去保留或打出时立即获得保留。', '固有。保留。抽到时抽1张牌。清空本牌锚定，获得等量能量。本场战斗首次打出后获得2锚定。无法逃脱。返回手牌。失去保留或打出时立即获得保留。', keywords=('innate', 'retain'))
-define('align_stars', '调正星位', 'skill', 'starting', 1, '获得2调序。', '获得3调序。', amount=(2, 3))
-define('star_order', '星星调序', 'skill', 'common', 1, '获得1调序、7点格挡。', '获得2调序、10点格挡。', amount=(1, 2), block=(7, 10))
-define('twinkle', '星光闪闪', 'skill', 'common', 1, '调序1：获得6点格挡，给予1层虚弱。', '调序1：获得6点格挡，给予2层虚弱。', target='enemy', order=1, block=6, amount=(1, 2))
+define('align_stars', '调正星位', 'skill', 'starting', 1, '获得3调序。', '获得4调序。', amount=(3, 4))
+define('star_order', '星星调序', 'skill', 'common', 1, '抽1张牌，获得7点格挡。', '抽2张牌，获得10点格挡。', amount=(1, 2), block=(7, 10))
+define('twinkle', '星光闪闪', 'skill', 'common', 0, '调序1：获得6点格挡，给予1层虚弱。', '调序1：获得6点格挡，给予2层虚弱。', target='enemy', order=1, block=6, amount=(1, 2))
 define('stellar_rotation', '恒星回转', 'skill', 'common', 1, '获得3调序、3点格挡。', '获得3调序、7点格挡。', amount=3, block=(3, 7))
 define('anchoring', '锚定作业', 'skill', 'common', 1, '选择1张手牌获得2锚定。', '选择1张手牌获得3锚定。', amount=(2, 3))
-define('calculate_float', '计算浮动', 'skill', 'common', 1, '选择3张手牌获得1浮动，获得2能量。手牌不足时跳过浮动。', '选择1张手牌获得1浮动，获得2能量。手牌不足时跳过浮动。', count=(3, 1))
-define('swallow_star', '闪光咽星', 'skill', 'common', 2, '消耗1张手牌，获得10点格挡。无牌可消耗时仍获得格挡。', '消耗1张手牌，获得13点格挡。无牌可消耗时仍获得格挡。', block=(10, 13))
-define('fingertip_cosmos', '指尖宇宙', 'skill', 'common', 2, '获得1层固强、坚韧、抗衡。', '获得2层固强、坚韧、抗衡。', amount=(1, 2))
+define('calculate_float', '计算浮动', 'skill', 'common', 0, '选择3张手牌获得1浮动，获得2能量。手牌不足时跳过浮动。', '选择1张手牌获得1浮动，获得2能量。手牌不足时跳过浮动。', count=(3, 1))
+define('swallow_star', '闪光咽星', 'skill', 'common', 1, '消耗2张手牌，获得4点格挡。无牌可消耗时仍获得格挡。', '消耗2张手牌，获得7点格挡。无牌可消耗时仍获得格挡。', block=(4, 7))
+define('fingertip_cosmos', '指尖宇宙', 'skill', 'common', 2, '获得2层固强、坚韧、抗衡。', '获得3层固强、坚韧、抗衡。', amount=(2, 3))
 define('paint_sky', '描绘星空之幕', 'skill', 'uncommon', 1, '获得2层抗衡。', '获得3层抗衡。', amount=(2, 3))
 define('decorate_stars', '点缀星辰之机', 'skill', 'uncommon', 1, '获得2层固强。', '获得3层固强。', amount=(2, 3))
 
@@ -64,13 +64,13 @@ for key, name, text, plus in [
            '抽1张牌。'+('获得15点格挡。' if key == 'leo' else '')+'调序3：'+plus,
            target='enemy' if key == 'capricorn' else 'self', order=3)
 
-define('meteor_shower', '释放流星雨', 'skill', 'rare', 3, '消耗所有手牌，生成等量带消耗的随机星座牌加入手牌，本回合免费。', '消耗所有手牌，生成等量带消耗的随机星座牌加入手牌，本场战斗免费。')
+define('meteor_shower', '释放流星雨', 'skill', 'rare', 3, '消耗所有手牌，生成等量随机星座牌加入手牌，本回合免费。', '消耗所有手牌，生成等量升级后的随机星座牌加入手牌，本回合免费。')
 define('colonize_orbit', '殖民星轨道', 'skill', 'rare', 1, '获得6调序。', '获得12调序。', amount=(6, 12))
 define('collision', '碰撞·星星·膨胀', 'skill', 'rare', 1, '需要并消耗2锚定。给予所有敌人3层虚弱、易伤。', '需要并消耗1锚定。给予所有敌人3层虚弱、易伤。', target='all_enemies', anchor_gate=(2, 1))
 define('aye_captain', '是的，船长', 'skill', 'rare', 1, '需要并消耗2锚定。获得1点格挡16次。', '需要并消耗1锚定。获得1点格挡16次。', anchor_gate=(2, 1))
 define('domain', '领域展开', 'skill', 'rare', (5, 4), '每带锚定保留1回合，本场战斗费用降低1。本回合每张其他实体牌可免费打出1次，包括之后生成的牌。', '每带锚定保留1回合，本场战斗费用降低1。本回合每张其他实体牌可免费打出1次，包括之后生成的牌。')
 define('phantasm', '幻魔', 'skill', 'rare', 1, '本回合结束时，可消耗任意张有锚定的手牌。消耗。', '本回合结束时，可消耗任意张有锚定的手牌。', keywords=('exhaust',))
-define('key', '钥匙', 'skill', 'rare', 0, '选择抽牌堆中3张牌加入手牌。洗牌，将本牌置于抽牌堆底部，然后消耗本牌。', '选择抽牌堆中3张牌加入手牌。洗牌，将本牌置于抽牌堆底部。', keywords=('exhaust',))
+define('key', '钥匙', 'skill', 'rare', 0, '选择抽牌堆中3张牌加入手牌。将除了手牌以外所有牌洗入抽牌堆并打乱顺序，将本牌置于抽牌堆底部，然后消耗本牌。', '选择抽牌堆中3张牌加入手牌。将除了手牌以外所有牌洗入抽牌堆并打乱顺序，将本牌置于抽牌堆底部。', keywords=('exhaust',))
 
 define('orderer', '调序者', 'power', 'uncommon', 1, '每打出4张牌，获得2调序。计数跨回合保留，各副本独立计数。', '每打出3张牌，获得2调序。计数跨回合保留，各副本独立计数。', interval=(4, 3))
 define('anchor_definition', '锚定义', 'power', 'uncommon', 1, '每张牌获得锚定时，获得5点格挡。', '每张牌获得锚定时，获得8点格挡。', amount=(5, 8))
@@ -78,22 +78,23 @@ define('floating_tide', '浮动潮汐', 'power', 'uncommon', (2, 1), '拥有浮�
 define('fit_stars', '切合星辰', 'power', 'uncommon', 1, '每打出星座牌，获得3点格挡。', '每打出星座牌，获得5点格挡。', amount=(3, 5))
 define('cast_blades', '投刃皆虚', 'power', 'uncommon', 2, '每回合结束时，选择至多2张手牌各获得1锚定。', '每回合结束时，选择至多3张手牌各获得1锚定。', count=(2, 3))
 define('time_master', '时间管理大师', 'power', 'uncommon', 3, '结束你的回合，获得1个额外回合，跳过敌方行动。', '结束你的回合，获得2个额外回合，跳过敌方行动。', count=(1, 2))
-define('human_dream', '人类的梦', 'power', 'uncommon', 3, '每回合开始时，获得2力量、2敏捷。', '保留。每回合开始时，获得2力量、2敏捷。')
+define('human_dream', '人类的梦', 'power', 'uncommon', 3, '每回合开始时，获得2力量、2敏捷。', '每回合开始时，获得3力量、3敏捷。')
 define('infinity_void', '无限与虚无', 'power', 'uncommon', 2, '每回合弃牌后，随机1张手牌获得浮动1、锚定2。非能力牌结算后若有锚定，减1并返回手牌。自带返回手牌的牌不扣锚定。不重复叠加。', '每回合弃牌后，随机1张手牌获得浮动1、锚定3。非能力牌结算后若有锚定，减1并返回手牌。自带返回手牌的牌不扣锚定。不重复叠加。', amount=(2, 3))
 ELEMENTS = {'earth': ('taurus', 'virgo', 'capricorn'), 'water': ('cancer', 'scorpio', 'pisces'), 'air': ('gemini', 'libra', 'aquarius'), 'fire': ('aries', 'leo', 'sagittarius'), 'stargazer': ZODIACS}
 for key, name in [('earth', '土象'), ('water', '水象'), ('air', '风象'), ('fire', '火象'), ('stargazer', '仰望星空者')]:
+    constellation_names = '、'.join(SPECS[z]['name'] for z in ELEMENTS[key])
     define(key, name, 'power', 'rare' if key == 'stargazer' else 'uncommon', 4 if key == 'stargazer' else 1,
-           '需要并消耗1调序。每回合开始时，选择对应星座的一个基础调序效果，无需调序触发，目标随机。',
-           '需要0调序。每回合开始时，选择对应星座的一个基础调序效果，无需调序触发，目标随机。', order_gate=(1, 0))
+           '需要并消耗1调序。每回合开始时，选择（'+constellation_names+'）中一个星座的基础调序效果，无需调序触发，目标随机。',
+           '需要0调序。每回合开始时，选择（'+constellation_names+'）中一个星座的基础调序效果，无需调序触发，目标随机。', order_gate=(1, 0))
 define('star_sequence', '星位序列', 'power', 'uncommon', (1, 0), '每回合开始时，生成1张带虚无的随机星座牌加入手牌。', '每回合开始时，生成1张带虚无的随机星座牌加入手牌。')
 define('moonlight', '月光', 'power', 'uncommon', 1, '抽到星座牌时，将其排队自动免费打出，无视调序门槛并触发调序效果。', '固有。抽到星座牌时，将其排队自动免费打出，无视调序门槛并触发调序效果。')
 define('void_world', '虚无世界', 'power', 'rare', 3, '虚无。每段攻击先检查敌人格挡，若原本没有格挡，施加1层双倍受伤；然后清空格挡并造成伤害。', '每段攻击先检查敌人格挡，若原本没有格挡，施加1层双倍受伤；然后清空格挡并造成伤害。', keywords=('ethereal',))
-define('intuition_luck', '直觉与幸运', 'power', 'rare', 1, '恢复40点生命。', '恢复60点生命。', amount=(40, 60))
+define('intuition_luck', '直觉与幸运', 'power', 'rare', 1, '回合结束时，可以选择将被保留的牌丢弃，不包括通过锚定保留的牌。', '回合结束时，可以选择将被保留的牌丢弃，不包括通过锚定保留的牌。')
 define('easy_battle', '战斗好像变得比呼吸还简单了', 'power', 'rare', 4, '每次获得能量时，恢复4点生命，获得4点格挡。', '每次获得能量时，恢复6点生命，获得6点格挡。', amount=(4, 6))
 define('ever_changing', '瞬息万变', 'power', 'rare', (1, 0), '每次获得调序、每张牌获得锚定时，获得1能量。', '每次获得调序、每张牌获得锚定时，获得1能量。')
 define('stardust_cancer', '星尘癌', 'power', 'rare', (3, 2), '每回合第1个星座效果额外触发1次。N份覆盖前N个，额外触发不占名额、不重复付费，沿用首次调序判断。', '每回合第1个星座效果额外触发1次。N份覆盖前N个，额外触发不占名额、不重复付费，沿用首次调序判断。')
 define('anchor_kit', '船锚套件', 'power', 'rare', (3, 2), '每回合开始、抽牌前，选择任意张手牌各获得1锚定。', '每回合开始、抽牌前，选择任意张手牌各获得1锚定。')
-define('astronomic_foresight', '天文的远见', 'power', 'rare', 1, '虚无。每回合结束时，升级所有手牌，持续本场战斗。', '每回合结束时，升级所有手牌，持续本场战斗。', keywords=('ethereal',))
+define('astronomic_foresight', '天文的远见', 'power', 'rare', 1, '每当有牌被锚定时，额外增加1层锚定。', '每当有牌被锚定时，额外增加1层锚定，获得1点调序。')
 define('anchor_sail', '抛锚起航', 'power', 'rare', 2, '每回合开始时，若不足6调序，额外获得6调序。', '固有。每回合开始时，若不足6调序，额外获得6调序。')
 
 
@@ -105,10 +106,8 @@ def create_lizhou_card(key, upgraded=False):
     if upgraded:
         if key in ('phantasm', 'key'):
             keywords.remove('exhaust')
-        if key in ('void_world', 'astronomic_foresight'):
+        if key == 'void_world':
             keywords.remove('ethereal')
-        if key == 'human_dream':
-            keywords.append('retain')
         if key in ('moonlight', 'anchor_sail'):
             keywords.append('innate')
     card = CardTemplate(card_id='card.lizhou.'+key, name=spec['name']+('+' if upgraded else ''),

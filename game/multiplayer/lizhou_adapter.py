@@ -33,7 +33,11 @@ def open_turn(state, opening=False):
         clear_turn_temporary_card_costs(p)
         yield p.start_turn(state)
     yield dispatch_event(state, 'turn_start', BattleContext(game_state=state, player=p, source=p))
-    yield p.draw_cards(max(0, 5-len(p.hand)) if opening else 5, state, draw_source='multi_turn_start')
+    draw_count = max(0, 5-len(p.hand)) if opening else 5
+    if opening:
+        from game.lizhou import opening_flower_draws
+        yield opening_flower_draws(state)
+    yield p.draw_cards(draw_count, state, draw_source='multi_turn_start')
 
 
 def play(room, slot, index, target):

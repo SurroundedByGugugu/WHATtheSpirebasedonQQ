@@ -435,7 +435,7 @@ def test_meteor_shower_counts_flower_exhaust_even_when_it_returns():
     assert any(c is flower for c in p.hand)
     stars = [c for c in p.hand if c.card_id.split('.')[-1] in ZODIACS]
     assert len(stars) == 2
-    assert all('exhaust' in c.keywords and c.lizhou_free_turn == state.turn_count for c in stars)
+    assert all('exhaust' not in c.keywords and c.lizhou_free_turn == state.turn_count for c in stars)
 
 
 def multi_room():

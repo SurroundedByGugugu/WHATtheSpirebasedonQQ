@@ -812,13 +812,12 @@ def create_precipitate():
         card_type="skill",
         cost=1,
         target="self",
-        description="破坏已展开的晶或阴 Zone，在抽牌堆中加入 1 张对应镀层；若破坏的是极 Zone，改为加入对应镀层+。",
+        description="仅能在存在真实 Zone 时打出。破坏当前 Zone。若为晶或阴 Zone，在抽牌堆中加入 1 张对应镀层；若为极晶或极阴 Zone，改为对应镀层+。",
         quantity="common",
         owner_character_id="character.yoirine",
         play_conditions=[
             {
-                "op": "active_zone_in",
-                "elements": ["crystal", "shade"]
+                "op": "active_zone_exists"
             }
         ],
         effects=[
@@ -829,7 +828,7 @@ def create_precipitate():
         upgraded=False,
         upgrade_patch={
             "name": "析出+",
-            "description": "费用减少 1。破坏已展开的晶或阴 Zone，在抽牌堆中加入 1 张对应镀层；若破坏的是极 Zone，改为加入对应镀层+。",
+            "description": "费用减少 1。仅能在存在真实 Zone 时打出。破坏当前 Zone。若为晶或阴 Zone，在抽牌堆中加入 1 张对应镀层；若为极晶或极阴 Zone，改为对应镀层+。",
             "cost": 0
         }
     )
@@ -1476,38 +1475,19 @@ def create_abyss_gaze():
             ]
         }
     )
-def create_crystal_mist():
+def create_crystal_dust():
     return CardTemplate(
-        card_id="card.crystal_mist",
-        name="结晶薄雾",
-        card_type="skill",
-        cost=0,
-        target="self",
-        description="下 1 张打出的牌视为在晶 Zone 下。无属性牌也会占用次数。真实场地 Zone 存在时不触发。",
-        quantity="uncommon",
+        card_id="card.crystal_dust", name="结晶微尘", card_type="power",
+        cost=1, target="self", quantity="uncommon", attack_element="crystal",
         owner_character_id="character.yoirine",
-        card_vars={
-            "mist": 1
-        },
-        effects=[
-            {
-                "op": "gain_status",
-                "target": "self",
-                "status": "crystal_mist",
-                "amount": {
-                    "var": "mist"
-                }
-            }
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "结晶薄雾+",
-            "description": "下 2 张打出的牌视为在晶 Zone 下。无属性牌也会占用次数。真实场地 Zone 存在时不触发。",
-            "card_vars": {
-                "mist": 2
-            }
-        }
+        description="每回合第一次有牌因晶效果重放后，获得 2 点格挡。多张叠加格挡数值。",
+        card_vars={"block": 2},
+        effects=[{"op": "gain_status", "target": "self", "status": "crystal_dust",
+                  "amount": {"var": "block"}}],
+        upgrade_patch={"name": "结晶微尘+", "card_vars": {"block": 3},
+                       "description": "每回合第一次有牌因晶效果重放后，获得 3 点格挡。多张叠加格挡数值。"},
     )
+
 def create_abyss_mist():
     return CardTemplate(
         card_id="card.abyss_mist",
@@ -1573,37 +1553,29 @@ def create_abyss_index():
         }
     )
 def create_crystal_reflection():
+    text = "本回合敌人行动结束后，若你曾受到攻击，失去全部剩余格挡，将失去的格挡值平均分配为对所有敌人的无来源环境伤害（向上取整）。此效果每回合不可叠加。"
     return CardTemplate(
-        card_id="card.crystal_reflection",
-        name="晶面反射",
-        card_type="skill",
-        cost=1,
-        target="self",
-        description="如果有敌人的意图是攻击，或本回合触发过自伤，获得 8 点格挡。",
-        quantity="uncommon",
-        attack_element="crystal",
-        owner_character_id="character.yoirine",
-        card_vars={
-            "block": 8
-        },
-        effects=[
-            {
-                "op": "gain_block_if_enemy_attack_or_self_action_hp_loss_this_turn",
-                "amount": {
-                    "var": "block",
-                    "modifier_profile": "block"
-                }
-            }
-        ],
-        upgraded=False,
-        upgrade_patch={
-            "name": "晶面反射+",
-            "description": "如果有敌人的意图是攻击，或本回合触发过自伤，获得 14 点格挡。",
-            "card_vars": {
-                "block": 14
-            }
-        }
+        card_id="card.crystal_reflection", name="晶面反射", card_type="skill",
+        cost=1, target="self", quantity="uncommon", attack_element="crystal",
+        owner_character_id="character.yoirine", description="获得 7 点格挡。"+text,
+        card_vars={"block": 7},
+        effects=[{"op": "gain_block", "target": "self", "amount": {"var": "block", "modifier_profile": "block"}},
+                 {"op": "arm_crystal_reflection"}],
+        upgrade_patch={"name": "晶面反射+", "description": "获得 9 点格挡。"+text, "card_vars": {"block": 9}},
     )
+
+
+def create_phase_plating():
+    text = "若当前存在晶或阴 Zone，对自己造成 {damage} 点固定值伤害，然后选择手牌中 1 张可被对应镀层附着的无属性牌，添加当前 Zone 对应的镀层（晶：攻击或技能；阴：攻击）。否则获得 {block} 点格挡。消耗。"
+    return CardTemplate(
+        card_id="card.phase_plating", name="界相镀覆", card_type="skill",
+        cost=1, target="self", quantity="rare", owner_character_id="character.yoirine",
+        description=text.format(damage=10, block=6), keywords=["exhaust"],
+        card_vars={"self_damage": 10, "block": 6}, effects=[{"op": "phase_plating"}],
+        upgrade_patch={"name": "界相镀覆+", "description": text.format(damage=6, block=8),
+                       "card_vars": {"self_damage": 6, "block": 8}},
+    )
+
 def create_debride():
     return CardTemplate(
         card_id="card.debride",
@@ -1744,7 +1716,7 @@ def create_phantom_form():
 def create_shadow_crystallization():
     return CardTemplate(
         card_id="card.shadow_crystallization",
-        name="阴影结晶",
+        name="阴影凝结",
         card_type="power",
         cost=1,
         target="self",
@@ -1767,7 +1739,7 @@ def create_shadow_crystallization():
         ],
         upgraded=False,
         upgrade_patch={
-            "name": "阴影结晶+",
+            "name": "阴影凝结+",
             "description": "每回合第一次因自身行动失去生命时，获得 6 点格挡。",
             "card_vars": {
                 "block": 6

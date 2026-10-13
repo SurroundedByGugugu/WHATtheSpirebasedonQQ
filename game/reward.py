@@ -242,7 +242,7 @@ CARD_REWARD_POOL = [
     "card.abyss_gaze",
     "card.abyss_plating",
     # "card.crystal_plating",
-    "card.crystal_mist",
+    "card.crystal_dust",
     "card.abyss_mist",
     "card.tailwind",
     "card.lightless_prayer",
@@ -265,6 +265,7 @@ CARD_REWARD_POOL = [
     "card.flash",
     "card.crystal_curtain_strike",
     "card.crystal_reflection",
+    "card.phase_plating",
     
     # Suzuri
     "card.anatexis",

@@ -224,7 +224,7 @@ def check_card_play_conditions(game_state, card, play_reason="normal"):
                 return False, "【{}】不能被打出：抽牌堆中还有 {} 张牌。".format(card.name, len(draw_pile))
             continue
 
-        if op == "active_zone_in":
+        if op in ("active_zone_in", "active_zone_exists"):
             required_elements = condition.get("elements", [])
             required_elements = [
                 str(element or "").strip().lower()
@@ -233,8 +233,8 @@ def check_card_play_conditions(game_state, card, play_reason="normal"):
             ]
 
             zone = getattr(game_state, "active_zone", None)
-            if zone is None:
-                return False, "【{}】不能被打出：当前没有 Zone。".format(card.name)
+            if zone is None or getattr(zone, "is_virtual_mist_zone", False):
+                return False, "【{}】不能被打出：当前没有真实 Zone。".format(card.name)
 
             try:
                 if zone.is_expired():
@@ -244,7 +244,7 @@ def check_card_play_conditions(game_state, card, play_reason="normal"):
 
             current_element = str(getattr(zone, "element", "") or "").strip().lower()
 
-            if current_element not in required_elements:
+            if op == "active_zone_in" and current_element not in required_elements:
                 return False, "【{}】不能被打出：需要当前 Zone 为{}之一，当前为{}。".format(
                     card.name,
                     " / ".join(required_elements),

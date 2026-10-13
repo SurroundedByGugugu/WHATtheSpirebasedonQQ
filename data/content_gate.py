@@ -37,7 +37,7 @@ PRIVATE_CARD_IDS = [
     "card.abyss_gaze",
     "card.abyss_plating",
     "card.crystal_plating",
-    "card.crystal_mist",
+    "card.crystal_dust",
     "card.abyss_mist",
     "card.tailwind",
     "card.crystal_dust_explosion",
@@ -57,6 +57,7 @@ PRIVATE_CARD_IDS = [
     "card.flash",
     "card.crystal_curtain_strike",
     "card.crystal_reflection",
+    "card.phase_plating",
     "card.mirror_reflection",
 
     "card.mirage_shadows",

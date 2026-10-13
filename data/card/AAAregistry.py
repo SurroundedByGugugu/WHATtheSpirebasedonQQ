@@ -306,7 +306,7 @@ from data.card.character.yoirine_cards import (
     create_abyss_gaze,
     create_abyss_plating,
     create_crystal_plating,
-    create_crystal_mist,
+    create_crystal_dust,
     create_abyss_mist,
     create_tailwind,
     create_lightless_prayer,
@@ -324,6 +324,7 @@ from data.card.character.yoirine_cards import (
     create_flash,
     create_crystal_curtain_strike,
     create_crystal_reflection,
+    create_phase_plating,
 )
 
 from data.card.character.suzuri_cards import (
@@ -663,7 +664,7 @@ CARD_REGISTRY = {
     "card.abyss_gaze": create_abyss_gaze,
     "card.abyss_plating": create_abyss_plating,
     "card.crystal_plating": create_crystal_plating,
-    "card.crystal_mist": create_crystal_mist,
+    "card.crystal_dust": create_crystal_dust,
     "card.abyss_mist": create_abyss_mist,
     "card.tailwind": create_tailwind,
     "card.lightless_prayer": create_lightless_prayer,
@@ -686,6 +687,7 @@ CARD_REGISTRY = {
     "card.flash": create_flash,
     "card.crystal_curtain_strike": create_crystal_curtain_strike,
     "card.crystal_reflection": create_crystal_reflection,
+    "card.phase_plating": create_phase_plating,
     #suzuri
     "card.defend_suzuri":create_defendSuzuri,
     "card.strike_suzuri":create_strikeSuzuri,

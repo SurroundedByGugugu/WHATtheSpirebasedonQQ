@@ -1085,7 +1085,7 @@ class DecaEnemy(PatternEnemy):
             enemy_id="enemy.deca",
             name="八体",
             max_hp=250,
-            intent_cycle=[DECA_A, DECA_B],
+            intent_cycle=[DECA_B, DECA_A],
         )
         self.gain_status("artifact", 2)
 
