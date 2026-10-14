@@ -10,7 +10,7 @@ from data.relic.AAAregistry import create_relics, create_relic
 from data.potion.AAAregistry import create_potions
 from game.command_help import command_tip
 # from data.route.route_templates import TEST_ROUTE
-from data.route.route_templates import generate_act1_grid_route, generate_act2_grid_route, generate_act3_grid_route
+from data.route.route_templates import generate_act1_grid_route, generate_act2_grid_route, generate_act3_grid_route, generate_act4_linear_route
 from data.route.encounters import (
     ENCOUNTER_TABLE,
     get_encounter_display_name,
@@ -1451,6 +1451,8 @@ def get_run_view(run_state):
     elif run_state.pending_reward is not None:
         lines.append("")
         lines.append(run_state.pending_reward.reward_text())
+    elif getattr(run_state, "pending_act4_choice", False):
+        lines.append(format_act4_choice())
     elif getattr(run_state,"pending_special_rest",None,) is not None:
         lines.append("")
         lines.append(format_special_rest(run_state))
@@ -1723,7 +1725,10 @@ def advance_to_next_act_after_boss_if_needed(run_state, current_node):
     route_generator_by_act = {
         2: generate_act2_grid_route,
         3: generate_act3_grid_route,
+        4: generate_act4_linear_route,
     }
+    if next_act == 4 and getattr(run_state, "act4_decision", "") != "yes":
+        return ""
 
     route_generator = route_generator_by_act.get(next_act)
     if route_generator is None:
@@ -1752,6 +1757,27 @@ def advance_to_next_act_after_boss_if_needed(run_state, current_node):
         entry_text,
     ])
 
+def format_act4_choice():
+    return "三层 Boss 奖励已结算。是否上楼？\n/card ascend yes：进入四层。\n/card ascend no：结束冒险，结算胜利。"
+
+
+def choose_act4_entry(run_state, ascend):
+    if not getattr(run_state, "pending_act4_choice", False):
+        return "当前没有待确认的上楼选择。"
+    if run_state.pending_reward is not None:
+        return "请先结算全部奖励。"
+    from game.lizhou_relic import options as zodiac_options
+    if (has_pending_bottle_selection(run_state) or has_pending_astrolabe_selection(run_state)
+            or has_pending_empty_cage_selection(run_state) or zodiac_options(run_state)
+            or getattr(run_state, "pending_orrery_selection", False)
+            or getattr(run_state, "pending_dollys_mirror_selection", False)):
+        return "请先完成遗物的选牌，再决定是否上楼。"
+    # Future three-key eligibility belongs here, before accepting the ascent.
+    run_state.act4_decision = "yes" if ascend else "no"
+    run_state.pending_act4_choice = False
+    return complete_current_node(run_state)
+
+
 def complete_current_node(run_state):
     """
     所有节点完成后的统一出口。
@@ -1768,6 +1794,11 @@ def complete_current_node(run_state):
     next_nodes = get_next_nodes(run_state.route_nodes, current_node)
 
     if not next_nodes:
+        if (getattr(current_node, "node_type", "") == "boss"
+                and get_route_act_from_node(current_node) == 3
+                and not getattr(run_state, "act4_decision", "")):
+            run_state.pending_act4_choice = True
+            return format_act4_choice()
         next_act_text = advance_to_next_act_after_boss_if_needed(run_state, current_node)
         if next_act_text:
             return next_act_text

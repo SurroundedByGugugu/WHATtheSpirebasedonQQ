@@ -244,7 +244,7 @@ class GameService(object):
             "yes", "y", "确认", "是",
             "no", "cancel", "取消", "否",
             "exit", "退出", "下一把",
-            "sl", "读档", "回档", "回退","slyes",
+            "sl", "读档", "回档", "回退","slyes", "ascend", "上楼",
             "hand", "view", "查看", "手牌", "查看战斗状态", "查看手牌", "run", "角色状态", "当前状态",
             "status", "状态", "查看状态", "查看buff", "buff", "debuff",
             "state", "zone", "field", "场地", "查看场地", "查看zone", "查看field",
@@ -808,6 +808,16 @@ class GameService(object):
         
         if run_state.pending_reward is not None:
             return "当前需要先处理战斗奖励。使用 /card reward 查看奖励，/card pick 0 选择卡牌，或 /card skip 跳过。"
+
+        if command in ("ascend", "上楼"):
+            from game.run_engine import choose_act4_entry, format_act4_choice
+            raw = parts[2].lower() if len(parts) > 2 else ""
+            if raw not in ("yes", "是", "no", "否"):
+                return format_act4_choice() if run_state.pending_act4_choice else "当前没有待确认的上楼选择。"
+            reply = choose_act4_entry(run_state, raw in ("yes", "是"))
+            if run_state.run_over:
+                self.clear_run(session_id)
+            return reply
 
         if command in ("next", "go", "选择路线", "前进"):
             if len(parts) < 3:

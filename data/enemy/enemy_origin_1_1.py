@@ -1317,7 +1317,7 @@ SENTRY_B = EnemyIntent(
     count=2,
 )
 def create_sentry_a():
-    return PatternEnemy(
+    enemy = PatternEnemy(
         enemy_id="enemy.sentry_a",
         name="哨卫",
         max_hp=random.randint(38, 42),
@@ -1327,8 +1327,10 @@ def create_sentry_a():
         ],
         loop_start_index=0,
     )
+    enemy.statuses.set("artifact", 1)
+    return enemy
 def create_sentry_b():
-    return PatternEnemy(
+    enemy = PatternEnemy(
         enemy_id="enemy.sentry_b",
         name="哨卫",
         max_hp=random.randint(38, 42),
@@ -1338,6 +1340,8 @@ def create_sentry_b():
         ],
         loop_start_index=0,
     )
+    enemy.statuses.set("artifact", 1)
+    return enemy
 
 
 # 一层 Boss：Hexaghost / Guardian / Slime Boss

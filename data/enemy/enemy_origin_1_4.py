@@ -64,6 +64,7 @@ class SpireShieldEnemy(PatternEnemy):
             intent_cycle=intent_cycle,
             loop_start_index=0,
         )
+        self.statuses.set("artifact", 1)
 
     def on_event(self, event_name, context):
         if event_name != "battle_start":
@@ -143,6 +144,7 @@ class SpireSpearEnemy(PatternEnemy):
             ] + repeating_cycle,
             loop_start_index=1,
         )
+        self.statuses.set("artifact", 1)
 
     def on_event(self, event_name, context):
         if event_name != "battle_start":

@@ -2816,6 +2816,9 @@ def add_temporary_card_to_hand_or_discard(game_state, card, source_name="药水"
     setattr(new_card, "temporary", True)
     setattr(new_card, "created_in_battle", True)
     if temporary_cost_zero:
+        from game.lizhou import key as lizhou_key
+        if lizhou_key(new_card):
+            new_card.lizhou_free_turn = game_state.turn_count
         if getattr(new_card, "cost", None) == "X":
             logs.append("【{}】是 X 费牌，暂不改变 X 费用。".format(new_card.name))
         else:

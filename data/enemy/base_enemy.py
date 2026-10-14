@@ -345,7 +345,7 @@ class Enemy(object):
             self.max_hp,
             self.block,
             intent_text,
-            get_status_display_text(self.statuses, game_state)
+            get_status_display_text(self.statuses, game_state, owner=self)
         )
     
     def get_status_value(self, key):

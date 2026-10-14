@@ -58,6 +58,8 @@ class RunState:
     current_battle_node_type: str = ""
 
     pending_reward: Any = None
+    pending_act4_choice: bool = False
+    act4_decision: str = ""
 
     # 上一场战斗中，击败盗贼后返还的金币奖励。
     pending_stolen_gold_rewards: List[Any] = field(default_factory=list)
@@ -165,6 +167,7 @@ class RunState:
         return node_id in self.completed_node_ids
     
     def clear_pending_nodes(self):
+        self.pending_act4_choice = False
         self.pending_shop = None
         self.pending_special_rest = None
         self.pending_event = None
@@ -175,6 +178,7 @@ class RunState:
 
     def has_pending_node(self):
         return any([
+            self.pending_act4_choice,
             self.pending_shop is not None,
             self.pending_special_rest is not None,
             self.pending_event is not None,

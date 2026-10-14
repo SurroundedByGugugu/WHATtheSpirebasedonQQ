@@ -17,13 +17,14 @@ def is_debuff_status(status_key):
     return getattr(status_def, "category", "") == "debuff"
 
 
-def add_status_with_artifact(owner, key, amount):
+def add_status_with_artifact(owner, key, amount, *, as_debuff=False):
     """
     统一状态获得入口。
 
     规则：
     - amount > 0 且目标状态是 debuff 时，人工制品抵挡一次。
     - strength/dexterity 的负数变化不算施加 debuff，不被人工制品抵挡。
+    - 主动施加的减益（如羽毛舞扣力量）可显式指定 as_debuff=True。
     """
     amount = int(amount)
     statuses = getattr(owner, "statuses", None)
@@ -74,7 +75,7 @@ def add_status_with_artifact(owner, key, amount):
                     "status_name": status_name,
                 }
 
-    if amount > 0 and key != "artifact" and is_debuff_status(key):
+    if amount != 0 and key != "artifact" and (as_debuff or (amount > 0 and is_debuff_status(key))):
         artifact = statuses.get("artifact")
         if artifact > 0:
             artifact_left = statuses.add("artifact", -1)

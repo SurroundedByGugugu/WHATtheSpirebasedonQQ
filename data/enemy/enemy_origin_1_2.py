@@ -70,6 +70,12 @@ class ByrdEnemy(PatternEnemy):
         self._flying_max_hits = 3
         self.statuses.set("flying", 3)
 
+    def on_event(self, event_name, context):
+        if (event_name == "turn_start" and self.is_alive()
+                and self._byrd_mode == "flying" and self.statuses.get("flying") > 0):
+            self.statuses.set("flying", self._flying_max_hits)
+        return []
+
     def _choose_flying_intent(self):
         if self._byrd_first_choice:
             weighted = [
@@ -1538,6 +1544,7 @@ class BronzeAutomatonEnemy(PatternEnemy):
             ],
             loop_start_index=1,
         )
+        self.statuses.set("artifact", 3)
 def create_bronze_automaton():
     return BronzeAutomatonEnemy()
 BRONZE_ORB_A = EnemyIntent(

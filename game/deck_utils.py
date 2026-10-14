@@ -224,4 +224,6 @@ def transform_card_in_master_deck(run_state, card_index, rng=None):
     if getattr(old_card, "card_type", "") == "curse" and getattr(new_card, "card_type", "") == "curse":
         from game.relic_logic.run_relic_utils import trigger_darkstone_periapt_for_curse
         logs.extend(trigger_darkstone_periapt_for_curse(run_state, new_card))
+    from game.lizhou_relic import check_gain
+    logs.extend(check_gain(run_state, new_card))
     return old_card, new_card, logs

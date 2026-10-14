@@ -1814,10 +1814,10 @@ def handle_reduce_enemy_strength_half(
     half_loss = max(0, old_strength) // 2
     loss = max(minimum, half_loss)
 
-    result = target.gain_status_with_result(
-        "strength",
-        -loss
-    )
+    from game.status.status_gain import add_status_with_artifact, format_status_gain_log
+    result = add_status_with_artifact(target, "strength", -loss, as_debuff=True)
+    if result.get("blocked"):
+        return [format_status_gain_log(target, "strength", -loss, result)]
 
     return [
         "【{}】使 {} 失去 {} 点力量。当前力量：{}。".format(

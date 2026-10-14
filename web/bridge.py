@@ -185,6 +185,9 @@ def run_selection(run):
 
 
 def node_actions(run):
+    if getattr(run, "pending_act4_choice", False) and run.pending_reward is None:
+        return "是否上楼？", [action("是，进入四层", "/card ascend yes"),
+                             action("否，结束冒险", "/card ascend no")]
     reward = run.pending_reward
     if reward is not None:
         options = []
@@ -372,7 +375,7 @@ def snapshot(reply=""):
                     "index": index, "name": enemy.name, "hp": enemy.hp,
                     "maxHp": enemy.max_hp, "block": enemy.block,
                     "intent": format_enemy_intent_text(battle, enemy),
-                    "status": get_status_display_text(enemy.statuses, battle),
+                    "status": get_status_display_text(enemy.statuses, battle, owner=enemy),
                     "capturedCard": format_card_display_name(enemy._captured_card) if getattr(enemy, "_captured_card", None) else "",
                 })
         state["piles"] = {"draw": len(player.draw_pile),

@@ -639,8 +639,7 @@ def generate_act4_linear_route(seed=None):
     """
     四层直线路线。
 
-    当前只提供路线数据。
-    暂时不接入三层 Boss 后的自动上楼流程。
+    三层 Boss 奖励结算后选择上楼，进入此路线。
     """
 
     return [
