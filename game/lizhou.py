@@ -1,7 +1,7 @@
 """李昼的资源、实体牌状态、可恢复选择与星座结算。
 
-回合末分前后两个插槽：投刃/幻魔在弃牌前按施放顺序；无限与虚无在弃牌后。
-锚定之眼、浮动衰减、锚定保留及直觉弃牌选择位于两个插槽之间，顺序见 before_cleanup。
+直觉与幸运在回合末状态伤害前选牌。
+投刃/幻魔、锚定之眼、浮动衰减及锚定保留在清理手牌前依次结算。
 """
 import copy
 import random
@@ -109,6 +109,7 @@ def order(state, amount, *, spend=False):
     return logs
 
 
+@resumable()
 def anchor(state, card, amount=1):
     foresights = powers(state, 'astronomic_foresight') if amount > 0 else []
     amount += len(foresights)
@@ -116,6 +117,14 @@ def anchor(state, card, amount=1):
     logs = ['【{}】锚定{}。'.format(card.name, card.lizhou_anchor)]
     if amount > 0:
         annihilation_progress(state, 1)
+        if key(card) == 'focus':
+            card.lizhou_order_discount = getattr(card, 'lizhou_order_discount', 0)+1
+        if any(r.relic_id == 'relic.replica_camera' for r in state.player.relics):
+            card.lizhou_anchor_count = getattr(card, 'lizhou_anchor_count', 0)+1
+            if card.lizhou_anchor_count % 3 == 0:
+                logs.extend(request(state, '复刻相机', 'replay', [c for c in state.player.hand if not getattr(c, 'lizhou_anchor', 0)]))
+                yield logs
+                logs = []
         for p in powers(state, 'anchor_definition'):
             logs.extend(passive_block(state, p['card'].card_vars['amount'], p['card']))
         for _ in powers(state, 'ever_changing'):
@@ -136,14 +145,13 @@ def floating(state, card, amount=1):
 def free(state, card):
     if getattr(card, 'lizhou_free_battle', False) or getattr(card, 'lizhou_free_turn', -1) == state.turn_count:
         return True
-    return (getattr(state.player, 'lizhou_domain_turn', -1) == state.turn_count and
-            getattr(card, 'lizhou_domain_used', -1) != state.turn_count)
+    return False
 
 
 def order_cost(state, card):
     if getattr(card, 'lizhou_zero_order', False) or getattr(card, 'lizhou_zero_order_turn', -1) == state.turn_count:
         return 0
-    return card.card_vars.get('order', 0)
+    return max(0, card.card_vars.get('order', 0)-getattr(card, 'lizhou_order_discount', 0))
 
 
 def permission(state, card, reason):
@@ -165,6 +173,7 @@ def prepare_play(state, card, context, paid=0, automatic=False):
     resolving.append(card)
     context['lizhou_free'] = bool(context.get('lizhou_free', False) or free(state, card))
     context['spent_cost'] = paid
+    card.lizhou_play_anchor = getattr(card, 'lizhou_anchor', 0)
     context['lizhou_automatic'] = automatic
     context['lizhou_damage_difference'] = max(0, 92-paid)
     if getattr(state.player, 'lizhou_domain_turn', -1) == state.turn_count:
@@ -225,6 +234,35 @@ def selected_effect(state, choice, selected):
     for card in selected:
         if mode == 'anchor':
             yield anchor(state, card, choice.payload.get('amount', 1))
+        elif mode == 'replay':
+            card.replay_extra = getattr(card, 'replay_extra', 0)+1
+        elif mode == 'savior':
+            yield anchor(state, card)
+            yield floating(state, card)
+        elif mode == 'intuition':
+            if remove(state.player.hand, card):
+                if choice.payload.get('upgraded'):
+                    state.player.lizhou_intuition_draw = getattr(state.player, 'lizhou_intuition_draw', 0)+1
+                if card.card_type in ('status', 'curse'):
+                    yield move_card_to_exhaust_pile(state, card, reason=choice.source)
+                    if card.card_type == 'curse':
+                        # This power explicitly exhausts even returning curses.
+                        if remove(state.player.hand, card) or remove(state.player.discard_pile, card):
+                            state.player.exhaust_pile.append(card)
+                        run = getattr(state, 'run_state', None)
+                        uid = getattr(card, '_master_deck_uid', None)
+                        if run is not None and uid is not None:
+                            for i, original in enumerate(run.master_deck):
+                                if getattr(original, '_master_deck_uid', None) == uid:
+                                    from game.deck_utils import apply_card_removed_or_transformed_side_effects
+                                    run.master_deck.pop(i)
+                                    run.hp, run.max_hp = state.player.hp, state.player.max_hp
+                                    yield apply_card_removed_or_transformed_side_effects(run, original, 'intuition_luck')
+                                    state.player.hp, state.player.max_hp = run.hp, run.max_hp
+                                    break
+                else:
+                    from game.engine import resolve_discarded_card
+                    yield resolve_discarded_card(state, card, reason=choice.source, trigger_clever=True)
         elif mode == 'floating':
             yield floating(state, card)
         elif mode == 'retain':
@@ -392,37 +430,8 @@ def constellation_effect(state, card, target_index):
     elif k == 'taurus':
         yield status(state, 'lizhou_fortify', 5 if up else 3)
     elif k == 'gemini':
-        flowers = [c for c in all_cards(state) if key(c) == 'star_flower' and not any(c is r for r in getattr(state, 'lizhou_resolving', []))]
-        for flower in flowers:
-            if up:
-                yield energy(state, getattr(flower, 'lizhou_anchor', 0))
-            else:
-                for pile in (p.hand, p.draw_pile, p.discard_pile, p.exhaust_pile):
-                    remove(pile, flower)
-                yield auto_play(state, card, flower)
-        amount = p.cost
-        p.cost = 0
-        yield order(state, amount)
-        exhausted = [c for c in p.exhaust_pile if key(c) in ZODIACS]
-        seen = set()
-        # The original exhaust snapshot prevents newly exhausted cards reentering this pass.
-        while True:
-            next_card = next((c for c in p.hand if key(c) in ZODIACS and id(c) not in seen), None)
-            if next_card is None:
-                break
-            if not free(state, next_card) and p.statuses.get('lizhou_order') < order_cost(state, next_card):
-                return []
-            seen.add(id(next_card))
-            remove(p.hand, next_card)
-            yield auto_play(state, card, next_card)
-        for next_card in exhausted:
-            if id(next_card) in seen or not any(c is next_card for c in p.exhaust_pile):
-                continue
-            if not free(state, next_card) and p.statuses.get('lizhou_order') < order_cost(state, next_card):
-                break
-            seen.add(id(next_card))
-            remove(p.exhaust_pile, next_card)
-            yield auto_play(state, card, next_card)
+        yield debuff(state, 'enemy_anchor', 5 if up else 3, target_index)
+        yield debuff(state, 'enemy_floating', 7 if up else 5, target_index)
     elif k == 'cancer':
         yield request(state, card.name, 'copy', [c for c in p.hand if key(c) in ZODIACS], copies=2 if up else 1)
     elif k == 'leo':
@@ -637,9 +646,14 @@ def effect(state, card, effect_spec, target_index, context):
         for _ in range(16):
             yield block(state, 1, card)
     elif k == 'domain':
-        p.lizhou_domain_turn = state.turn_count
-        # Each entity receives one allowance per turn, even if the domain is cast again.
-        card.lizhou_domain_used = state.turn_count
+        from data.zones.star_zone import deploy_star
+        yield deploy_star(state, card.upgraded)
+    elif k == 'focus':
+        yield draw(state, v['count'])
+    elif k == 'observe_stars':
+        yield draw(state, 2)
+    elif k in ('static_anchor', 'reverse_gravity'):
+        yield debuff(state, 'enemy_anchor' if k == 'static_anchor' else 'enemy_floating', v['amount'], target_index)
     elif k == 'phantasm':
         if getattr(p, 'lizhou_phantasm_turn', -1) != state.turn_count:
             p.lizhou_phantasm_turn = state.turn_count
@@ -653,12 +667,20 @@ def effect(state, card, effect_spec, target_index, context):
             pile.clear()
         random.shuffle(p.draw_pile)
     # Optional order clauses follow all base effects, including draws and choices.
-    if k in ('blunt_bullet', 'sharp_bullet', 'dust_wave', 'twinkle'):
+    if k in ('blunt_bullet', 'sharp_bullet', 'dust_wave', 'twinkle', 'focus', 'observe_stars', 'freeze'):
         price = order_cost(state, card)
         if context.get('lizhou_free', False) or p.statuses.get('lizhou_order') >= price:
             if not context.get('lizhou_free', False):
                 yield order(state, -price, spend=True)
-            if k in ('blunt_bullet', 'sharp_bullet'):
+            if k in ('focus', 'observe_stars'):
+                yield draw(state, 3 if k == 'focus' else 2)
+                if k == 'focus':
+                    yield energy(state, 1)
+            elif k == 'freeze':
+                for c in list(p.hand):
+                    yield anchor(state, c, v['amount'])
+                yield debuff(state, 'enemy_anchor', v['amount'], target_index)
+            elif k in ('blunt_bullet', 'sharp_bullet'):
                 yield hit(state, card, damage, target_index, times=6 if k == 'sharp_bullet' else 1)
             elif k == 'dust_wave':
                 from game.effects import get_alive_enemies
@@ -688,31 +710,28 @@ def before_cleanup(state):
         c.lizhou_anchored_before_cleanup = getattr(c, 'lizhou_anchor', 0) > 0
     candidates = [c for c in p.hand if getattr(c, 'lizhou_anchor', 0) > 0 and 'retain' not in c.keywords and 'ethereal' not in c.keywords]
     yield request(state, '锚定保留', 'paid_retain', candidates, len(candidates), minimum=0)
-    if powers(state, 'intuition_luck'):
-        from data.card.keyword_rules import should_retain_at_turn_end
-        candidates = [c for c in p.hand
-                      if (should_retain_at_turn_end(c) or p.statuses.get('defect_equilibrium') > 0)
-                      and 'ethereal' not in c.keywords
-                      and getattr(c, 'lizhou_paid_retain_turn', -1) != state.turn_count]
-        yield request(state, '直觉与幸运', 'discard_retained', candidates, len(candidates), minimum=0)
 
 
-@resumable()
+
 def after_cleanup(state):
-    for c in state.player.hand:
-        if key(c) == 'domain' and getattr(c, 'lizhou_anchored_before_cleanup', False):
-            c.lizhou_discount = getattr(c, 'lizhou_discount', 0)+1
-    for power in powers(state, 'infinity_void'):
-        if state.player.hand:
-            c = random.choice(state.player.hand)
-            yield floating(state, c)
-            yield anchor(state, c, power['card'].card_vars['amount'])
+    return []
 
 
 @resumable()
 def on_event(state, event, context):
     p = state.player
-    if event == 'draw_card_after':
+    if event == 'player_turn_end':
+        for power in powers(state, 'intuition_luck'):
+            yield request(state, '直觉与幸运', 'intuition', p.hand, len(p.hand), minimum=0, upgraded=power['card'].upgraded)
+    elif event == 'damage_after' and context.extra.get('damage_kind') == 'attack':
+        target, source = context.target, context.source
+        if source is p and target is not p and target.is_alive() and target.statuses.get('enemy_anchor'):
+            from game.damage import deal_damage
+            yield deal_damage(state, p, target, target.statuses.get('enemy_anchor'), damage_kind='anchor')
+        elif target is p and source is not None and source.statuses.get('enemy_floating') and context.extra.get('real_damage', 0) == 0:
+            yield draw(state, 1)
+            source.statuses.add('enemy_floating', -1)
+    elif event == 'draw_card_after':
         c = context.card
         if key(c) == 'star_flower':
             yield draw(state, 1)
@@ -723,6 +742,11 @@ def on_event(state, event, context):
             yield drain_moon(state)
     elif event == 'card_play_after':
         c = context.card
+        for power in powers(state, 'star_sea'):
+            amount = getattr(c, 'lizhou_play_anchor', getattr(c, 'lizhou_anchor', 0))//3
+            if amount:
+                yield status(state, 'strength', amount)
+                yield status(state, 'dexterity', amount)
         for power in list(powers(state, 'orderer')):
             if power['card'] is c:
                 continue
@@ -735,6 +759,10 @@ def on_event(state, event, context):
                 yield passive_block(state, power['card'].card_vars['amount'], power['card'])
     elif event == 'turn_start':
         p.lizhou_echo_used = 0
+        count = getattr(p, 'lizhou_intuition_draw', 0)
+        p.lizhou_intuition_draw = 0
+        if count:
+            yield draw(state, count)
         for power in list(powers(state)):
             k, c = power['key'], power['card']
             if k == 'human_dream':

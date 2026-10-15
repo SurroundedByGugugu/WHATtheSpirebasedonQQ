@@ -323,7 +323,34 @@ def compendium():
         relics.append(dict(id=entry_id, name=relic.name, description=relic.description,
                            rarity=relic.quantity, owner=relic.owner_character_id,
                            story=RELIC_STORIES.get(entry_id, relic.story)))
-    return dict(cards=cards, relics=relics)
+    from data.enemy.AAAregistry import ENEMY_REGISTRY, create_enemy
+    from data.status.AAAregistry import STATUS_DEFS
+    from data.zones.AAAregistry import ZONE_REGISTRY, create_zone
+    from data.fields.AAAregistry import FIELD_REGISTRY, create_field
+    import data.zones.element_zones
+    import data.zones.star_zone
+    import data.fields.test_fields
+    monsters = []
+    for entry_id in ENEMY_REGISTRY:
+        enemy = create_enemy(entry_id)
+        import sys
+        from data.enemy.base_enemy import EnemyIntent
+        prefix = entry_id.rsplit('.', 1)[-1].upper() + '_'
+        intents = [value for name, value in vars(sys.modules[type(enemy).__module__]).items()
+                   if name.startswith(prefix) and isinstance(value, EnemyIntent)]
+        if not intents:
+            intents = list(getattr(enemy, 'intent_cycle', []))
+        description = '生命：{}。'.format(enemy.max_hp)
+        description += '初始效果：' + get_status_display_text(enemy.statuses) + '。'
+        description += '意图示例：' + '；'.join(i.to_text() for i in intents)
+        monsters.append(dict(id=entry_id, name=enemy.name, description=description, rarity='special', owner='', story=''))
+    effects = [dict(id=k, name=v.name, description=v.description, rarity=v.category, owner='', story='') for k,v in STATUS_DEFS.items()]
+    fields = []
+    for registry, factory in ((ZONE_REGISTRY, create_zone), (FIELD_REGISTRY, create_field)):
+        for entry_id in registry:
+            obj = factory(entry_id)
+            fields.append(dict(id=entry_id, name=obj.name, description=obj.description, rarity='special', owner='', story=''))
+    return dict(cards=cards, relics=relics, monsters=monsters, effects=effects, fields=fields)
 
 
 def snapshot(reply=""):

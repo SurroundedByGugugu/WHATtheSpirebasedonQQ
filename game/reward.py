@@ -361,6 +361,7 @@ POTION_REWARD_POOL = COMMON_POTION_POOL + UNCOMMON_POTION_POOL + RARE_POTION_POO
 
 
 COMMON_RELIC_POOL = [
+    "relic.star_fireworks",
     "relic.damaru",
 
     "relic.data_disk",
@@ -404,6 +405,8 @@ COMMON_RELIC_POOL = [
 ]
 
 UNCOMMON_RELIC_POOL = [
+    "relic.folder",
+    "relic.replica_camera",
     "relic.duality",
     "relic.teardrop_locket",
 
@@ -449,13 +452,14 @@ UNCOMMON_RELIC_POOL = [
 ]
 
 RARE_RELIC_POOL = [
+    "relic.telescope",
     "relic.cloak_clasp",
     "relic.golden_eye",
 
     "relic.emotion_chip",
 
     "relic.charon_ashes",
-    "relic.placeholder_stone",
+    # "relic.placeholder_stone",
     "relic.calipers",
     "relic.keystone_of_the_tomb",
     "relic.mango",
@@ -544,6 +548,7 @@ RELIC_REWARD_POOL = [
 ] + COMMON_RELIC_POOL + UNCOMMON_RELIC_POOL + RARE_RELIC_POOL + EVENT_RELIC_POOL
 
 BOSS_RELIC_POOL = [
+    "relic.savior",
     "relic.holy_water",
     "relic.violet_lotus",
 

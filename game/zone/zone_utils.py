@@ -660,7 +660,7 @@ def tick_zone_turn_end(game_state):
     if tick is None:
         return logs
 
-    if not getattr(zone, "is_extreme", False):
+    if not getattr(zone, "is_extreme", False) and not getattr(zone, "timed", False):
         return logs
 
     if bool(getattr(zone, "unsealed_abyss_infinite", False)):

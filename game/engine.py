@@ -179,6 +179,7 @@ def apply_card_play_start_relics(game_state, card):
     return logs
 
 
+@resumable()
 def apply_turn_start_hand_ready_effects(game_state):
     """
     抽完起始手牌/回合开始手牌后触发的遗物效果。
@@ -198,6 +199,8 @@ def apply_turn_start_hand_ready_effects(game_state):
         result = handler(game_state=game_state, player=player)
         if result:
             logs.extend(result)
+        yield logs
+        logs = []
     return logs
 
 
@@ -2956,7 +2959,7 @@ def choose_pending_potion_card(game_state, choice_index):
     logs = ["【{}】选择了【{}】。".format(source, chosen.name)]
 
     if mode == "liquid_memories":
-        # 液态记忆：从弃牌堆中移除选中牌，再把该牌加入手牌。神圣树皮额外加入复制品。
+        # 液态记忆：从弃牌堆取回实体牌；神圣树皮可再选择另一张。
         removed = False
         for i, pile_card in enumerate(list(game_state.player.discard_pile)):
             if pile_card is chosen:
@@ -2966,6 +2969,24 @@ def choose_pending_potion_card(game_state, choice_index):
         if not removed:
             clear_pending_potion_card_selection(game_state)
             return "选中的牌已经不在弃牌堆中。"
+
+    if mode == "liquid_memories":
+        if chosen.cost != 'X':
+            chosen.temporary_cost_override = 0
+        from game.lizhou import key as lizhou_key
+        if lizhou_key(chosen):
+            chosen.lizhou_free_turn = game_state.turn_count
+        # Preserve the actual discarded entity, including anchor and upgrade state.
+        from game.lizhou import put_hand
+        logs.extend(put_hand(game_state, chosen))
+        remaining = copy_count - 1
+        if remaining > 0 and game_state.player.discard_pile:
+            game_state.pending_potion_card_options = list(game_state.player.discard_pile)
+            game_state.pending_potion_card_copy_count = remaining
+            logs.append(format_pending_potion_card_selection(game_state))
+            return "\n".join(logs)
+        clear_pending_potion_card_selection(game_state)
+        return "\n".join(logs)
 
     for n in range(copy_count):
         logs.extend(add_temporary_card_to_hand_or_discard(
@@ -3217,6 +3238,17 @@ def use_potion(game_state, potion_index, target_index=None):
         return dispatch_event(game_state, EVENT_POTION_USE_AFTER, context)
 
     bark = potion_has_sacred_bark(player, potion)
+    if potion_id in ('potion.anchor_nails', 'potion.floating', 'potion.star_sea'):
+        from game.lizhou import request, order, debuff
+        multiplier = 2 if bark else 1
+        if potion_id == 'potion.anchor_nails':
+            yield request(game_state, potion.name, 'anchor', player.hand, len(player.hand), minimum=0, amount=multiplier)
+        elif potion_id == 'potion.floating':
+            yield debuff(game_state, 'enemy_floating', 5*multiplier, target_index)
+        else:
+            yield order(game_state, 6*multiplier)
+        yield dispatch_potion_after()
+        return logs
 
     # 攻击 / 技能 / 能力药水：只选择一次；神圣树皮使选中的牌加入两次。
     potion_card_type = {
@@ -3276,7 +3308,7 @@ def use_potion(game_state, potion_index, target_index=None):
 
         return "\n".join(logs)
 
-    # 液态记忆：只选择一次；神圣树皮使选中的弃牌加入两次。
+    # 液态记忆：神圣树皮允许依次取回两张弃牌。
     if potion_id == "potion.liquid_memories":
         options = [(i, card) for i, card in enumerate(getattr(player, "discard_pile", []) or [])]
         logs.extend(dispatch_potion_after())
@@ -3293,7 +3325,7 @@ def use_potion(game_state, potion_index, target_index=None):
             game_state.pending_potion_card_mode = "liquid_memories"
 
             if bark:
-                logs.append("【神圣树皮】触发：选中的牌将加入手牌 2 次。")
+                logs.append("【神圣树皮】触发：依次从弃牌堆取回 2 张牌。")
 
             logs.append(format_pending_potion_card_selection(game_state))
 

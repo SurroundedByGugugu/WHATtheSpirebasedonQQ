@@ -46,12 +46,19 @@ def apply_card_removed_or_transformed_side_effects(run_state, card, reason=""):
     return logs
 
 
+def can_remove_card(card):
+    return not (getattr(card, 'unremovable', False) or getattr(card, 'inescapable', False)
+                or getattr(card, 'card_id', '') in ('card.curse.bell', 'card.curse.necronomicurse', 'card.lizhou.star_flower'))
+
+
 def remove_card_from_master_deck(run_state, card_index, reason=""):
     deck = getattr(run_state, "master_deck", [])
     if card_index < 0 or card_index >= len(deck):
         return None, ["卡牌编号无效。"]
 
     target_card = deck[card_index]
+    if not can_remove_card(target_card):
+        return None, ["【{}】无法从牌组中移除。".format(target_card.name)]
     if getattr(target_card, "card_id", "") == "card.curse.bell":
         return None, ["【铃铛的诅咒】无法从牌组中移除。"]
     if getattr(target_card, "card_id", "") == "card.curse.necronomicurse":
@@ -186,6 +193,8 @@ def transform_card_in_master_deck(run_state, card_index, rng=None):
         return None, None, ["卡牌编号无效。"]
 
     old_card = deck[card_index]
+    if getattr(old_card, "untransformable", False) or getattr(old_card, "inescapable", False):
+        return None, None, ["【{}】无法被变化。".format(old_card.name)]
     if getattr(old_card, "card_id", "") == "card.curse.necronomicurse":
         return None, None, ["【死灵诅咒】无法被变化。"]
     old_card_type = getattr(old_card, "card_type", "")

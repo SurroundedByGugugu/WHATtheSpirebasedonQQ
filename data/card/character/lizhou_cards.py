@@ -68,7 +68,6 @@ define('meteor_shower', '释放流星雨', 'skill', 'rare', 3, '消耗所有手�
 define('colonize_orbit', '殖民星轨道', 'skill', 'rare', 1, '获得6调序。', '获得12调序。', amount=(6, 12))
 define('collision', '碰撞·星星·膨胀', 'skill', 'rare', 1, '需要并消耗2锚定。给予所有敌人3层虚弱、易伤。', '需要并消耗1锚定。给予所有敌人3层虚弱、易伤。', target='all_enemies', anchor_gate=(2, 1))
 define('aye_captain', '是的，船长', 'skill', 'rare', 1, '需要并消耗2锚定。获得1点格挡16次。', '需要并消耗1锚定。获得1点格挡16次。', anchor_gate=(2, 1))
-define('domain', '领域展开', 'skill', 'rare', (5, 4), '每带锚定保留1回合，本场战斗费用降低1。本回合每张其他实体牌可免费打出1次，包括之后生成的牌。', '每带锚定保留1回合，本场战斗费用降低1。本回合每张其他实体牌可免费打出1次，包括之后生成的牌。')
 define('phantasm', '幻魔', 'skill', 'rare', 1, '本回合结束时，可消耗任意张有锚定的手牌。消耗。', '本回合结束时，可消耗任意张有锚定的手牌。', keywords=('exhaust',))
 define('key', '钥匙', 'skill', 'rare', 0, '选择抽牌堆中3张牌加入手牌。将除了手牌以外所有牌洗入抽牌堆并打乱顺序，将本牌置于抽牌堆底部，然后消耗本牌。', '选择抽牌堆中3张牌加入手牌。将除了手牌以外所有牌洗入抽牌堆并打乱顺序，将本牌置于抽牌堆底部。', keywords=('exhaust',))
 
@@ -78,24 +77,34 @@ define('floating_tide', '浮动潮汐', 'power', 'uncommon', (2, 1), '拥有浮�
 define('fit_stars', '切合星辰', 'power', 'uncommon', 1, '每打出星座牌，获得3点格挡。', '每打出星座牌，获得5点格挡。', amount=(3, 5))
 define('cast_blades', '投刃皆虚', 'power', 'uncommon', 2, '每回合结束时，选择至多2张手牌各获得1锚定。', '每回合结束时，选择至多3张手牌各获得1锚定。', count=(2, 3))
 define('time_master', '时间管理大师', 'power', 'uncommon', 3, '结束你的回合，获得1个额外回合，跳过敌方行动。', '结束你的回合，获得2个额外回合，跳过敌方行动。', count=(1, 2))
-define('human_dream', '人类的梦', 'power', 'uncommon', 3, '每回合开始时，获得2力量、2敏捷。', '每回合开始时，获得3力量、3敏捷。')
-define('infinity_void', '无限与虚无', 'power', 'uncommon', 2, '每回合弃牌后，随机1张手牌获得浮动1、锚定2。非能力牌结算后若有锚定，减1并返回手牌。自带返回手牌的牌不扣锚定。不重复叠加。', '每回合弃牌后，随机1张手牌获得浮动1、锚定3。非能力牌结算后若有锚定，减1并返回手牌。自带返回手牌的牌不扣锚定。不重复叠加。', amount=(2, 3))
 ELEMENTS = {'earth': ('taurus', 'virgo', 'capricorn'), 'water': ('cancer', 'scorpio', 'pisces'), 'air': ('gemini', 'libra', 'aquarius'), 'fire': ('aries', 'leo', 'sagittarius'), 'stargazer': ZODIACS}
 for key, name in [('earth', '土象'), ('water', '水象'), ('air', '风象'), ('fire', '火象'), ('stargazer', '仰望星空者')]:
     constellation_names = '、'.join(SPECS[z]['name'] for z in ELEMENTS[key])
     define(key, name, 'power', 'rare' if key == 'stargazer' else 'uncommon', 4 if key == 'stargazer' else 1,
            '需要并消耗1调序。每回合开始时，选择（'+constellation_names+'）中一个星座的基础调序效果，无需调序触发，目标随机。',
            '需要0调序。每回合开始时，选择（'+constellation_names+'）中一个星座的基础调序效果，无需调序触发，目标随机。', order_gate=(1, 0))
-define('star_sequence', '星位序列', 'power', 'uncommon', (1, 0), '每回合开始时，生成1张带虚无的随机星座牌加入手牌。', '每回合开始时，生成1张带虚无的随机星座牌加入手牌。')
-define('moonlight', '月光', 'power', 'uncommon', 1, '抽到星座牌时，将其排队自动免费打出，无视调序门槛并触发调序效果。', '固有。抽到星座牌时，将其排队自动免费打出，无视调序门槛并触发调序效果。')
 define('void_world', '虚无世界', 'power', 'rare', 3, '虚无。每段攻击先检查敌人格挡，若原本没有格挡，施加1层双倍受伤；然后清空格挡并造成伤害。', '每段攻击先检查敌人格挡，若原本没有格挡，施加1层双倍受伤；然后清空格挡并造成伤害。', keywords=('ethereal',))
-define('intuition_luck', '直觉与幸运', 'power', 'rare', 1, '回合结束时，可以选择将被保留的牌丢弃，不包括通过锚定保留的牌。', '回合结束时，可以选择将被保留的牌丢弃，不包括通过锚定保留的牌。')
 define('easy_battle', '战斗好像变得比呼吸还简单了', 'power', 'rare', 4, '每次获得能量时，恢复4点生命，获得4点格挡。', '每次获得能量时，恢复6点生命，获得6点格挡。', amount=(4, 6))
 define('ever_changing', '瞬息万变', 'power', 'rare', (1, 0), '每次获得调序、每张牌获得锚定时，获得1能量。', '每次获得调序、每张牌获得锚定时，获得1能量。')
 define('stardust_cancer', '星尘癌', 'power', 'rare', (3, 2), '每回合第1个星座效果额外触发1次。N份覆盖前N个，额外触发不占名额、不重复付费，沿用首次调序判断。', '每回合第1个星座效果额外触发1次。N份覆盖前N个，额外触发不占名额、不重复付费，沿用首次调序判断。')
 define('anchor_kit', '船锚套件', 'power', 'rare', (3, 2), '每回合开始、抽牌前，选择任意张手牌各获得1锚定。', '每回合开始、抽牌前，选择任意张手牌各获得1锚定。')
 define('astronomic_foresight', '天文的远见', 'power', 'rare', 1, '每当有牌被锚定时，额外增加1层锚定。', '每当有牌被锚定时，额外增加1层锚定，获得1点调序。')
 define('anchor_sail', '抛锚起航', 'power', 'rare', 2, '每回合开始时，若不足6调序，额外获得6调序。', '固有。每回合开始时，若不足6调序，额外获得6调序。')
+
+
+define('domain', '领域展开', 'skill', 'rare', 4, '场地变为星；已有星时变为极·星，持续3回合。极·星期间再次使用延长2回合。', '场地变为极·星，持续3回合。极·星期间再次使用延长2回合。')
+define('intuition_luck', '直觉与幸运', 'power', 'rare', 1, '回合结束时，可丢弃任意手牌。状态牌和诅咒牌改为消耗；诅咒牌额外从牌库删除。', '回合结束时，可丢弃任意手牌。状态牌和诅咒牌改为消耗；诅咒牌额外从牌库删除。下回合开始抽等量牌。')
+define('gemini', '双子座', 'skill', 'uncommon', 0, '抽1张牌。调序3：给予敌人3层锚定、5层浮动。', '抽1张牌。调序3：给予敌人5层锚定、7层浮动。', target='enemy', order=3)
+define('star_sea', '星海沉沦', 'power', 'uncommon', 1, '调序3：每打出1张被锚定的牌，获得其锚定层数三分之一（向下取整）的力量和敏捷。', '调序2：每打出1张被锚定的牌，获得其锚定层数三分之一（向下取整）的力量和敏捷。', order_gate=(3,2))
+define('focus', '集中专注', 'skill', 'uncommon', 0, '抽1张牌。调序2：抽3张牌，获得1能量。每次被锚定，调序需求降低1。', '抽2张牌。调序2：抽3张牌，获得1能量。每次被锚定，调序需求降低1。', order=2, count=(1,2))
+define('observe_stars', '观测星辰', 'skill', 'common', (1,0), '抽2张牌。调序1：抽2张牌。', '抽2张牌。调序1：抽2张牌。', order=1)
+define('static_anchor', '静滞锚定', 'skill', 'common', 1, '给予敌人2层锚定。', '给予敌人3层锚定。', target='enemy', amount=(2,3))
+define('reverse_gravity', '颠倒失重', 'skill', 'uncommon', 1, '给予敌人3层浮动。', '给予敌人6层浮动。', target='enemy', amount=(3,6))
+define('freeze', '不许动', 'skill', 'uncommon', 1, '调序2：锚定所有手牌1层，给予敌人1层锚定。', '调序2：锚定所有手牌2层，给予敌人2层锚定。', target='enemy', order=2, amount=(1,2))
+for retained in ('collision', 'aye_captain'):
+    SPECS[retained]['keywords'] = ('retain',)
+    SPECS[retained]['text'] = '保留。'+SPECS[retained]['text']
+    SPECS[retained]['plus'] = '保留。'+SPECS[retained]['plus']
 
 
 def create_lizhou_card(key, upgraded=False):
@@ -116,6 +125,8 @@ def create_lizhou_card(key, upgraded=False):
         description=spec['plus'] if upgraded else spec['text'], owner_character_id='character.lizhou',
         card_vars={k: value(v) for k, v in spec['values'].items()},
         effects=[{'op': 'lizhou_card', 'key': key}], keywords=keywords, upgraded=upgraded)
+    if key == 'star_flower':
+        card.unremovable = card.untransformable = card.inescapable = True
     if not upgraded:
         plus = create_lizhou_card(key, True)
         card.upgrade_patch = {k: getattr(plus, k) for k in ('name', 'cost', 'target', 'description', 'card_vars')}

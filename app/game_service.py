@@ -270,7 +270,7 @@ class GameService(object):
             "item", "goods", "商品", "查看商品", "shop_item", "detail", "详情",
             "buy", "购买",
             "remove", "remove_card", "删牌", "删除牌",
-            "random_remove", "randomremove", "随机删牌",
+            "random_remove", "randomremove", "随机删牌", "discard_potion", "丢弃药水",
             "leave", "离开",
             "rest", "火堆", "休息",
             "smith", "upgrade", "锻造", "升级",
@@ -394,6 +394,16 @@ class GameService(object):
         # 只要 run 存在，就要检查 owner，不再依赖 current_battle
         if self.is_owned_by_other_user(session_id, user_id):
             return self.SAME_GROUP_SINGLE_GAME_MESSAGE
+
+        if command in ('discard_potion', '丢弃药水'):
+            try:
+                index = int(parts[2])
+            except (IndexError, ValueError):
+                return '用法：/card discard_potion 药水编号'
+            holder = run_state.current_battle.player if run_state.current_battle else run_state
+            if not 0 <= index < len(holder.potions):
+                return '药水编号无效。'
+            return '已丢弃【{}】。'.format(holder.potions.pop(index).name)
 
         from game.lizhou_relic import options as zodiac_options, choose as choose_zodiac, format_choice as zodiac_prompt
         if zodiac_options(run_state):

@@ -1347,7 +1347,7 @@ class ChampEnemy(PatternEnemy):
         if self._champ_burst_used:
             return logs
 
-        if int(self.hp) * 2 <= int(self.max_hp):
+        if int(self.hp) * 2 < int(self.max_hp):
             self._champ_pending_burst = True
             self._locked_champ_key = "burst"
             self._locked_intent = CHAMP_BURST
@@ -1429,6 +1429,10 @@ class ChampEnemy(PatternEnemy):
         return random.choices(keys, weights=ws, k=1)[0]
 
     def get_current_intent(self):
+        if self.is_alive() and not self._champ_burst_used and self.hp * 2 < self.max_hp:
+            self._champ_pending_burst = True
+            self._locked_champ_key = "burst"
+            self._locked_intent = CHAMP_BURST
         if self._locked_intent is None:
             self._locked_champ_key = self._choose_normal_key()
             self._locked_intent = self._intent_by_key(self._locked_champ_key)

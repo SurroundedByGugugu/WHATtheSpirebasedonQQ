@@ -54,6 +54,15 @@ const assert = require('node:assert/strict');
     assert.match(await page.locator('#action-dialog').innerText(), /遗物|小故事/);
     await page.keyboard.press('Escape');
     await page.locator('#catalog-search').fill('');
+    for (const [kind, search] of [['monsters', '第一勇士'], ['effects', '锚定'], ['fields', '极·星']]) {
+      await page.locator('#catalog-kind').selectOption(kind);
+      await page.locator('#catalog-search').fill(search);
+      assert.ok(await page.locator('.catalog-entry').count() > 0);
+      await page.locator('.catalog-entry').first().click();
+      assert.match(await page.locator('#action-dialog').innerText(), /效果说明/);
+      await page.keyboard.press('Escape');
+      await page.locator('#catalog-search').fill('');
+    }
     fs.mkdirSync(path.join(__dirname, '.test-runtime'), { recursive: true });
     await page.screenshot({ path: path.join(__dirname, '.test-runtime/compendium-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });

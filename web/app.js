@@ -4,7 +4,7 @@ let worker, ready = false, busy = true, state = null, target = null, requestId =
 let watchdog, loadingStarted, currentStage = "准备游戏";
 let catalog = null, catalogPage = 0;
 const catalogPageSize = 24;
-const rarityNames = { starting: "初始", common: "普通", uncommon: "罕见", rare: "稀有", myth: "神话", status: "状态", curse: "诅咒", event: "事件", shop: "商店", boss: "首领", special: "特殊", test: "测试", ENDER: "终末" };
+const rarityNames = { buff: "增益", debuff: "减益", neutral: "中性", starting: "初始", common: "普通", uncommon: "罕见", rare: "稀有", myth: "神话", status: "状态", curse: "诅咒", event: "事件", shop: "商店", boss: "首领", special: "特殊", test: "测试", ENDER: "终末" };
 const cardTypeNames = { attack: "攻击", skill: "技能", power: "能力", status: "状态", curse: "诅咒" };
 
 function catalogOptions(id, entries, label) {
@@ -53,7 +53,7 @@ function renderCatalog() {
     [entry.name, entry.id, entry.description, ...(entry.keywords || []), ...(entry.tags || [])].join(" ").toLocaleLowerCase().includes(query));
   const pages = Math.max(1, Math.ceil(entries.length / catalogPageSize));
   catalogPage = Math.min(catalogPage, pages - 1);
-  $("catalog-count").textContent = `找到 ${entries.length} / ${catalog[kind].length} ${kind === "cards" ? "张卡牌" : "件遗物"} · 点击查看详情与故事`;
+  $("catalog-count").textContent = `找到 ${entries.length} / ${catalog[kind].length} ${({cards:"张卡牌",relics:"件遗物",monsters:"种怪物",effects:"种效果",fields:"种场地"})[kind]} · 点击查看详情与故事`;
   $("catalog-items").replaceChildren();
   for (const entry of entries.slice(catalogPage * catalogPageSize, (catalogPage + 1) * catalogPageSize)) {
     const node = el("button", undefined, "catalog-entry");
@@ -236,15 +236,16 @@ function renderSelection(selection) {
 function showPotion(potion, index) {
   const dialog = actionDialog(potion.name, potion.description);
   const list = el("div", undefined, "choices");
-  if (potion.target === "enemy") {
+  if (potion.usable && potion.target === "enemy") {
     dialog.append(el("p", "选择使用目标", "hint"));
     for (const enemy of state.run.enemies) {
       list.append(button("对 " + enemy.name + " 使用 · 生命 " + enemy.hp,
         `/card potion ${index} ${enemy.index}`, "choice"));
     }
-  } else {
+  } else if (potion.usable) {
     list.append(button("使用药水", "/card potion " + index, "primary"));
   }
+  list.append(button("丢弃药水", "/card discard_potion " + index));
   dialog.append(list);
 }
 function setBusy(value) {
@@ -456,7 +457,7 @@ function render(data) {
     const item = localButton(potion.name, () => showPotion(potion, index));
     item.title = potion.description + (potion.usable ? "" : "（仅战斗中可用）");
     item.setAttribute("aria-haspopup", "dialog");
-    blockButton(item, !potion.usable || Boolean(run.selection));
+    blockButton(item, Boolean(run.selection));
     $("potions").append(item);
   });
   $("boss").textContent = run.boss ? "本层 Boss · " + run.boss : "";

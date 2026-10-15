@@ -1029,7 +1029,7 @@ class NemesisEnemy(PatternEnemy):
         for key, weight in weighted:
             if key == "b" and len(self._history) >= 2 and self._history[-2:] == ["b", "b"]:
                 continue
-            if key == "c" and self._history and self._history[-1] == "c":
+            if key in ("a", "c") and self._history and self._history[-1] == key:
                 continue
             candidates.append((key, weight))
 

@@ -2880,8 +2880,9 @@ def handle_plated_armor(event_name, context, owner, value):
     if amount <= 0:
         return logs
 
-    # 通用多层护甲：玩家和敌人在玩家回合开始时都获得等同于层数的格挡。
-    if event_name == EVENT_TURN_START:
+    # 玩家在自身回合结束、敌人在敌方行动结束时获得格挡。
+    timing = EVENT_PLAYER_TURN_END if owner is context.game_state.player else EVENT_TURN_END
+    if event_name == timing:
         logs.extend(gain_block_without_modifiers(
             game_state=context.game_state,
             source=owner,

@@ -39,6 +39,25 @@ class WebChecks(unittest.TestCase):
         self.assertEqual(bridge.snapshot(), before)
         self.assertNotIn('compendium', self.send('/card view'))
 
+    def test_expanded_catalog_and_discard_potion_in_shop(self):
+        from data.enemy.AAAregistry import ENEMY_REGISTRY
+        from data.status.AAAregistry import STATUS_DEFS
+        from data.zones.AAAregistry import ZONE_REGISTRY
+        from data.fields.AAAregistry import FIELD_REGISTRY
+        from data.potion.AAAregistry import create_potion
+        from types import SimpleNamespace
+        catalog = self.send('')['compendium']
+        self.assertEqual({e['id'] for e in catalog['monsters']}, set(ENEMY_REGISTRY))
+        self.assertEqual({e['id'] for e in catalog['effects']}, set(STATUS_DEFS))
+        self.assertEqual({e['id'] for e in catalog['fields']}, set(ZONE_REGISTRY) | set(FIELD_REGISTRY))
+        self.send('/card new 0')
+        run = bridge.service.get_run(bridge.SESSION)
+        run.pending_shop = SimpleNamespace(remove_used=False)
+        run.potions = [create_potion('potion.test_fire')]
+        reply = bridge.service.handle_message(bridge.SESSION, bridge.USER, '/card discard_potion 0')
+        self.assertIn('已丢弃', reply)
+        self.assertFalse(run.potions)
+
     def test_lizhou_character_and_selection_panel(self):
         result = self.send('/card new 7')
         self.assertEqual(result['run']['name'], '李昼')

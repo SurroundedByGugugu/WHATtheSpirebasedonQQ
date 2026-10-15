@@ -753,7 +753,7 @@ register_status_def(StatusDef(
 register_status_def(StatusDef(
     key="plated_armor",
     name="多层护甲",
-    description="每个玩家回合开始时获得等同于层数的格挡；受到来源敌人的未被格挡伤害后层数减少 1。",
+    description="自身回合结束时获得等同于层数的格挡；受到来源敌人的未被格挡伤害后层数减少 1。",
     category="buff",
     display_mode="stack",
     order=47,

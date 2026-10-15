@@ -145,22 +145,6 @@ def test_flower_first_play_copy_and_exhaust_escape():
     assert any(x is clone for x in p.discard_pile)
 
 
-def test_moon_queue_free_even_at_zero_order_and_float():
-    state, p = battle()
-    play(state, 'moonlight')
-    a, b = card('aries'), card('taurus')
-    a.lizhou_floating = 5
-    p.hand = []
-    p.draw_pile = [card('defend'), b, a]
-    p.cost = 0
-    p.draw_cards(1, state)
-    assert p.statuses.get('buffer') == 1
-    assert p.statuses.get('lizhou_fortify') == 3
-    assert p.statuses.get('lizhou_order') == 0
-    assert [c.card_id for c in p.discard_pile] == [a.card_id, b.card_id]
-    assert not state.lizhou_resolving
-
-
 def test_stardust_echo_reuses_paid_result_and_counts_play():
     state, p = battle()
     play(state, 'stardust_cancer')
@@ -178,8 +162,8 @@ def test_stardust_echo_reuses_paid_result_and_counts_play():
 
 def test_tiny_annihilation_free_payment_snapshot():
     state, p = battle()
-    play(state, 'domain')
     c = card('tiny_annihilation')
+    c.lizhou_free_turn = state.turn_count
     p.hand = [c]
     p.cost = 0
     assert get_card_current_cost(state, c) == 0
@@ -191,7 +175,6 @@ def test_tiny_annihilation_free_payment_snapshot():
 def test_key_destination_and_no_draw_event():
     for up in (False, True):
         state, p = battle()
-        play(state, 'moonlight')
         a = card('aries')
         p.draw_pile = [a]
         c, text = play(state, 'key', up)
@@ -203,15 +186,14 @@ def test_key_destination_and_no_draw_event():
 def test_end_timing_and_paid_retain():
     state, p = battle()
     p.relics = [create_relic('relic.anchored_eye')]
-    play(state, 'infinity_void')
     c = card('star_flower')
     p.hand = [c]
     before_cleanup(state)
     assert c.lizhou_anchor == 1
     after_cleanup(state)
-    assert (c.lizhou_anchor, c.lizhou_floating) == (3, 1)
+    assert c.lizhou_anchor == 1
     before_cleanup(state)
-    assert c.lizhou_floating == 0
+    assert getattr(c, 'lizhou_floating', 0) == 0
     a = card('defend')
     a.lizhou_anchor = 1
     p.hand = [a]
@@ -249,7 +231,9 @@ def test_gemini_plus_does_not_reset_flowers_or_first_play():
     play_card(state, 0)
     assert flower.lizhou_anchor == 4
     assert not getattr(flower, 'lizhou_flower_played', False)
-    assert p.statuses.get('lizhou_order') == 4
+    assert p.statuses.get('lizhou_order') == 0
+    assert state.enemies[0].statuses.get('enemy_anchor') == 5
+    assert state.enemies[0].statuses.get('enemy_floating') == 7
 
 
 def test_zodiac_relic_upgrade_matching_and_chain():
@@ -325,27 +309,6 @@ def test_orderer_independent_counters_and_persistent_order():
     assert p.statuses.get('lizhou_order') == 4
 
 
-def test_infinity_exhaust_events_return_at_one_and_intrinsic_no_charge():
-    state, p = battle()
-    play(state, 'infinity_void')
-    c = card('phantasm')
-    c.lizhou_anchor = 1
-    p.hand = [c]
-    p.cost = 1
-    play_card(state, 0)
-    assert c.lizhou_anchor == 0 and p.hand[0] is c
-    assert not p.exhaust_pile
-    p.cost = 1
-    play_card(state, 0)
-    assert any(x is c for x in p.exhaust_pile)
-    spin = card('spinning_stardust')
-    spin.lizhou_anchor = 2
-    p.hand = [spin]
-    p.cost = 1
-    play_card(state, 0, 0)
-    assert spin.lizhou_anchor == 2 and p.hand[0] is spin
-
-
 def test_star_bloom_sums_all_piles_and_uses_payment_snapshot():
     state, p = battle()
     play(state, 'easy_battle')
@@ -362,38 +325,6 @@ def test_star_bloom_sums_all_piles_and_uses_payment_snapshot():
     assert p.cost == 0 and p.hp == 14
     assert all(f.lizhou_anchor == 0 for f in flowers)
     assert [e.hp for e in state.enemies] == [840, 840]
-
-
-def test_domain_free_once_for_prior_play_and_generated_cards():
-    state, p = battle()
-    c = card('spinning_stardust')
-    p.hand = [c]
-    p.cost = 1
-    play_card(state, 0, 0)
-    play(state, 'domain')
-    assert get_card_current_cost(state, c) == 0
-    p.cost = 0
-    play_card(state, next(i for i,x in enumerate(p.hand) if x is c), 0)
-    assert get_card_current_cost(state, c) == 1
-    new = card('aries')
-    p.hand = [new]
-    assert p.statuses.get('lizhou_order') == 0
-    play_card(state, 0)
-    assert p.statuses.get('buffer') == 1
-    assert p.statuses.get('lizhou_order') == 0
-
-
-def test_gemini_hand_then_exhaust_stops_at_unaffordable_card():
-    state, p = battle()
-    hand_star, exhausted_star = card('aries'), card('taurus')
-    p.hand = [card('gemini'), hand_star]
-    p.exhaust_pile = [exhausted_star]
-    p.cost = 3
-    p.statuses.set('lizhou_order', 3)
-    play_card(state, 0)
-    assert p.statuses.get('buffer') == 1
-    assert p.statuses.get('lizhou_fortify') == 0
-    assert any(x is exhausted_star for x in p.exhaust_pile)
 
 
 def test_first_constellation_only_trigger_and_echo_slots():

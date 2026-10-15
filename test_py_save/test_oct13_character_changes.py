@@ -116,7 +116,7 @@ def test_reflection_requires_attack_not_hp_loss_and_expires():
 def test_phase_plating_costs_fixed_damage_and_filters_candidates(element, up):
     state, player = battle()
     state.active_zone = ElementZone(element)
-    attack, skill, power = card('lizhou.strike'), card('lizhou.defend'), card('lizhou.human_dream')
+    attack, skill, power = card('lizhou.strike'), card('lizhou.defend'), card('lizhou.orderer')
     player.hand = [attack, skill, power, card('crystal_reflection')]
     player.statuses.set('strength', 100)
     played = play(state, 'phase_plating', up)
@@ -188,19 +188,17 @@ def test_meteor_shower_generated_cards_survive_and_free_only_this_turn(up):
     assert not free(state, generated)
 
 
-def test_intuition_discards_retained_cards_but_excludes_paid_anchor():
+def test_intuition_offers_all_hand_cards_before_cleanup():
     state, player = battle()
     play(state, 'lizhou.intuition_luck')
-    retained, paid, ordinary = [card('lizhou.defend') for _ in range(3)]
+    retained, anchored, ordinary = [card('lizhou.defend') for _ in range(3)]
     retained.keywords.append('retain')
-    paid.lizhou_anchor = 1
-    player.hand = [retained, paid, ordinary]
-    before_cleanup(state)
-    choose_cards(state, [0])
-    assert state.pending_choice.options == [retained]
-    choose_cards(state, [0])
-    assert retained in player.discard_pile and paid in player.hand
-    assert paid.lizhou_anchor == 0 and paid.temporary_retain_once
+    anchored.lizhou_anchor = 1
+    player.hand = [retained, anchored, ordinary]
+    on_event(state, 'player_turn_end', BattleContext(game_state=state, player=player))
+    assert state.pending_choice.options == [retained, anchored, ordinary]
+    choose_cards(state, [0, 1, 2])
+    assert not player.hand and len(player.discard_pile) == 3
 
 
 def test_foresight_adds_layers_without_recursive_anchor_triggers():
@@ -219,18 +217,13 @@ def test_foresight_adds_layers_without_recursive_anchor_triggers():
 
 
 @pytest.mark.parametrize('up', [False, True])
-def test_star_order_draws_without_order_gain_and_dream_scales(up):
+def test_star_order_draws_without_order_gain(up):
     state, player = battle()
     player.draw_pile = [card('lizhou.defend') for _ in range(3)]
     play(state, 'lizhou.star_order', up)
     assert len(player.hand) == (2 if up else 1)
     assert player.block == (10 if up else 7)
     assert player.statuses.get('lizhou_order') == 0
-    dream = play(state, 'lizhou.human_dream', up)
-    assert 'retain' not in dream.keywords
-    on_event(state, 'turn_start', BattleContext(game_state=state, player=player))
-    assert player.statuses.get('strength') == (3 if up else 2)
-    assert player.statuses.get('dexterity') == (3 if up else 2)
 
 
 def test_relic_exclusions_and_yoirine_reward_replacement():

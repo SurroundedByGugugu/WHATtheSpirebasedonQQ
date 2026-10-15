@@ -1017,7 +1017,11 @@ def random_remove_card(run_state, seed=None):
         )
 
     rng = random.Random(seed)
-    card_index = rng.randrange(len(deck))
+    from game.deck_utils import can_remove_card
+    candidates = [i for i, c in enumerate(deck) if can_remove_card(c)]
+    if not candidates:
+        return "当前没有可以删除的牌。"
+    card_index = rng.choice(candidates)
     removed_card, remove_logs = remove_card_from_master_deck(run_state, card_index, reason="shop_random_remove")
     if removed_card is None:
         return "\n".join(remove_logs)

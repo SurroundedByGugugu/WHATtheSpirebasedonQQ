@@ -17,3 +17,4 @@ def create_zone(zone_id):
         raise ValueError("未知 Zone：{}".format(zone_id))
 
     return cls()
+from data.zones import star_zone

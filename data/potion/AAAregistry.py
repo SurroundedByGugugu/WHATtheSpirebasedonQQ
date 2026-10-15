@@ -97,6 +97,9 @@ from data.potion.watcher_potions import WATCHER_POTION_REGISTRY
 POTION_REGISTRY.update(WATCHER_POTION_REGISTRY)
 
 
+from data.potion.lizhou_potions import LIZHOU_POTION_REGISTRY
+POTION_REGISTRY.update(LIZHOU_POTION_REGISTRY)
+
 def create_potion(potion_id):
     create_func = POTION_REGISTRY.get(potion_id)
 

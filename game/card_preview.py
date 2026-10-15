@@ -34,7 +34,7 @@ def _preview_effect(game_state, card, effect, effect_context):
         parts = []
         if 'order' in card.card_vars:
             price = order_cost(game_state, card)
-            parts.append('免费触发调序效果' if free(game_state, card) else '调序{}，当前{}'.format(
+            parts.append('免费触发调序效果' if free(game_state, card) or price == 0 else '调序{}，当前{}'.format(
                 price, game_state.player.statuses.get('lizhou_order')))
         if key(card) == 'tiny_annihilation':
             parts.append('本次实际降费差{}'.format(max(0, 92-get_card_current_cost(game_state, card))))

@@ -11,12 +11,12 @@
 <body>
   <header class="topbar"><a class="brand" href="./">本质oc企划的塔 <span>WHAT THE SPIRE</span></a><span class="edition">浏览器版 / 单人冒险</span><button id="help" data-command="/card help" disabled>指令帮助</button></header>
   <main>
-    <button id="open-compendium" type="button" disabled>高塔图鉴 · 卡牌与遗物</button>
+    <button id="open-compendium" type="button" disabled>高塔图鉴</button>
     <dialog id="compendium-dialog" class="compendium-dialog" aria-labelledby="compendium-title">
       <div class="panel-heading"><div><span class="eyebrow">SPIRE ARCHIVE</span><h2 id="compendium-title">高塔图鉴</h2></div><button id="close-compendium" type="button" autofocus>返回冒险</button></div>
       <p class="hint">收录全部已注册卡牌与遗物，包括专属、衍生和测试内容。</p>
       <div class="catalog-filters">
-        <label>图鉴<select id="catalog-kind"><option value="cards">卡牌</option><option value="relics">遗物</option></select></label>
+        <label>图鉴<select id="catalog-kind"><option value="cards">卡牌</option><option value="relics">遗物</option><option value="monsters">怪物</option><option value="effects">效果</option><option value="fields">场地</option></select></label>
         <label>搜索<input id="catalog-search" type="search" placeholder="名称、效果、关键词或 ID"></label>
         <label>所属角色<select id="catalog-owner"></select></label>
         <label>稀有度<select id="catalog-rarity"></select></label>
