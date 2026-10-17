@@ -1379,3 +1379,5 @@ for _key, _name, _description in [
     register_status_def(StatusDef(key=_key,name=_name,description=_description,category="buff",display_mode="stack"))
 register_status_def(StatusDef(key="bias",name="偏差",description="回合开始按层数失去集中。",category="debuff",display_mode="stack"))
 register_status_def(StatusDef(key="lock_on",name="锁定",description="受到的充能球伤害增加50%。",category="debuff",display_mode="turns",decay_timing="turn_end",decay_amount=1))
+
+register_status_def(StatusDef(key="autocrystallization", name="自成结晶", description="回合结束剩余能量至少2时记录X，下回合开始获得充盈晶体。无法叠加。", category="buff", display_mode="flag"))

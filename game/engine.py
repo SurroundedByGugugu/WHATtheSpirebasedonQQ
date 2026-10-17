@@ -2592,7 +2592,7 @@ def play_card(game_state, hand_index, target_index=None):
         logs.append("【医药箱】触发：打出状态牌【{}】，该牌将被消耗。".format(card.name))
 
     # 执行效果
-    effect_context = {}
+    effect_context = {"spent_cost": spent_cost}
     if is_x_cost:
         effect_context = {
             "raw_x": raw_x,

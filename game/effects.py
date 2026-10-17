@@ -6488,23 +6488,13 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
         effect_context=effect_context
     )
 
-    # 打出牌时触发一次的 Zone 能力，阴 Zone 反噬不随重放重复触发。
+    # 再生按打牌触发；阴 Zone 反噬在每次效果结算时触发。
     apply_water_zone_regeneration_on_card_play(
         game_state=game_state,
         card=card,
         effect_context=effect_context,
         logs=logs
     )
-    if not bool(getattr(card, "skip_auto_zone_hp_loss", False)):
-        apply_zone_source_hp_loss_if_needed(
-            game_state=game_state,
-            source=game_state.player,
-            zone_element=card_zone_element,
-            logs=logs,
-            label="阴 Zone",
-            card=card,
-            count_as_player_self_action_hp_loss=True
-        )
     replay_extra = int(getattr(card, "replay_extra", 0))
     replay_extra += int(effect_context.get("replay_extra", 0))
 
@@ -6548,6 +6538,18 @@ def apply_card_effects(game_state, card, target_index, effect_context=None):
                 play_index + 1,
                 total_times
             ))
+        if not bool(getattr(card, "skip_auto_zone_hp_loss", False)):
+            apply_zone_source_hp_loss_if_needed(
+                game_state=game_state,
+                source=game_state.player,
+                zone_element=card_zone_element,
+                logs=logs,
+                label="阴 Zone",
+                card=card,
+                count_as_player_self_action_hp_loss=True
+            )
+        if not game_state.player.is_alive() or game_state.battle_over:
+            break
         from game.watcher import before_resolution as watcher_before_resolution
         watcher_before_resolution(game_state, card, effect_context)
         from game.defect import before_resolution
@@ -6980,3 +6982,23 @@ def handle_defect_potion(game_state, card, effect, target_index, effect_context)
         set_slots(player, rack(player).capacity + 2 * multiplier)
         return ["增加 {} 个球槽。".format(2 * multiplier)]
     return channel(game_state, player, "dark", rack(player).capacity * multiplier)
+
+
+@register_effect("fixed_hp_loss_then_draw")
+@resumable()
+def handle_fixed_hp_loss_then_draw(game_state, card, effect, target_index, effect_context):
+    logs = []
+    from game.damage import deal_damage
+    logs.extend(deal_damage(game_state, game_state.player, game_state.player, 1,
+                            damage_kind="card_hp_loss", card=card, ignore_block=True,
+                            count_as_player_self_action_hp_loss=True))
+    yield logs
+    logs = []
+    if game_state.player.is_alive() and not game_state.battle_over:
+        logs.extend(draw_cards_with_no_draw_check(game_state, card.card_vars['draw']))
+    return logs
+
+@register_effect("crystal_expansion")
+def handle_crystal_expansion(game_state, card, effect, target_index, effect_context):
+    from game.crystal_expansion import resolve
+    return resolve(game_state, card, effect, target_index, effect_context)

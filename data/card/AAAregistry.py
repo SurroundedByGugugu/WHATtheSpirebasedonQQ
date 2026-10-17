@@ -747,6 +747,9 @@ from data.card.character.lizhou_cards import LIZHOU_CARD_REGISTRY
 CARD_REGISTRY.update(LIZHOU_CARD_REGISTRY)
 
 
+from data.card.crystal_expansion import CRYSTAL_CARD_REGISTRY
+CARD_REGISTRY.update(CRYSTAL_CARD_REGISTRY)
+
 def create_card(card_id):
     create_func = CARD_REGISTRY.get(card_id)
 

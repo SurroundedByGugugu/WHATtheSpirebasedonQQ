@@ -64,6 +64,10 @@ def dispatch_event(game_state, event_name, context=None):
 
     if finished():
         return logs + context.logs
+    from game.crystal_expansion import on_event as crystal_event
+    logs.extend(crystal_event(game_state, event_name))
+    yield logs
+    logs = []
     from game.watcher import on_event as watcher_event
     from game.lizhou import on_event as lizhou_event
     logs.extend(lizhou_event(game_state, event_name, context))

@@ -607,6 +607,15 @@ class GameService(object):
             handler = choose_scry if pending_choice_is(game_state,"scry") else choose_cards
             return self.append_run_progress_after_battle(session_id,run_state,handler(game_state,indices))
 
+        if command == "pick" and pending_choice_is(run_state.current_battle, "crystal_retain"):
+            from game.crystal_expansion import choose_retain
+            try:
+                indices = [int(item) for item in " ".join(parts[2:]).replace(",", " ").split()]
+            except ValueError:
+                return "选择编号必须是数字。"
+            reply = choose_retain(run_state.current_battle, indices)
+            return self.append_run_progress_after_battle(session_id, run_state, reply)
+
         if command in ("pick", "选择蓝色牌") and pending_choice_is(run_state.current_battle, "defect_select"):
             game_state = run_state.current_battle
             from game.defect import choose_cards
@@ -909,7 +918,7 @@ class GameService(object):
         if pending_choice_is(game_state,"four_color_nectar"):
             return get_pending_player_choice_hint(game_state)
 
-        if pending_choice_is(game_state, "defect_select"):
+        if pending_choice_is(game_state, "defect_select") or pending_choice_is(game_state, "crystal_retain"):
             return get_pending_player_choice_hint(game_state)
 
         if command in ("drop", "drop_hand", "丢弃手牌", "选择丢弃"):

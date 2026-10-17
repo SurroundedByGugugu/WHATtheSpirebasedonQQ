@@ -37,6 +37,7 @@ from game.relic_logic.run_relic_utils import (
 # =========================
 
 CARD_REWARD_POOL = [
+    "card.autocrystallization", "card.overcharge",
     #测试存档无色
     # "card.gain_status_strength",
     # "card.exhaust_strength",
@@ -545,6 +546,7 @@ SHOP_RELIC_POOL = [
 ]
 
 RELIC_REWARD_POOL = [
+    "relic.warm_granite",
     "relic.homunculus_prototype",
 ] + COMMON_RELIC_POOL + UNCOMMON_RELIC_POOL + RARE_RELIC_POOL + EVENT_RELIC_POOL
 

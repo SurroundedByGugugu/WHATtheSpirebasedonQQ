@@ -20,6 +20,7 @@ PRIVATE_CHARACTER_IDS = {
 }
 
 PRIVATE_CARD_IDS = [
+    "card.recrystallization", "card.full_crystal",
     "card.fire_strike",
     "card.fire_zone",
 
@@ -79,6 +80,7 @@ PRIVATE_CARD_IDS = [
 ]
 
 PRIVATE_RELIC_IDS = [
+    "relic.warm_granite",
     "relic.cabbage",
     "relic.keystone_of_the_tomb",
     "relic.saturated_fissure",

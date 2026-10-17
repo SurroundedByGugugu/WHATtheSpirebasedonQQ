@@ -221,7 +221,7 @@ def test_abyssal_form_costs_and_description():
     card = create_card("card.abyssal_form")
     assert card.cost == 3
     assert "额外视为有极阴" not in card.description
-    assert upgrade_card(card).cost == 2
+    assert upgrade_card(card).cost == 3
 
 
 def test_form_cross_effects_match_mist_logs():

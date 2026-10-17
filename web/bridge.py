@@ -74,6 +74,11 @@ def battle_selection(battle):
                 "four_color_nectar": "dance", "element_plating": "plate",
                 "abyss_index": "abyss_index"}
     if pending is not None:
+        if pending.kind == "crystal_retain":
+            count = pending.payload['count']
+            return dict(title="重结晶：选择添加保留的牌", command="/card pick",
+                        multiple=True, minimum=count, maximum=count,
+                        options=pile_card_actions(pending.options, "pick"))
         if pending.kind == "synchronization":
             effect = "共鸣和消耗" if pending.payload.get("add_exhaust", True) else "共鸣"
             return dict(title=f"{pending.source or '同调'}：选择一张牌",

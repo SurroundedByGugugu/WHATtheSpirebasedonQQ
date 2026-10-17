@@ -284,6 +284,9 @@ from data.relic.lizhou_relics import LIZHOU_RELIC_REGISTRY
 RELIC_REGISTRY.update(LIZHOU_RELIC_REGISTRY)
 
 
+from data.relic.warm_granite import WarmGraniteRelic
+RELIC_REGISTRY["relic.warm_granite"] = WarmGraniteRelic
+
 def create_relic(relic_id):
     relic_class = RELIC_REGISTRY.get(relic_id)
 

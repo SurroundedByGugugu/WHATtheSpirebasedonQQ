@@ -1413,9 +1413,9 @@ def create_fleeting_shadow():
         card_type="skill",
         cost=1,
         target="self",
-        description="触发一次阴 Zone 自伤效果，然后抽 3 张牌。",
+        description="失去 1 点生命，然后抽 3 张牌。",
         quantity="uncommon",
-        attack_element="shade",
+        attack_element="",
         skip_auto_zone_hp_loss=True,
         owner_character_id="character.yoirine",
         card_vars={
@@ -1423,7 +1423,7 @@ def create_fleeting_shadow():
         },
         effects=[
             {
-                "op": "trigger_shade_hp_loss_then_draw",
+                "op": "fixed_hp_loss_then_draw",
                 "draw": {
                     "var": "draw"
                 }
@@ -1432,7 +1432,7 @@ def create_fleeting_shadow():
         upgraded=False,
         upgrade_patch={
             "name": "掠影+",
-            "description": "触发一次阴 Zone 自伤效果，然后抽 4 张牌。",
+            "description": "失去 1 点生命，然后抽 4 张牌。",
             "card_vars": {
                 "draw": 4
             }
@@ -1692,6 +1692,7 @@ def create_phantom_form():
         description="攻击牌无视格挡。",
         quantity="uncommon",
         attack_element="shade",
+        skip_auto_zone_hp_loss=True,
         owner_character_id="character.yoirine",
         card_vars={
             "phantom_form": 1
@@ -1701,6 +1702,7 @@ def create_phantom_form():
                 "op": "gain_status",
                 "target": "self",
                 "status": "phantom_form",
+                "ignore_zone_amount_modifier": True,
                 "amount": {
                     "var": "phantom_form"
                 }
@@ -2110,6 +2112,7 @@ def create_abyss_hunt():
         description="每次伤害实际扣除敌人生命，给予目标 1 层深渊凝视。",
         quantity="rare",
         attack_element="shade",
+        skip_auto_zone_hp_loss=True,
         owner_character_id="character.yoirine",
         effects=[{"op": "gain_abyss_hunt"}],
         upgraded=False,
@@ -2128,6 +2131,7 @@ def create_abyss_symbiosis():
         description="攻击有深渊凝视的敌人时，获得 X 点生命恢复。",
         quantity="rare",
         attack_element="shade",
+        skip_auto_zone_hp_loss=True,
         owner_character_id="character.yoirine",
         effects=[
             {
@@ -2159,7 +2163,7 @@ def create_abyssal_form():
         card_type="power",
         cost=3,
         target="self",
-        description="晶、阴属性攻击牌在同属性 Zone下能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
+        description="阴攻击可触发晶 Zone 特殊效果，晶攻击可触发阴 Zone 特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
         quantity="rare",
         attack_element="shade",
         skip_auto_zone_hp_loss=True,
@@ -2181,7 +2185,8 @@ def create_abyssal_form():
         upgraded=False,
         upgrade_patch={
             "name": "深渊形态+",
-            "cost": 2,
-            "description": "晶、阴属性攻击牌在同属性 Zone下能触发另一属性 Zone 的特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。",
+            "cost": 3,
+            "description": "阴攻击可触发晶 Zone 特殊效果，晶攻击可触发阴 Zone 特殊效果，但不获得跨属性的 1.1/1.3 倍基础倍率。获得 8 点格挡。",
+            "effects": [{"op": "gain_status", "target": "self", "status": "abyssal_form", "ignore_zone_amount_modifier": True, "amount": {"var": "abyssal_form"}}, {"op": "gain_block", "target": "self", "amount": {"base": 8, "modifier_profile": "block"}}],
         }
     )

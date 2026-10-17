@@ -50,6 +50,27 @@ class WebChecks(unittest.TestCase):
     def send(self, text):
         return json.loads(bridge.dispatch(text))
 
+    def test_recrystallization_web_selection_resumes(self):
+        from data.card.AAAregistry import create_card
+        from data.card.upgrade_rules import upgrade_card
+        self.send('/card new 0')
+        self.send('/card testroom battle')
+        battle = bridge.service.get_run(bridge.SESSION).current_battle
+        card = upgrade_card(create_card('card.recrystallization'))
+        battle.player.hand = [card, create_card('card.defend')]
+        battle.player.draw_pile = [create_card('card.strike')]
+        battle.player.discard_pile = []
+        battle.player.cost = 3
+        selection = self.send('/card play 0')['run']['selection']
+        self.assertEqual(selection['minimum'], 2)
+        self.assertEqual(selection['maximum'], 2)
+        self.assertEqual(len(selection['options']), 2)
+        self.send('/card pick 0 1')
+        self.assertIsNone(battle.pending_choice)
+        self.assertIn('retain', battle.player.hand[0].keywords)
+        self.assertIn('retain', battle.player.draw_pile[0].keywords)
+        self.assertTrue(any(item is card for item in battle.player.exhaust_pile))
+
     def test_compendium_coverage_stories_and_run_isolation(self):
         from data.card.AAAregistry import CARD_REGISTRY
         from data.relic.AAAregistry import RELIC_REGISTRY, create_relic
