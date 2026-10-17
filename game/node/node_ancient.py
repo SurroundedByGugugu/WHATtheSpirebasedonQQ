@@ -243,6 +243,7 @@ def _cost_title(key, base_value):
         "take_damage": "受到 {} 点伤害".format(damage),
         "gain_curse": "获得一张随机诅咒牌",
         "lose_all_gold": "失去所有金币",
+        "lose_gold_99": "失去99金币",
     }
     return mapping[key]
 
@@ -260,13 +261,13 @@ def _high_reward_title(key, base_value):
     return mapping[key]
 
 
-def create_ancient_state(run_state, seed=None):
+def create_ancient_state(run_state, seed=None, software_blessing=False):
     node = run_state.get_current_node()
     node_id = getattr(node, "node_id", "")
 
     # 只有一层入口提供开局奖励；后续层入口的先古之民只做过渡。
     is_act1_opening = node_id.startswith("act1.")
-    if not is_act1_opening or "after_boss" in node_id:
+    if not software_blessing and (not is_act1_opening or "after_boss" in node_id):
         return AncientState(
             description="先古之民站在通往下一层的门前。",
             choices=[AncientChoice("继续前进。", "continue")],
@@ -298,7 +299,11 @@ def create_ancient_state(run_state, seed=None):
 
     low_keys = rng.sample(low_candidates, 2)
 
+    if software_blessing and cost_key == "lose_all_gold":
+        cost_key = "lose_gold_99"
+
     return AncientState(
+        title="Deepseek：开局祝福" if software_blessing else "？？？",
         description="‘僚机’所予之物。",
         choices=[
             AncientChoice(_low_reward_title(low_keys[0], base_value), "low_reward", payload={"key": low_keys[0]}),
@@ -487,6 +492,11 @@ def _apply_cost(run_state, cost_key, base_value, rng):
         logs.extend(add_card_to_master_deck_with_relics(run_state, curse, source="先古之民代价"))
         return logs
 
+    if cost_key == "lose_gold_99":
+        old_gold = int(run_state.gold)
+        run_state.gold = max(0, old_gold - 99)
+        return ["失去99金币：{} -> {}。".format(old_gold, run_state.gold)]
+
     if cost_key == "lose_all_gold":
         old_gold = int(getattr(run_state, "gold", 0) or 0)
         run_state.gold = 0
@@ -655,6 +665,8 @@ def _resolve_deck_selection(run_state, state, choice, rng):
             if removed is None:
                 return False, "\n".join(sub_logs)
             logs.extend(sub_logs)
+        if state.data.get("software_after_remove"):
+            logs.extend(add_card_to_master_deck_with_relics(run_state, create_card("card.curse.region_lock"), source="Claude"))
         return True, "\n".join(logs)
 
     if action == "transform":

@@ -6,6 +6,8 @@ NECRONOMICURSE_CARD_ID = "card.curse.necronomicurse"
 # produced by generic random-curse or curse-transform pools.
 SOURCE_ONLY_CURSE_CARD_IDS = {
     NECRONOMICURSE_CARD_ID,
+    "card.curse.enthralled",
+    "card.curse.region_lock",
 }
 
 

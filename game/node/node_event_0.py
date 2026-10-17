@@ -1007,6 +1007,13 @@ def choose_event_option(run_state, choice_index, seed=None):
     payload = choice.payload or {}
     effect = choice.effect_type
 
+    if effect == "software_install":
+        logs = add_specific_relic(run_state, "relic." + payload["key"])
+        if run_state.pending_ancient is not None:
+            run_state.pending_event = None
+            return False, "\n".join(logs)
+        return True, "\n".join(logs)
+
     if effect in ("leave", "corpse_leave"):
         return True, "你离开了这里。"
 

@@ -66,6 +66,9 @@ def get_event_builders(run_state, seed=None, source_node_type="event"):
     if has_relic(run_state, "relic.golden_idol") or (max_hp > 0 and hp * 2 < max_hp):
         builders.append(build_moai_head_event)
 
+    if getattr(run_state, "character_id", "") == "character.defect":
+        from game.node.software_shop import build_software_shop_event
+        builders.append(build_software_shop_event)
     return builders
 
 

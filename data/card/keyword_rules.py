@@ -266,6 +266,10 @@ def can_play_card(game_state, card, play_reason="normal"):
     统一出牌许可判断。
     后续遗物、能力、状态牌可打出等机制都建议接入这里。
     """
+    player = getattr(game_state, "player", None)
+    if (play_reason == "normal" and card.card_id != "card.curse.enthralled"
+            and any(c.card_id == "card.curse.enthralled" for c in getattr(player, "hand", []))):
+        return False, "【执迷】在手牌中，必须优先打出它。"
     from game.lizhou import permission
     allowed, message = permission(game_state, card, play_reason)
     if not allowed:

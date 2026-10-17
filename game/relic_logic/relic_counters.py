@@ -2,6 +2,8 @@
 
 def relic_counter_text(relic, battle=None, run_state=None):
     relic_id = getattr(relic, "relic_id", "")
+    if relic_id == "relic.doubao":
+        return "+{}力量".format(int(getattr(relic, "completed_battles", 0)))
     if relic_id == "relic.ink_bottle":
         return "{}/10".format(int(getattr(relic, "card_count", 0) or 0) % 10)
     if relic_id in {"relic.shuriken", "relic.kunai", "relic.ornamental_fan"}:

@@ -46,7 +46,8 @@ def card_metadata(card):
     enchantment = get_card_enchantment_display_text(card)
     if enchantment:
         keywords.append(enchantment)
-    return dict(rarity=getattr(card, "quantity", "common"), tags=tags, keywords=keywords)
+    return dict(rarity=getattr(card, "quantity", "common"), tags=tags, keywords=keywords,
+                element=getattr(card, "attack_element", ""))
 
 
 def card_actions(cards, command):
@@ -295,7 +296,7 @@ def combat_status(battle):
         "stance": stance, "stanceName": STANCE_NAMES.get(stance, stance),
         "showStance": player.character_id == "character.watcher" or stance != "none",
         "orbCapacity": container.capacity, "orbs": orbs, "focus": player.statuses.get("focus"),
-        "zone": {"element": zone.element, "name": zone.name, "extreme": bool(zone.is_extreme),
+        "zone": {"kind": zone.zone_kind, "timed": bool(zone.is_extreme or getattr(zone, "timed", False)), "element": zone.element, "name": zone.name, "extreme": bool(zone.is_extreme),
                  "duration": zone.duration, "description": zone.description} if zone else None,
     }
 
@@ -394,6 +395,10 @@ def snapshot(reply=""):
                 "cost": get_card_current_cost(battle, card), "type": card.card_type,
                 "description": card.description, "summary": card.summary_text(),
                 "preview": format_card_actual_preview(battle, card),
+                "zoneGlow": (battle.active_zone.element if battle.active_zone
+                             and not battle.active_zone.is_expired()
+                             and battle.active_zone.zone_kind == "elemental"
+                             and card.attack_element == battle.active_zone.element else ""),
                 **card_metadata(card),
             })
         for index, enemy in enumerate(battle.enemies):

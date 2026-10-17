@@ -274,6 +274,8 @@ RELIC_REGISTRY = {
 }
 
 
+from data.relic.software_relics import SOFTWARE_RELIC_REGISTRY
+RELIC_REGISTRY.update(SOFTWARE_RELIC_REGISTRY)
 from data.relic.defect_relics import DEFECT_RELIC_REGISTRY
 RELIC_REGISTRY.update(DEFECT_RELIC_REGISTRY)
 from data.relic.watcher_relics import WATCHER_RELIC_REGISTRY

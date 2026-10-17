@@ -117,3 +117,13 @@ button:disabled{cursor:not-allowed}.node-view{max-height:280px}.character-5{--ac
 @media(max-width:1000px){.catalog-items{grid-template-columns:repeat(3,minmax(0,1fr))}.catalog-filters{grid-template-columns:1fr 1fr}}
 @media(max-width:780px){.catalog-items{grid-template-columns:repeat(2,minmax(0,1fr))}.compendium-dialog{padding:1rem}}
 @media(max-width:440px){.catalog-items{grid-template-columns:1fr}}
+
+/* Match the player's elemental zone palette, without covering card selection cues. */
+.playing-card[data-zone-glow=fire]{--card-zone-hue:12}
+.playing-card[data-zone-glow=earth]{--card-zone-hue:36}
+.playing-card[data-zone-glow=wind]{--card-zone-hue:151}
+.playing-card[data-zone-glow=water]{--card-zone-hue:208}
+.playing-card[data-zone-glow=thunder]{--card-zone-hue:52}
+.playing-card[data-zone-glow=shade]{--card-zone-hue:276}
+.playing-card[data-zone-glow=crystal]{--card-zone-hue:184}
+.playing-card[data-zone-glow]{border-color:hsl(var(--card-zone-hue) 90% 65%);box-shadow:0 0 5px hsl(var(--card-zone-hue) 90% 65% / .65),0 0 15px hsl(var(--card-zone-hue) 90% 55% / .35)}

@@ -715,7 +715,11 @@ def format_zone_field_detail(game_state):
         element = getattr(zone, "element", "")
         element_name = get_element_display_name(element) if element else "无属性"
 
-        if getattr(zone, "is_extreme", False):
+        if zone.zone_kind == "special":
+            lines.append("分类：非属性特殊 Zone（占用 Zone 位置，不属于 Field）。")
+            lines.append(zone.summary_text())
+            lines.append("覆盖规则：极 Zone 持续期间不可被其他 Zone 覆盖；重复展开规则由该 Zone 定义。")
+        elif getattr(zone, "is_extreme", False):
             lines.append("当前：{}".format(zone.name))
             lines.append("提示：场地上充满了{}元素。".format(element_name))
             lines.append("能力：{}".format(getattr(zone, "ability_text", "暂未定义")))

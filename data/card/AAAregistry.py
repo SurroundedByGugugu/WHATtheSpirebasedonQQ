@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from data.card.software_curses import create_enthralled, create_clumsy, create_region_lock
+
 from data.card.basic_cards import (
     create_strike,
     create_defend
@@ -389,6 +391,9 @@ CARD_REGISTRY = {
     "card.status.burn_i": create_burn_i,
     "card.status.burn_ii": create_burn_ii,
     #诅咒
+    "card.curse.enthralled": create_enthralled,
+    "card.curse.clumsy": create_clumsy,
+    "card.curse.region_lock": create_region_lock,
     "card.curse.regret": create_regret,
     "card.curse.injury": create_injury,
     "card.curse.doubt": create_doubt,

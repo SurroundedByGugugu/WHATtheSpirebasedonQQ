@@ -334,7 +334,7 @@ function renderCombatStatus(run) {
   $("stance-badge").textContent = combat.stance === "none" ? "无姿态" : combat.stanceName;
   const zone = $("zone-badge");
   zone.hidden = !combat.zone;
-  zone.textContent = combat.zone ? combat.zone.name + (combat.zone.extreme ? ` · 剩余 ${combat.zone.duration} 回合` : "") : "";
+  zone.textContent = combat.zone ? combat.zone.name + (combat.zone.timed ? ` · 剩余 ${combat.zone.duration} 回合` : "") : "";
   zone.title = combat.zone?.description || "";
   zone.setAttribute("aria-haspopup", "dialog");
   zone.onclick = () => { if (combat.zone) actionDialog(combat.zone.name, combat.zone.description, "关闭"); };
@@ -423,6 +423,10 @@ function render(data) {
     const command = "/card play " + card.index + (target !== null ? " " + target : "");
     const node = button("", command, "playing-card type-" + card.type);
     node.title = card.summary;
+    if (card.zoneGlow) {
+      node.dataset.zoneGlow = card.zoneGlow;
+      node.title += "\n与当前属性 Zone 同属性";
+    }
     blockButton(node, Boolean(run.selection));
     node.append(el("span", String(card.cost), "card-cost"), el("span", ({attack:"攻击",skill:"技能",power:"能力",status:"状态",curse:"诅咒"})[card.type] || card.type, "card-type"),
       el("h3", card.name), el("p", card.description, "card-description"));

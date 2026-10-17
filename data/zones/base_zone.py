@@ -36,6 +36,15 @@ class ZoneTemplate:
     base_amount_multiplier: float = 1.0
 
 
+    @property
+    def zone_kind(self):
+        """Zone shares one slot; only elemental zones use element bonuses.
+
+        Special zones define their own timers/redeploy rules. Fields remain
+        independent objects in active_fields and can coexist with any zone.
+        """
+        return "elemental" if self.element else "special"
+
     def on_event(self, event_name, context):
         return []
 

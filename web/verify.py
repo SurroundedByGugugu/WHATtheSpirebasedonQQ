@@ -122,6 +122,24 @@ class WebChecks(unittest.TestCase):
             self.assertIn("仅支持单人", result["reply"])
             self.assertIsNone(result["run"])
 
+    def test_matching_zone_glow_and_special_zone_timer(self):
+        from data.zones.element_zones import ElementZone
+        from data.zones.star_zone import StarZone
+        self.send('/card new 0')
+        self.send('/card testroom battle')
+        battle = bridge.service.get_run(bridge.SESSION).current_battle
+        battle.player.hand[0].attack_element = 'fire'
+        battle.player.hand[1].attack_element = 'water'
+        battle.active_zone = ElementZone('fire')
+        state = bridge.snapshot()['run']
+        self.assertEqual(state['hand'][0]['zoneGlow'], 'fire')
+        self.assertEqual(state['hand'][1]['zoneGlow'], '')
+        battle.active_zone = StarZone()
+        state = bridge.snapshot()['run']
+        self.assertTrue(all(not card['zoneGlow'] for card in state['hand']))
+        self.assertEqual(state['combatStatus']['zone']['kind'], 'special')
+        self.assertTrue(state['combatStatus']['zone']['timed'])
+
     def test_relic_data_supports_old_and_new_clients(self):
         result = self.send("/card new 0")["run"]
         self.assertTrue(all(isinstance(name, str) for name in result["relics"]))

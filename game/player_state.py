@@ -152,6 +152,9 @@ class PlayerState:
 
         draws_remaining = count
         while draws_remaining > 0:
+            if any(c.card_id == "card.curse.region_lock" for c in self.hand):
+                logs.append("【锁区】在手牌中，不能抽牌。")
+                break
             if not self.draw_pile:
                 if self.discard_pile:
                     self.draw_pile = self.discard_pile
