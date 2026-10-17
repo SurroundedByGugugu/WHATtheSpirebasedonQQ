@@ -22,6 +22,7 @@ from game.display_names import (
 from game.relic_logic.run_relic_utils import (
     add_card_to_master_deck_with_relics,
     can_upgrade_starting_relic,
+    STARTING_RELIC_MYTH_MAP,
     gain_gold_with_relics,
     is_relic_available_by_floor,
     has_run_relic,
@@ -554,7 +555,6 @@ BOSS_RELIC_POOL = [
 
     "relic.inserter",
     "relic.nuclear_battery",
-    "relic.frozen_core",
 
     "relic.astrolabe",
     "relic.xanthosis",
@@ -1095,14 +1095,16 @@ def get_available_boss_relic_ids(run_state):
         if relic_id in owned:
             continue
         relic = create_relic(relic_id)
+        # Starting-relic myth versions are obtained through Xanthosis only,
+        # even if a future content edit accidentally adds one to this pool.
+        if relic.quantity == "myth" or relic_id in STARTING_RELIC_MYTH_MAP.values():
+            continue
         if not is_relic_available_by_floor(run_state, relic):
             continue
         owner = getattr(relic, "owner_character_id", "")
         if owner and owner != current_character_id:
             continue
         if relic_id == "relic.holy_water" and "relic.pure_water" not in owned:
-            continue
-        if relic_id == "relic.frozen_core" and "relic.cracked_core" not in owned:
             continue
         if relic_id == "relic.xanthosis" and not can_upgrade_starting_relic(run_state):
             continue

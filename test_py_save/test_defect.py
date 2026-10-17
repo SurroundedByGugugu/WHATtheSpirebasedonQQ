@@ -70,7 +70,8 @@ def test_pool_ownership_and_frozen_core_replacement():
     pools=get_available_potion_ids_by_quantity(run)
     assert 'potion.focus' in pools['common'] and 'potion.capacity' in pools['uncommon']
     assert 'potion.essence_of_darkness' in pools['rare']
-    assert 'relic.frozen_core' in get_available_boss_relic_ids(run)
+    assert 'relic.frozen_core' not in get_available_boss_relic_ids(run)
+    assert 'relic.xanthosis' in get_available_boss_relic_ids(run)
     frozen=create_relic('relic.frozen_core')
     run.relics.append(frozen)
     frozen.on_obtained(run)
