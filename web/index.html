@@ -21,6 +21,7 @@
         <label>所属角色<select id="catalog-owner"></select></label>
         <label>稀有度<select id="catalog-rarity"></select></label>
       </div>
+      <button id="catalog-reset" type="button">清除搜索与筛选</button>
       <p id="catalog-count" class="hint" role="status"></p>
       <div id="catalog-items" class="catalog-items"></div>
       <div class="catalog-pagination"><button id="catalog-prev" type="button">上一页</button><span id="catalog-page"></span><button id="catalog-next" type="button">下一页</button></div>
@@ -29,6 +30,14 @@
     <div id="error" class="error" role="alert" hidden></div>
     <section id="start" hidden>
       <div class="section-heading"><div><span class="eyebrow">CHOOSE YOUR CHARACTER</span><h1>角色选择</h1></div><p>*本质自娱自乐的oc企划<br>原作向内容为了可玩性进行了基础填充</p></div>
+      <div class="private-content-options">
+        <label for="private-content">本场是否启用私货要素</label>
+        <select id="private-content">
+          <option value="on">启用：包含私货角色与内容</option>
+          <option value="off">关闭：仅原作角色与 STS1 / STS2 内容</option>
+        </select>
+        <p id="private-content-hint" class="hint">开局后本场设置固定。</p>
+      </div>
       <div id="characters" class="character-sections"></div>
       <p class="local-note">游戏在当前标签页内运行。刷新或关闭页面会结束本局。首次载入需要网络。</p>
     </section>

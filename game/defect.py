@@ -16,8 +16,12 @@ def put_in_hand(state, card, logs):
 
 def random_blue(state, kind=None, rarity=None, zero=False):
     from data.card.character.defect_cards import SPECS, make_card
+    from data.content_gate import is_content_enabled
     choices = [key for key,s in SPECS.items() if s['rarity'] != 'starting' and key != 'self_repair'
+               and is_content_enabled('card', 'card.' + key)
                and (kind is None or s['kind'] == kind) and (rarity is None or s['rarity'] == rarity)]
+    if not choices:
+        return ['当前没有可生成的蓝色牌。']
     card = make_card(random.choice(choices))
     from game.generated_cards import prepare_created_card
     card = prepare_created_card(card, state)

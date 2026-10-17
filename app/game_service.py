@@ -92,6 +92,8 @@ from game.test_room import enter_test_room, get_test_room_usage
 from data.content_gate import (
     get_private_content_status_text,
     set_private_content_enabled,
+    is_private_content_enabled,
+    is_private_content,
 )
 from game.multiplayer.service import MultiRoomService
 from game.pvp.service import PvpRoomService
@@ -363,6 +365,8 @@ class GameService(object):
             character_id = self.resolve_character_id(parts)
             if character_id is None:
                 return "角色编号无效。\n{}".format(self.character_choices_text())
+            if not is_private_content_enabled(session_id) and is_private_content('character', character_id):
+                return "本场已关闭私货要素，只能选择原作角色。开局前可使用 /card private on 开启。"
 
             current_run = self.get_run(session_id)
 

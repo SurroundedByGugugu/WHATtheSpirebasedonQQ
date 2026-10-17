@@ -18,7 +18,12 @@ function catalogOptions(id, entries, label) {
   }
   if ([...select.options].some((item) => item.value === previous)) select.value = previous;
 }
-function updateCatalogFilters() {
+function updateCatalogFilters(reset = false) {
+  if (reset) {
+    $("catalog-search").value = "";
+    $("catalog-owner").value = "*";
+    $("catalog-rarity").value = "*";
+  }
   const entries = catalog[$("catalog-kind").value];
   const names = new Map(state.characters.map((character) => [character.character_id, character.name]));
   catalogOptions("catalog-owner", [...new Set(entries.map((item) => item.owner))].map((owner) =>
@@ -50,7 +55,8 @@ function renderCatalog() {
   const owner = $("catalog-owner").value, rarity = $("catalog-rarity").value;
   const entries = catalog[kind].filter((entry) =>
     (owner === "*" || entry.owner === owner) && (rarity === "*" || entry.rarity === rarity) &&
-    [entry.name, entry.id, entry.description, ...(entry.keywords || []), ...(entry.tags || [])].join(" ").toLocaleLowerCase().includes(query));
+    [entry.name, entry.id, entry.description, entry.story, rarityNames[entry.rarity],
+      ...(entry.keywords || []), ...(entry.tags || [])].join(" ").toLocaleLowerCase().includes(query));
   const pages = Math.max(1, Math.ceil(entries.length / catalogPageSize));
   catalogPage = Math.min(catalogPage, pages - 1);
   $("catalog-count").textContent = `找到 ${entries.length} / ${catalog[kind].length} ${({cards:"张卡牌",relics:"件遗物",monsters:"种怪物",effects:"种效果",fields:"种场地"})[kind]} · 点击查看详情与故事`;
@@ -250,7 +256,7 @@ function showPotion(potion, index) {
 }
 function setBusy(value) {
   busy = value;
-  document.querySelectorAll("[data-command], [data-ui-action], #command-form button, #command, #new-run").forEach((node) => {
+  document.querySelectorAll("[data-command], [data-ui-action], #command-form button, #command, #new-run, #private-content").forEach((node) => {
     node.disabled = value || !ready || node.dataset.blocked === "true";
   });
   $("connection").textContent = value ? "正在处理…" : "准备就绪";
@@ -281,7 +287,7 @@ function log(text, command) {
 function renderCharacters(characters) {
   $("characters").replaceChildren();
   const original = originalCharacterIds.map((id) => characters.find((character) => character.character_id === id)).filter(Boolean);
-  const custom = characters.filter((character) => !originalCharacterIds.includes(character.character_id));
+  const custom = state.privateContentEnabled === false ? [] : characters.filter((character) => !originalCharacterIds.includes(character.character_id));
   let position = 0;
   for (const [title, group, className] of [["原作角色", original, "original-characters"], ["私货角色", custom, "custom-characters"]]) {
     if (!group.length) continue;
@@ -295,7 +301,7 @@ function renderCharacters(characters) {
       const card = button("", "/card new " + character.index, "character character-" + character.index);
       const description = `最大生命 ${character.maxHp} · 初始金币 ${character.startingGold}`;
       card.append(el("span", String(++position).padStart(2, "0"), "character-number"), el("span", code, "eyebrow"),
-        el("h2", character.name), el("p", description), el("span", "以此角色出发 →", "character-action"));
+        el("h2", character.name + (character.developmentStatus || "")), el("p", description), el("span", "以此角色出发 →", "character-action"));
       grid.append(card);
     }
     section.append(heading, grid);
@@ -361,6 +367,10 @@ function renderCombatStatus(run) {
 }
 function render(data) {
   state = data;
+  $("private-content").value = data.privateContentEnabled === false ? "off" : "on";
+  blockButton($("private-content"), Boolean(data.privateContentLocked));
+  $("private-content-hint").textContent = data.privateContentLocked
+    ? "本场设置已固定；结束本局后可修改。" : "关闭后仅可选原作角色，流程不出现私货内容；保留 STS2 内容。开局后本场设置固定。";
   if (data.compendium) {
     catalog = data.compendium;
     $("open-compendium").disabled = false;
@@ -535,9 +545,11 @@ $("new-run").onclick = () => {
 window.addEventListener("beforeunload", (event) => {
   if (state?.run) { event.preventDefault(); event.returnValue = ""; }
 });
+$("private-content").onchange = () => send("/card private " + $("private-content").value);
 $("open-compendium").onclick = () => $("compendium-dialog").showModal();
 $("close-compendium").onclick = () => $("compendium-dialog").close();
-$("catalog-kind").onchange = updateCatalogFilters;
+$("catalog-kind").onchange = () => updateCatalogFilters(true);
+$("catalog-reset").onclick = () => updateCatalogFilters(true);
 for (const id of ["catalog-search", "catalog-owner", "catalog-rarity"]) {
   $(id).addEventListener(id === "catalog-search" ? "input" : "change", () => { catalogPage = 0; renderCatalog(); });
 }

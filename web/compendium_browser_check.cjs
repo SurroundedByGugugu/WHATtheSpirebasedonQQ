@@ -44,7 +44,26 @@ const assert = require('node:assert/strict');
     await page.locator('#catalog-search').fill('');
     await page.locator('#catalog-owner').selectOption('character.yoirine');
     assert.ok(await page.locator('.catalog-entry').count() > 0);
+    await page.locator('#catalog-rarity').selectOption('rare');
+    await page.locator('#catalog-search').fill('残留搜索');
     await page.locator('#catalog-kind').selectOption('relics');
+    assert.equal(await page.locator('#catalog-owner').inputValue(), '*');
+    assert.equal(await page.locator('#catalog-rarity').inputValue(), '*');
+    assert.equal(await page.locator('#catalog-search').inputValue(), '');
+    for (const name of ['豆包', '蚂蚁阿福', 'Claude', 'GPT', 'Gemini', 'Deepseek']) {
+      await page.locator('#catalog-search').fill(name);
+      await page.locator('.catalog-entry').filter({ has: page.getByText(name, { exact: true }) }).click();
+      assert.match(await page.locator('#action-dialog').innerText(), /软件商店/);
+      await page.keyboard.press('Escape');
+    }
+    await page.locator('#catalog-search').fill('AI');
+    for (const name of ['豆包', '蚂蚁阿福', 'Claude', 'GPT', 'Gemini', 'Deepseek']) {
+      assert.equal(await page.locator('.catalog-entry strong').getByText(name, { exact: true }).count(), 1);
+    }
+    await page.locator('#catalog-owner').selectOption('character.yoirine');
+    assert.equal(await page.locator('.catalog-entry').count(), 0);
+    await page.locator('#catalog-reset').click();
+    assert.equal(await page.locator('#catalog-search').inputValue(), '');
     await page.locator('#catalog-owner').selectOption('*');
     await page.locator('#catalog-rarity').selectOption('rare');
     assert.ok(await page.locator('.catalog-entry').count() > 0);
@@ -54,6 +73,17 @@ const assert = require('node:assert/strict');
     assert.match(await page.locator('#action-dialog').innerText(), /遗物|小故事/);
     await page.keyboard.press('Escape');
     await page.locator('#catalog-search').fill('');
+    await page.locator('#catalog-kind').selectOption('fields');
+    for (const element of ['火', '地', '风', '水', '雷', '阴', '晶']) {
+      for (const prefix of ['', '极']) {
+        const name = prefix + element + 'Zone';
+        await page.locator('#catalog-search').fill(name);
+        await page.locator('.catalog-entry').filter({ has: page.getByText(name, { exact: true }) }).click();
+        assert.match(await page.locator('#action-dialog').innerText(), /同属性牌|覆盖/);
+        await page.keyboard.press('Escape');
+      }
+    }
+    await page.locator('#catalog-reset').click();
     for (const [kind, search] of [['monsters', '第一勇士'], ['effects', '锚定'], ['fields', '极·星']]) {
       await page.locator('#catalog-kind').selectOption(kind);
       await page.locator('#catalog-search').fill(search);

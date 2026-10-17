@@ -51,7 +51,7 @@ def filter_encounter_pool(pool):
         item for item in normalized_pool
         if is_content_enabled("encounter", item[0])
     ]
-    return filtered or normalized_pool
+    return filtered
 
 
 ENCOUNTER_SEEN_ALIAS_MAP = {

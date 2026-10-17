@@ -127,3 +127,7 @@ button:disabled{cursor:not-allowed}.node-view{max-height:280px}.character-5{--ac
 .playing-card[data-zone-glow=shade]{--card-zone-hue:276}
 .playing-card[data-zone-glow=crystal]{--card-zone-hue:184}
 .playing-card[data-zone-glow]{border-color:hsl(var(--card-zone-hue) 90% 65%);box-shadow:0 0 5px hsl(var(--card-zone-hue) 90% 65% / .65),0 0 15px hsl(var(--card-zone-hue) 90% 55% / .35)}
+.private-content-options{margin:1rem 0 1.5rem;padding:1rem;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.private-content-options label{display:block;margin-bottom:.5rem;font-weight:700}
+.private-content-options select{max-width:100%;padding:.6rem;font:inherit;color:var(--text);background:#191c22;border:1px solid #424754;border-radius:6px}
+.private-content-options select:focus-visible{outline:3px solid var(--gold)}

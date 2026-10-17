@@ -75,7 +75,7 @@ class ElementZone(ZoneTemplate):
 
         ZoneTemplate.__init__(
             self,
-            zone_id="zone.element.{}".format(element),
+            zone_id="zone.{}element.{}".format("extreme_" if is_extreme else "", element),
             name=name,
             description=description,
             element=element,

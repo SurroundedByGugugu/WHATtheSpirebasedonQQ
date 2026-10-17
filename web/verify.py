@@ -13,6 +13,39 @@ from app.game_service import GameService
 class WebChecks(unittest.TestCase):
     def setUp(self):
         bridge.service = GameService()
+        from data.content_gate import set_private_content_enabled
+        set_private_content_enabled(True, bridge.SESSION)
+
+    def test_private_content_switch_characters_and_run_lock(self):
+        result = self.send('/card private off')
+        self.assertFalse(result['privateContentEnabled'])
+        self.assertFalse(result['privateContentLocked'])
+        for index in (2, 3, 4, 7):
+            result = self.send('/card new {}'.format(index))
+            self.assertIsNone(result['run'])
+            self.assertIn('只能选择原作角色', result['reply'])
+        result = self.send('/card new 5')
+        self.assertIsNotNone(result['run'])
+        self.assertTrue(result['privateContentLocked'])
+        result = self.send('/card private on')
+        self.assertFalse(result['privateContentEnabled'])
+        self.send('/card exit')
+        self.send('/card yes')
+        result = self.send('/card private on')
+        self.assertTrue(result['privateContentEnabled'])
+        self.assertIsNotNone(self.send('/card new 2')['run'])
+
+    def test_zone_placeholder_and_character_status_copy(self):
+        result = self.send('')
+        characters = {c['character_id']: c for c in result['characters']}
+        self.assertEqual(characters['character.lumine']['developmentStatus'], '【已停工】')
+        self.assertEqual(characters['character.suzuri']['developmentStatus'], '【施工中】')
+        fields = {e['id']: e for e in result['compendium']['fields']}
+        note = '【目前暂定占位版本，无实际触发方式。很大可能在后期版本中修改。】'
+        for element in ('water', 'wind', 'thunder'):
+            for prefix in ('zone.element.', 'zone.extreme_element.'):
+                self.assertIn(note, fields[prefix + element]['description'])
+        self.assertNotIn(note, fields['zone.element.fire']['description'])
 
     def send(self, text):
         return json.loads(bridge.dispatch(text))
@@ -57,6 +90,28 @@ class WebChecks(unittest.TestCase):
         reply = bridge.service.handle_message(bridge.SESSION, bridge.USER, '/card discard_potion 0')
         self.assertIn('已丢弃', reply)
         self.assertFalse(run.potions)
+
+    def test_catalog_software_relics_and_all_elemental_zones(self):
+        from data.relic.software_relics import SPECS
+        from data.zones.element_zones import ELEMENT_NAME_MAP
+        from data.zones.AAAregistry import create_zone
+        catalog = self.send('')['compendium']
+        relics = {entry['id']: entry for entry in catalog['relics']}
+        for key in SPECS:
+            entry = relics['relic.' + key]
+            self.assertEqual(entry['rarity'], 'event')
+            self.assertIn('AI', entry['tags'])
+            self.assertTrue(entry['story'])
+        fields = {entry['id']: entry for entry in catalog['fields']}
+        for element in ELEMENT_NAME_MAP:
+            for prefix in ('zone.element.', 'zone.extreme_element.'):
+                entry_id = prefix + element
+                self.assertEqual(create_zone(entry_id).zone_id, entry_id)
+                self.assertIn('属性 Zone', fields[entry_id]['tags'])
+                self.assertIn('同属性牌', fields[entry_id]['description'])
+                self.assertIn('覆盖', fields[entry_id]['description'])
+        self.assertIn('非属性特殊 Zone', fields['zone.star']['tags'])
+        self.assertEqual(fields['field.test']['tags'], ['Field'])
 
     def test_lizhou_character_and_selection_panel(self):
         result = self.send('/card new 7')

@@ -2,8 +2,9 @@
 """
 统一内容开关。
 
-这里暂时只提供框架和空白名单表；具体私货 ID 后续直接填到对应集合即可。
 private 内容默认开启，关闭后会从随机池、奖励池、商店池、事件池等入口过滤。
+专属内容按角色归属自动分类；原作角色的自定义内容、通用内容维护显式名单。
+STS2 内容仍算原作，不按稀有度、属性或球类型推断来源。
 """
 
 import contextlib
@@ -13,6 +14,10 @@ import contextvars
 PRIVATE_CONTENT_DEFAULT_ENABLED = True
 PRIVATE_CONTENT_SESSION_SETTINGS = {}
 _CURRENT_SESSION_ID = contextvars.ContextVar("private_content_session_id", default=None)
+
+PRIVATE_CHARACTER_IDS = {
+    'character.lumine', 'character.yoirine', 'character.suzuri', 'character.lizhou',
+}
 
 PRIVATE_CARD_IDS = [
     "card.fire_strike",
@@ -96,7 +101,24 @@ PRIVATE_RELIC_IDS = [
     "relic.cross_earring",
 
 ]
-PRIVATE_EVENT_IDS = []
+PRIVATE_CARD_IDS.extend([
+    'card.curse.region_lock', 'card.machine_rush',
+    'card.convolutional_neural_network', 'card.transformer',
+    'card.rock_forming_action', 'card.radiant_crystal_reflection',
+])
+PRIVATE_RELIC_IDS.extend([
+    'relic.doubao', 'relic.ant_afu', 'relic.claude', 'relic.gpt',
+    'relic.gemini', 'relic.deepseek',
+    'relic.four_color_nectar',
+])
+PRIVATE_EVENT_IDS = ['event.software_shop']
+PRIVATE_POTION_IDS = ['potion.saturated_calcium_carbonate_solution']
+
+# Confirmed provenance: the added Ironclad cards and colorless Amplify are STS2.
+# X Potion, Dragon Fruit, Miniature Tent, Ssserpent Head and White Star stay enabled.
+# Xanthosis is the starting-relic replacement equivalent; Homunculus Prototype
+# is the Circlet equivalent. Holy Water (the event) also stays enabled.
+# Molten Fist, Enthralled and glass orbs must not be excluded as custom mechanics.
 
 from data.card.character.lizhou_cards import LIZHOU_CARD_REGISTRY
 PRIVATE_CARD_IDS.extend(LIZHOU_CARD_REGISTRY)
@@ -181,14 +203,33 @@ def private_content_session(session_id):
 
 def is_private_content(kind, content_id):
     content_id = str(content_id or "")
+    if kind == 'character':
+        return content_id in PRIVATE_CHARACTER_IDS
+    # Resolve lazily to avoid registry imports while those registries initialize.
+    # New cards/relics/potions owned by a custom character inherit its provenance.
+    if kind in ('card', 'relic', 'potion'):
+        if kind == 'card':
+            from data.card.AAAregistry import CARD_REGISTRY as registry
+        elif kind == 'relic':
+            from data.relic.AAAregistry import RELIC_REGISTRY as registry
+        else:
+            from data.potion.AAAregistry import POTION_REGISTRY as registry
+        factory = registry.get(content_id)
+        if factory is not None:
+            template = factory()
+            if (getattr(template, 'owner_character_id', '') in PRIVATE_CHARACTER_IDS
+                    or getattr(template, 'quantity', '') == 'test'):
+                return True
     if kind == "card":
-        return content_id in PRIVATE_CARD_IDS
+        return content_id in PRIVATE_CARD_IDS or content_id.startswith('card.dance.')
     if kind == "relic":
         return content_id in PRIVATE_RELIC_IDS
     if kind == "event":
         return content_id in PRIVATE_EVENT_IDS
     if kind == "encounter":
         return content_id in PRIVATE_ENCOUNTER_IDS
+    if kind == 'potion':
+        return content_id in PRIVATE_POTION_IDS
     return False
 
 

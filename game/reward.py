@@ -1018,6 +1018,8 @@ def get_available_potion_ids_by_quantity(run_state=None, include_event=False, in
     current_character_id = getattr(run_state, "character_id", "") if run_state is not None else ""
     result = {"common": [], "uncommon": [], "rare": [], "event": []}
     for potion_id in POTION_REGISTRY.keys():
+        if not is_content_enabled('potion', potion_id):
+            continue
         potion = create_potion(potion_id)
         owner = getattr(potion, "owner_character_id", "")
         if owner and owner != current_character_id:

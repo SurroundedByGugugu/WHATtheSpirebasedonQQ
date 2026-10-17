@@ -14,6 +14,8 @@ SPECS = {
 
 
 class SoftwareRelic(RelicTemplate):
+    catalog_tags = ['AI', '软件商店']
+
     def __init__(self, key):
         name, description, story = SPECS[key]
         super().__init__('relic.' + key, name, description, story, 'event',

@@ -3,7 +3,7 @@ import json
 
 from app.game_service import GameService, CHARACTER_CHOICES
 from data.character.AAAregistry import create_character
-from data.content_gate import private_content_session
+from data.content_gate import private_content_session, is_private_content_enabled
 from game.card_cost import get_card_current_cost
 from game.card_preview import format_card_actual_preview
 from game.display_names import format_card_display_name
@@ -274,7 +274,9 @@ def character_choices():
     choices = []
     for choice in CHARACTER_CHOICES:
         character = create_character(choice["character_id"])
-        choices.append({**choice, "maxHp": character.max_hp, "startingGold": character.starting_gold})
+        status = {'character.lumine': '【已停工】', 'character.suzuri': '【施工中】'}.get(choice['character_id'], '')
+        choices.append({**choice, "developmentStatus": status,
+                        "maxHp": character.max_hp, "startingGold": character.starting_gold})
     return choices
 
 
@@ -323,6 +325,7 @@ def compendium():
         relic = create_relic(entry_id)
         relics.append(dict(id=entry_id, name=relic.name, description=relic.description,
                            rarity=relic.quantity, owner=relic.owner_character_id,
+                           tags=list(getattr(relic, 'catalog_tags', [])),
                            story=RELIC_STORIES.get(entry_id, relic.story)))
     from data.enemy.AAAregistry import ENEMY_REGISTRY, create_enemy
     from data.status.AAAregistry import STATUS_DEFS
@@ -350,13 +353,31 @@ def compendium():
     for registry, factory in ((ZONE_REGISTRY, create_zone), (FIELD_REGISTRY, create_field)):
         for entry_id in registry:
             obj = factory(entry_id)
-            fields.append(dict(id=entry_id, name=obj.name, description=obj.description, rarity='special', owner='', story=''))
+            description = obj.description
+            tags = ['Field']
+            if registry is ZONE_REGISTRY:
+                tags = ['Zone', '属性 Zone' if obj.zone_kind == 'elemental' else '非属性特殊 Zone']
+                if obj.is_extreme or getattr(obj, 'timed', False):
+                    description += '\n持续 {} 回合。'.format(obj.duration)
+                else:
+                    description += '\n持续到战斗结束或被覆盖。'
+                if obj.zone_kind == 'elemental':
+                    description += '\n再次展开同属性普通 Zone 会升级为极 Zone；极 Zone 期间不能被其他 Zone 覆盖，同属性展开延长2回合。'
+                    if obj.element in ('water', 'wind', 'thunder'):
+                        description += '\n【目前暂定占位版本，无实际触发方式。很大可能在后期版本中修改。】'
+                elif entry_id in ('zone.star', 'zone.extreme_star'):
+                    description += '\n再次展开星会升级为极·星；重复展开极·星延长2回合。极 Zone 持续期间不可被其他 Zone 覆盖。'
+                description += '\n占用唯一 Zone 位置，可与 Field 共存。'
+            fields.append(dict(id=entry_id, name=obj.name, description=description,
+                               tags=tags, rarity='special', owner='', story=''))
     return dict(cards=cards, relics=relics, monsters=monsters, effects=effects, fields=fields)
 
 
 def snapshot(reply=""):
     run = service.get_run(SESSION)
     result = {"reply": reply, "characters": character_choices(), "run": None,
+              "privateContentEnabled": is_private_content_enabled(SESSION),
+              "privateContentLocked": bool(run and not run.run_over),
               "confirmation": SESSION in service.pending_confirmations}
     if run is None:
         return result
